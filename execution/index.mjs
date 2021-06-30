@@ -1,8 +1,5 @@
+export { GraphQLAggregateError } from './GraphQLAggregateError.mjs';
 export { pathToArray as responsePathAsArray } from '../jsutils/Path.mjs';
-export {
-  execute,
-  executeSync,
-  defaultFieldResolver,
-  defaultTypeResolver,
-} from './execute.mjs';
-export { getDirectiveValues } from './values.mjs';
+export { Executor } from './executor.mjs';
+export { execute, executeSync } from './execute.mjs';
+export { subscribe } from './subscribe.mjs';

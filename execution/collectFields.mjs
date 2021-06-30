@@ -1,10 +1,10 @@
-import { Kind } from '../language/kinds.mjs';
 import {
   GraphQLIncludeDirective,
   GraphQLSkipDirective,
-} from '../type/directives.mjs';
-import { isAbstractType } from '../type/definition.mjs';
-import { typeFromAST } from '../utilities/typeFromAST.mjs';
+  Kind,
+  isAbstractType,
+  typeFromAST,
+} from 'graphql';
 import { getDirectiveValues } from './values.mjs';
 /**
  * Given a selectionSet, adds all of the fields in that selection to

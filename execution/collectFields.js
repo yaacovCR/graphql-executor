@@ -5,13 +5,7 @@ Object.defineProperty(exports, '__esModule', {
 });
 exports.collectFields = collectFields;
 
-var _kinds = require('../language/kinds.js');
-
-var _directives = require('../type/directives.js');
-
-var _definition = require('../type/definition.js');
-
-var _typeFromAST = require('../utilities/typeFromAST.js');
+var _graphql = require('graphql');
 
 var _values = require('./values.js');
 
@@ -36,7 +30,7 @@ function collectFields(
 ) {
   for (const selection of selectionSet.selections) {
     switch (selection.kind) {
-      case _kinds.Kind.FIELD: {
+      case _graphql.Kind.FIELD: {
         if (!shouldIncludeNode(variableValues, selection)) {
           continue;
         }
@@ -53,7 +47,7 @@ function collectFields(
         break;
       }
 
-      case _kinds.Kind.INLINE_FRAGMENT: {
+      case _graphql.Kind.INLINE_FRAGMENT: {
         if (
           !shouldIncludeNode(variableValues, selection) ||
           !doesFragmentConditionMatch(schema, selection, runtimeType)
@@ -73,7 +67,7 @@ function collectFields(
         break;
       }
 
-      case _kinds.Kind.FRAGMENT_SPREAD: {
+      case _graphql.Kind.FRAGMENT_SPREAD: {
         const fragName = selection.name.value;
 
         if (
@@ -116,7 +110,7 @@ function collectFields(
 
 function shouldIncludeNode(variableValues, node) {
   const skip = (0, _values.getDirectiveValues)(
-    _directives.GraphQLSkipDirective,
+    _graphql.GraphQLSkipDirective,
     node,
     variableValues,
   );
@@ -126,7 +120,7 @@ function shouldIncludeNode(variableValues, node) {
   }
 
   const include = (0, _values.getDirectiveValues)(
-    _directives.GraphQLIncludeDirective,
+    _graphql.GraphQLIncludeDirective,
     node,
     variableValues,
   );
@@ -150,16 +144,13 @@ function doesFragmentConditionMatch(schema, fragment, type) {
     return true;
   }
 
-  const conditionalType = (0, _typeFromAST.typeFromAST)(
-    schema,
-    typeConditionNode,
-  );
+  const conditionalType = (0, _graphql.typeFromAST)(schema, typeConditionNode);
 
   if (conditionalType === type) {
     return true;
   }
 
-  if ((0, _definition.isAbstractType)(conditionalType)) {
+  if ((0, _graphql.isAbstractType)(conditionalType)) {
     return schema.isSubType(conditionalType, type);
   }
 

@@ -1,13 +1,16 @@
+import {
+  GraphQLError,
+  Kind,
+  coerceInputValue,
+  isInputType,
+  isNonNullType,
+  print,
+  typeFromAST,
+  valueFromAST,
+} from 'graphql';
 import { keyMap } from '../jsutils/keyMap.mjs';
 import { inspect } from '../jsutils/inspect.mjs';
 import { printPathArray } from '../jsutils/printPathArray.mjs';
-import { GraphQLError } from '../error/GraphQLError.mjs';
-import { Kind } from '../language/kinds.mjs';
-import { print } from '../language/printer.mjs';
-import { isInputType, isNonNullType } from '../type/definition.mjs';
-import { typeFromAST } from '../utilities/typeFromAST.mjs';
-import { valueFromAST } from '../utilities/valueFromAST.mjs';
-import { coerceInputValue } from '../utilities/coerceInputValue.mjs';
 
 /**
  * Prepares an object map of variableValues of the correct type based on the
@@ -59,7 +62,9 @@ function coerceVariableValues(schema, varDefNodes, inputs, onError) {
   const coercedValues = {};
 
   for (const varDefNode of varDefNodes) {
-    const varName = varDefNode.variable.name.value;
+    const varName = varDefNode.variable.name.value; // TO DO: check if fixed in v16
+    // @ts-expect-error
+
     const varType = typeFromAST(schema, varDefNode.type);
 
     if (!isInputType(varType)) {

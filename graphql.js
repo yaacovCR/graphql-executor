@@ -6,13 +6,9 @@ Object.defineProperty(exports, '__esModule', {
 exports.graphql = graphql;
 exports.graphqlSync = graphqlSync;
 
+var _graphql = require('graphql');
+
 var _isPromise = require('./jsutils/isPromise.js');
-
-var _parser = require('./language/parser.js');
-
-var _validate = require('./validation/validate.js');
-
-var _validate2 = require('./type/validate.js');
 
 var _execute = require('./execution/execute.js');
 
@@ -49,7 +45,7 @@ function graphqlImpl(args) {
     typeResolver,
   } = args; // Validate Schema
 
-  const schemaValidationErrors = (0, _validate2.validateSchema)(schema);
+  const schemaValidationErrors = (0, _graphql.validateSchema)(schema);
 
   if (schemaValidationErrors.length > 0) {
     return {
@@ -60,14 +56,14 @@ function graphqlImpl(args) {
   let document;
 
   try {
-    document = (0, _parser.parse)(source);
+    document = (0, _graphql.parse)(source);
   } catch (syntaxError) {
     return {
       errors: [syntaxError],
     };
   } // Validate
 
-  const validationErrors = (0, _validate.validate)(schema, document);
+  const validationErrors = (0, _graphql.validate)(schema, document);
 
   if (validationErrors.length > 0) {
     return {

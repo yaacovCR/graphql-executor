@@ -1,28 +1,30 @@
 {
-  "name": "graphql",
-  "version": "16.0.0-alpha.5",
-  "description": "A Query Language and Runtime which can target any service.",
+  "name": "graphql-executor",
+  "version": "0.0.1",
+  "description": "A customizable GraphQL Spec compliant Executor class.",
   "license": "MIT",
   "main": "index",
   "module": "index.mjs",
   "types": "index.d.ts",
   "sideEffects": false,
-  "homepage": "https://github.com/graphql/graphql-js",
+  "homepage": "https://github.com/yaacovCR/graphql-executor",
   "bugs": {
-    "url": "https://github.com/graphql/graphql-js/issues"
+    "url": "https://github.com/yaacovCR/graphql-executor/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/graphql/graphql-js.git"
+    "url": "https://github.com/yaacovCR/graphql-executor.git"
   },
   "keywords": [
+    "executor",
     "graphql",
+    "graphql-executor",
     "graphql-js"
   ],
   "engines": {
     "node": "^12.22.0 || ^14.16.0 || >=16.0.0"
   },
-  "publishConfig": {
-    "tag": "alpha"
+  "dependencies": {
+    "graphql": "^15.0.0"
   }
 }

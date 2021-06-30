@@ -1,14 +1,14 @@
+import type {
+  DirectiveNode,
+  FieldNode,
+  GraphQLDirective,
+  GraphQLField,
+  GraphQLSchema,
+  VariableDefinitionNode,
+} from 'graphql';
+import { GraphQLError } from 'graphql';
 import type { ObjMap } from '../jsutils/ObjMap';
 import type { Maybe } from '../jsutils/Maybe';
-import { GraphQLError } from '../error/GraphQLError';
-import type {
-  FieldNode,
-  DirectiveNode,
-  VariableDefinitionNode,
-} from '../language/ast';
-import type { GraphQLSchema } from '../type/schema';
-import type { GraphQLField } from '../type/definition';
-import type { GraphQLDirective } from '../type/directives';
 declare type CoercedVariableValues =
   | {
       errors: ReadonlyArray<GraphQLError>;
