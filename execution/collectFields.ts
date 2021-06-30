@@ -1,20 +1,20 @@
-import type { ObjMap } from '../jsutils/ObjMap.ts';
 import type {
-  SelectionSetNode,
   FieldNode,
-  FragmentSpreadNode,
-  InlineFragmentNode,
   FragmentDefinitionNode,
-} from '../language/ast.ts';
-import { Kind } from '../language/kinds.ts';
-import type { GraphQLSchema } from '../type/schema.ts';
-import type { GraphQLObjectType } from '../type/definition.ts';
+  FragmentSpreadNode,
+  GraphQLObjectType,
+  GraphQLSchema,
+  InlineFragmentNode,
+  SelectionSetNode,
+} from 'graphql';
 import {
   GraphQLIncludeDirective,
   GraphQLSkipDirective,
-} from '../type/directives.ts';
-import { isAbstractType } from '../type/definition.ts';
-import { typeFromAST } from '../utilities/typeFromAST.ts';
+  Kind,
+  isAbstractType,
+  typeFromAST,
+} from 'graphql';
+import type { ObjMap } from '../jsutils/ObjMap.ts';
 import { getDirectiveValues } from './values.ts';
 /**
  * Given a selectionSet, adds all of the fields in that selection to
