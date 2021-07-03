@@ -346,6 +346,49 @@ describe('Execute: stream directive', () => {
       },
     ]);
   });
+  it('Can stream a field that returns a list of promises, returning items in list order', async () => {
+    const document = parse(`
+      query { 
+        asyncList @stream {
+          variablyDelayedAsyncName
+          id
+        }
+      }
+    `);
+    const result = await complete(document);
+    expect(result).to.deep.equal([
+      {
+        data: {
+          asyncList: [],
+        },
+        hasNext: true,
+      },
+      {
+        data: {
+          variablyDelayedAsyncName: 'Luke',
+          id: '1',
+        },
+        path: ['asyncList', 0],
+        hasNext: true,
+      },
+      {
+        data: {
+          variablyDelayedAsyncName: 'Han',
+          id: '2',
+        },
+        path: ['asyncList', 1],
+        hasNext: true,
+      },
+      {
+        data: {
+          variablyDelayedAsyncName: 'Leia',
+          id: '3',
+        },
+        path: ['asyncList', 2],
+        hasNext: false,
+      },
+    ]);
+  });
   it('Handles rejections in a field that returns a list of promises before initialCount is reached', async () => {
     const document = parse(`
       query { 
