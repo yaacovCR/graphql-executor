@@ -7,12 +7,12 @@ import type {
 
 import type { Maybe } from '../jsutils/Maybe';
 
-import type { ExecutionArgs } from './execute';
+import type { ExecutionArgs } from './executor';
 import {
   buildExecutionContext,
   createSourceEventStreamImpl,
   executeSubscription,
-} from './execute';
+} from './executor';
 
 /**
  * Implements the "Subscribe" algorithm described in the GraphQL specification.
