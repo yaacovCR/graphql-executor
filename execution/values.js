@@ -65,9 +65,7 @@ function coerceVariableValues(schema, varDefNodes, inputs, onError) {
   const coercedValues = {};
 
   for (const varDefNode of varDefNodes) {
-    const varName = varDefNode.variable.name.value; // TO DO: check if fixed in v16
-    // @ts-expect-error
-
+    const varName = varDefNode.variable.name.value;
     const varType = (0, _graphql.typeFromAST)(schema, varDefNode.type);
 
     if (!(0, _graphql.isInputType)(varType)) {

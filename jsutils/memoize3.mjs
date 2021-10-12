@@ -1,16 +1,9 @@
-'use strict';
-
-Object.defineProperty(exports, '__esModule', {
-  value: true,
-});
-exports.memoize2 = memoize2;
-
 /**
  * Memoizes the provided three-argument function.
  */
-function memoize2(fn) {
+export function memoize3(fn) {
   let cache0;
-  return function memoized(a1, a2) {
+  return function memoized(a1, a2, a3) {
     if (cache0 === undefined) {
       cache0 = new WeakMap();
     }
@@ -22,11 +15,18 @@ function memoize2(fn) {
       cache0.set(a1, cache1);
     }
 
-    let fnResult = cache1.get(a2);
+    let cache2 = cache1.get(a2);
+
+    if (cache2 === undefined) {
+      cache2 = new WeakMap();
+      cache1.set(a2, cache2);
+    }
+
+    let fnResult = cache2.get(a3);
 
     if (fnResult === undefined) {
-      fnResult = fn(a1, a2);
-      cache1.set(a2, fnResult);
+      fnResult = fn(a1, a2, a3);
+      cache2.set(a3, fnResult);
     }
 
     return fnResult;

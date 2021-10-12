@@ -4,14 +4,14 @@ Object.defineProperty(exports, '__esModule', {
   value: true,
 });
 exports.collectFields = collectFields;
+exports.collectSubfields = collectSubfields;
 
 var _graphql = require('graphql');
 
 var _values = require('./values.js');
 
 /**
- * Given a selectionSet, adds all of the fields in that selection to
- * the passed in map of fields, and returns it at the end.
+ * Given a selectionSet, collect all of the fields and returns it at the end.
  *
  * CollectFields requires the "runtime type" of an object. For a field which
  * returns an Interface or Union type, the "runtime type" will be the actual
@@ -20,6 +20,63 @@ var _values = require('./values.js');
  * @internal
  */
 function collectFields(
+  schema,
+  fragments,
+  variableValues,
+  runtimeType,
+  selectionSet,
+) {
+  const fields = new Map();
+  collectFieldsImpl(
+    schema,
+    fragments,
+    variableValues,
+    runtimeType,
+    selectionSet,
+    fields,
+    new Set(),
+  );
+  return fields;
+}
+/**
+ * Given an array of field nodes, collects all of the subfields of the passed
+ * in fields, and returns it at the end.
+ *
+ * CollectFields requires the "return type" of an object. For a field which
+ * returns an Interface or Union type, the "return type" will be the actual
+ * Object type returned by that field.
+ *
+ * @internal
+ */
+
+function collectSubfields(
+  schema,
+  fragments,
+  variableValues,
+  returnType,
+  fieldNodes,
+) {
+  const subFieldNodes = new Map();
+  const visitedFragmentNames = new Set();
+
+  for (const node of fieldNodes) {
+    if (node.selectionSet) {
+      collectFieldsImpl(
+        schema,
+        fragments,
+        variableValues,
+        returnType,
+        node.selectionSet,
+        subFieldNodes,
+        visitedFragmentNames,
+      );
+    }
+  }
+
+  return subFieldNodes;
+}
+
+function collectFieldsImpl(
   schema,
   fragments,
   variableValues,
@@ -55,7 +112,7 @@ function collectFields(
           continue;
         }
 
-        collectFields(
+        collectFieldsImpl(
           schema,
           fragments,
           variableValues,
@@ -87,7 +144,7 @@ function collectFields(
           continue;
         }
 
-        collectFields(
+        collectFieldsImpl(
           schema,
           fragments,
           variableValues,
@@ -100,12 +157,10 @@ function collectFields(
       }
     }
   }
-
-  return fields;
 }
 /**
- * Determines if a field should be included based on the @include and @skip
- * directives, where @skip has higher precedence than @include.
+ * Determines if a field should be included based on the `@include` and `@skip`
+ * directives, where `@skip` has higher precedence than `@include`.
  */
 
 function shouldIncludeNode(variableValues, node) {
