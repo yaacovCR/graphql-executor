@@ -1,5 +1,38 @@
-import type { Path } from '../jsutils/Path';
+import type {
+  DocumentNode,
+  ExecutionResult,
+  FieldNode,
+  FragmentDefinitionNode,
+  GraphQLAbstractType,
+  GraphQLField,
+  GraphQLFieldResolver,
+  GraphQLLeafType,
+  GraphQLList,
+  GraphQLObjectType,
+  GraphQLOutputType,
+  GraphQLResolveInfo,
+  GraphQLSchema,
+  GraphQLTypeResolver,
+  OperationDefinitionNode,
+} from 'graphql';
+
+import {
+  GraphQLError,
+  Kind,
+  assertValidSchema,
+  isAbstractType,
+  isLeafType,
+  isListType,
+  isNonNullType,
+  isObjectType,
+  locatedError,
+  SchemaMetaFieldDef,
+  TypeMetaFieldDef,
+  TypeNameMetaFieldDef,
+} from 'graphql';
+
 import type { ObjMap } from '../jsutils/ObjMap';
+import type { Path } from '../jsutils/Path';
 import type { PromiseOrValue } from '../jsutils/PromiseOrValue';
 import type { Maybe } from '../jsutils/Maybe';
 import { inspect } from '../jsutils/inspect';
@@ -13,45 +46,7 @@ import { promiseForObject } from '../jsutils/promiseForObject';
 import { addPath, pathToArray } from '../jsutils/Path';
 import { isIterableObject } from '../jsutils/isIterableObject';
 
-import type { GraphQLFormattedError } from '../error/GraphQLError';
-import { GraphQLError } from '../error/GraphQLError';
-import { locatedError } from '../error/locatedError';
-
-import type {
-  DocumentNode,
-  OperationDefinitionNode,
-  FieldNode,
-  FragmentDefinitionNode,
-} from '../language/ast';
-import { Kind } from '../language/kinds';
-
-import type { GraphQLSchema } from '../type/schema';
-import type {
-  GraphQLObjectType,
-  GraphQLOutputType,
-  GraphQLLeafType,
-  GraphQLAbstractType,
-  GraphQLField,
-  GraphQLFieldResolver,
-  GraphQLResolveInfo,
-  GraphQLTypeResolver,
-  GraphQLList,
-} from '../type/definition';
-import { assertValidSchema } from '../type/validate';
-import {
-  SchemaMetaFieldDef,
-  TypeMetaFieldDef,
-  TypeNameMetaFieldDef,
-} from '../type/introspection';
-import {
-  isObjectType,
-  isAbstractType,
-  isLeafType,
-  isListType,
-  isNonNullType,
-} from '../type/definition';
-
-import { getVariableValues, getArgumentValues } from './values';
+import { getArgumentValues, getVariableValues } from './values';
 import {
   collectFields,
   collectSubfields as _collectSubfields,
@@ -114,31 +109,6 @@ export interface ExecutionContext {
   typeResolver: GraphQLTypeResolver<any, any>;
   subscribeFieldResolver: GraphQLFieldResolver<any, any>;
   errors: Array<GraphQLError>;
-}
-
-/**
- * The result of GraphQL execution.
- *
- *   - `errors` is included when any errors occurred as a non-empty array.
- *   - `data` is the result of a successful execution of the query.
- *   - `extensions` is reserved for adding non-standard properties.
- */
-export interface ExecutionResult<
-  TData = ObjMap<unknown>,
-  TExtensions = ObjMap<unknown>,
-> {
-  errors?: ReadonlyArray<GraphQLError>;
-  data?: TData | null;
-  extensions?: TExtensions;
-}
-
-export interface FormattedExecutionResult<
-  TData = ObjMap<unknown>,
-  TExtensions = ObjMap<unknown>,
-> {
-  errors?: ReadonlyArray<GraphQLFormattedError>;
-  data?: TData | null;
-  extensions?: TExtensions;
 }
 
 export interface ExecutionArgs {

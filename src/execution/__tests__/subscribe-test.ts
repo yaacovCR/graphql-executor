@@ -1,17 +1,22 @@
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
+import {
+  GraphQLBoolean,
+  GraphQLInt,
+  GraphQLList,
+  GraphQLObjectType,
+  GraphQLSchema,
+  GraphQLString,
+  parse,
+} from 'graphql';
+
 import { expectJSON } from '../../__testUtils__/expectJSON';
+
 import { resolveOnNextTick } from '../../__testUtils__/resolveOnNextTick';
 
 import { invariant } from '../../jsutils/invariant';
 import { isAsyncIterable } from '../../jsutils/isAsyncIterable';
-
-import { parse } from '../../language/parser';
-
-import { GraphQLSchema } from '../../type/schema';
-import { GraphQLList, GraphQLObjectType } from '../../type/definition';
-import { GraphQLInt, GraphQLString, GraphQLBoolean } from '../../type/scalars';
 
 import { createSourceEventStream, subscribe } from '../subscribe';
 

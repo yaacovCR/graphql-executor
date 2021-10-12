@@ -7,12 +7,4 @@ export {
   defaultTypeResolver,
 } from './execute';
 
-export type {
-  ExecutionArgs,
-  ExecutionResult,
-  FormattedExecutionResult,
-} from './execute';
-
-export { subscribe, createSourceEventStream } from './subscribe';
-
-export { getDirectiveValues } from './values';
+export type { ExecutionArgs } from './execute';

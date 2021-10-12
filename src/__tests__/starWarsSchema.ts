@@ -1,14 +1,14 @@
-import { invariant } from '../jsutils/invariant';
-
-import { GraphQLSchema } from '../type/schema';
-import { GraphQLString } from '../type/scalars';
 import {
-  GraphQLList,
-  GraphQLNonNull,
   GraphQLEnumType,
   GraphQLInterfaceType,
+  GraphQLList,
+  GraphQLNonNull,
   GraphQLObjectType,
-} from '../type/definition';
+  GraphQLSchema,
+  GraphQLString,
+} from 'graphql';
+
+import { invariant } from '../jsutils/invariant';
 
 import { getFriends, getHero, getHuman, getDroid } from './starWarsData';
 

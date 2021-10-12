@@ -1,23 +1,25 @@
 {
-  "name": "graphql",
-  "version": "16.0.0-rc.3",
-  "description": "A Query Language and Runtime which can target any service.",
+  "name": "graphql-executor",
+  "version": "0.0.1",
+  "description": "A customizable GraphQL Spec compliant Executor class.",
   "license": "MIT",
   "private": true,
   "main": "index",
   "module": "index.mjs",
   "types": "index.d.ts",
   "sideEffects": false,
-  "homepage": "https://github.com/graphql/graphql-js",
+  "homepage": "https://github.com/yaacovCR/graphql-executor",
   "bugs": {
-    "url": "https://github.com/graphql/graphql-js/issues"
+    "url": "https://github.com/yaacovCR/graphql-executor/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/graphql/graphql-js.git"
+    "url": "https://github.com/yaacovCR/graphql-executor.git"
   },
   "keywords": [
+    "executor",
     "graphql",
+    "graphql-executor",
     "graphql-js"
   ],
   "engines": {
@@ -25,11 +27,9 @@
   },
   "scripts": {
     "preversion": ". ./resources/checkgit.sh && npm ci",
-    "version": "node resources/gen-version.js && npm test && git add src/version.ts",
-    "fuzzonly": "mocha --full-trace src/**/__tests__/**/*-fuzz.ts",
-    "changelog": "node resources/gen-changelog.js",
+    "version": "npm test",
     "benchmark": "node benchmark/benchmark.js",
-    "test": "npm run lint && npm run check && npm run testonly && npm run prettier:check && npm run check:spelling && npm run check:integrations",
+    "test": "npm run lint && npm run check && npm run testonly && npm run prettier:check && npm run check:spelling && npm run build",
     "lint": "eslint --cache --max-warnings 0 .",
     "check": "tsc --pretty",
     "testonly": "mocha --full-trace src/**/__tests__/**/*-test.ts",
@@ -37,11 +37,14 @@
     "prettier": "prettier --write --list-different .",
     "prettier:check": "prettier --check .",
     "check:spelling": "cspell --no-progress '**/*'",
-    "check:integrations": "npm run build:npm && npm run build:deno && mocha --full-trace integrationTests/*-test.js",
+    "build": "npm run build:npm && npm run build:deno",
     "build:npm": "node resources/build-npm.js",
     "build:deno": "node resources/build-deno.js",
     "gitpublish:npm": "bash ./resources/gitpublish.sh npm npmDist",
     "gitpublish:deno": "bash ./resources/gitpublish.sh deno denoDist"
+  },
+  "dependencies": {
+    "graphql": "16.0.0-rc.2"
   },
   "devDependencies": {
     "@babel/core": "7.15.5",

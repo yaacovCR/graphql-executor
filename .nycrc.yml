@@ -2,7 +2,6 @@ all: true
 include:
   - 'src/'
 exclude:
-  - '**/*-fuzz.js'
   - '**/*.d.ts'
 clean: true
 temp-directory: 'coverage'

@@ -1,20 +1,17 @@
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
-import { parse } from '../../language/parser';
-
-import { GraphQLSchema } from '../../type/schema';
 import {
+  GraphQLBoolean,
+  GraphQLID,
+  GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
-} from '../../type/definition';
-import {
-  GraphQLID,
-  GraphQLInt,
+  GraphQLSchema,
   GraphQLString,
-  GraphQLBoolean,
-} from '../../type/scalars';
+  parse,
+} from 'graphql';
 
 import { executeSync } from '../execute';
 

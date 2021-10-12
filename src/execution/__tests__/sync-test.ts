@@ -1,15 +1,15 @@
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
+import {
+  GraphQLObjectType,
+  GraphQLSchema,
+  GraphQLString,
+  parse,
+  validate,
+} from 'graphql';
+
 import { expectJSON } from '../../__testUtils__/expectJSON';
-
-import { parse } from '../../language/parser';
-
-import { validate } from '../../validation/validate';
-
-import { GraphQLSchema } from '../../type/schema';
-import { GraphQLString } from '../../type/scalars';
-import { GraphQLObjectType } from '../../type/definition';
 
 import { graphqlSync } from '../../graphql';
 

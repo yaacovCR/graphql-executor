@@ -1,20 +1,17 @@
+import type {
+  ExecutionResult,
+  GraphQLFieldResolver,
+  GraphQLSchema,
+  GraphQLTypeResolver,
+  Source,
+} from 'graphql';
+
+import { parse, validate, validateSchema } from 'graphql';
+
 import type { PromiseOrValue } from './jsutils/PromiseOrValue';
 import { isPromise } from './jsutils/isPromise';
 import type { Maybe } from './jsutils/Maybe';
 
-import type { Source } from './language/source';
-import { parse } from './language/parser';
-
-import { validate } from './validation/validate';
-
-import type {
-  GraphQLFieldResolver,
-  GraphQLTypeResolver,
-} from './type/definition';
-import type { GraphQLSchema } from './type/schema';
-import { validateSchema } from './type/validate';
-
-import type { ExecutionResult } from './execution/execute';
 import { execute } from './execution/execute';
 
 /**

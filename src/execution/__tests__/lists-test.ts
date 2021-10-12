@@ -1,11 +1,9 @@
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
+import { buildSchema, parse } from 'graphql';
+
 import { expectJSON } from '../../__testUtils__/expectJSON';
-
-import { parse } from '../../language/parser';
-
-import { buildSchema } from '../../utilities/buildASTSchema';
 
 import { execute, executeSync } from '../execute';
 

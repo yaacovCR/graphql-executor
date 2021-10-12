@@ -1,21 +1,18 @@
+import type {
+  DocumentNode,
+  ExecutionResult,
+  GraphQLFieldResolver,
+  GraphQLSchema,
+} from 'graphql';
+
+import { GraphQLError, locatedError } from 'graphql';
+
 import { inspect } from '../jsutils/inspect';
 import { isAsyncIterable } from '../jsutils/isAsyncIterable';
 import { addPath, pathToArray } from '../jsutils/Path';
 import type { Maybe } from '../jsutils/Maybe';
 
-import { GraphQLError } from '../error/GraphQLError';
-import { locatedError } from '../error/locatedError';
-
-import type { DocumentNode } from '../language/ast';
-
-import type { GraphQLSchema } from '../type/schema';
-import type { GraphQLFieldResolver } from '../type/definition';
-
-import type {
-  ExecutionArgs,
-  ExecutionResult,
-  ExecutionContext,
-} from './execute';
+import type { ExecutionArgs, ExecutionContext } from './execute';
 import { collectFields } from './collectFields';
 import { getArgumentValues } from './values';
 import {
@@ -25,6 +22,7 @@ import {
   execute,
   getFieldDef,
 } from './execute';
+
 import { mapAsyncIterator } from './mapAsyncIterator';
 
 /**
