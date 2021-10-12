@@ -302,13 +302,12 @@ function executeOperation(exeContext, operation, rootValue) {
     exeContext.schema,
     operation,
   );
-
-  if (rootType == null) {
-    throw new _graphql.GraphQLError(
+  /* if (rootType == null) {
+    throw new GraphQLError(
       `Schema is not configured to execute ${operation.operation} operation.`,
       operation,
     );
-  }
+  } */
 
   const rootFields = (0, _collectFields.collectFields)(
     exeContext.schema,

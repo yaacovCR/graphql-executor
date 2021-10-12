@@ -290,13 +290,12 @@ export function buildExecutionContext(args) {
 function executeOperation(exeContext, operation, rootValue) {
   // TODO: replace getOperationRootType with schema.getRootType
   const rootType = getOperationRootType(exeContext.schema, operation);
-
-  if (rootType == null) {
+  /* if (rootType == null) {
     throw new GraphQLError(
       `Schema is not configured to execute ${operation.operation} operation.`,
       operation,
     );
-  }
+  } */
 
   const rootFields = collectFields(
     exeContext.schema,
