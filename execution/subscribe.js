@@ -174,9 +174,8 @@ async function createSourceEventStream(
 
 async function executeSubscription(exeContext) {
   const { schema, fragments, operation, variableValues, rootValue } =
-    exeContext; // FORK_FIXME: replace getOperationType with schema.getSubscriptionType.
-
-  const rootType = (0, _graphql.getOperationRootType)(schema, operation);
+    exeContext;
+  const rootType = schema.getSubscriptionType();
 
   if (rootType == null) {
     throw new _graphql.GraphQLError(

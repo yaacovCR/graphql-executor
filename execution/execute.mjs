@@ -288,7 +288,7 @@ export function buildExecutionContext(args) {
  */
 
 function executeOperation(exeContext, operation, rootValue) {
-  // FORK_FIXME: replace getOperationType with schema.getRootType.
+  // TODO: replace getOperationRootType with schema.getRootType
   const rootType = getOperationRootType(exeContext.schema, operation);
 
   if (rootType == null) {

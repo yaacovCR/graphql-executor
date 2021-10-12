@@ -1,4 +1,4 @@
-import { GraphQLError, getOperationRootType, locatedError } from 'graphql';
+import { GraphQLError, locatedError } from 'graphql';
 import { inspect } from '../jsutils/inspect.mjs';
 import { isAsyncIterable } from '../jsutils/isAsyncIterable.mjs';
 import { addPath, pathToArray } from '../jsutils/Path.mjs';
@@ -162,9 +162,8 @@ export async function createSourceEventStream(
 
 async function executeSubscription(exeContext) {
   const { schema, fragments, operation, variableValues, rootValue } =
-    exeContext; // FORK_FIXME: replace getOperationType with schema.getSubscriptionType.
-
-  const rootType = getOperationRootType(schema, operation);
+    exeContext;
+  const rootType = schema.getSubscriptionType();
 
   if (rootType == null) {
     throw new GraphQLError(
