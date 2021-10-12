@@ -1,4 +1,5 @@
 import type {
+  ExecutionResult,
   GraphQLFieldResolver,
   GraphQLSchema,
   GraphQLTypeResolver,
@@ -8,7 +9,6 @@ import { parse, validate, validateSchema } from 'graphql';
 import type { PromiseOrValue } from './jsutils/PromiseOrValue.ts';
 import { isPromise } from './jsutils/isPromise.ts';
 import type { Maybe } from './jsutils/Maybe.ts';
-import type { ExecutionResult } from './execution/execute.ts';
 import { execute } from './execution/execute.ts';
 /**
  * This is the primary entry point function for fulfilling GraphQL operations
