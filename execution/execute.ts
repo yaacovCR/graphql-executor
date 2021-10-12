@@ -331,7 +331,7 @@ function executeOperation(
   operation: OperationDefinitionNode,
   rootValue: unknown,
 ): PromiseOrValue<ObjMap<unknown> | null> {
-  // FORK_FIXME: replace getOperationType with schema.getRootType.
+  // TODO: replace getOperationRootType with schema.getRootType
   const rootType = getOperationRootType(exeContext.schema, operation);
 
   if (rootType == null) {

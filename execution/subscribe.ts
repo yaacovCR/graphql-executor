@@ -4,7 +4,7 @@ import type {
   GraphQLFieldResolver,
   GraphQLSchema,
 } from 'graphql';
-import { GraphQLError, getOperationRootType, locatedError } from 'graphql';
+import { GraphQLError, locatedError } from 'graphql';
 import { inspect } from '../jsutils/inspect.ts';
 import { isAsyncIterable } from '../jsutils/isAsyncIterable.ts';
 import { addPath, pathToArray } from '../jsutils/Path.ts';
@@ -176,9 +176,8 @@ async function executeSubscription(
   exeContext: ExecutionContext,
 ): Promise<unknown> {
   const { schema, fragments, operation, variableValues, rootValue } =
-    exeContext; // FORK_FIXME: replace getOperationType with schema.getSubscriptionType.
-
-  const rootType = getOperationRootType(schema, operation);
+    exeContext;
+  const rootType = schema.getSubscriptionType();
 
   if (rootType == null) {
     throw new GraphQLError(
