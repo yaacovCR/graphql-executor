@@ -20,6 +20,7 @@ import {
   GraphQLError,
   Kind,
   assertValidSchema,
+  getOperationRootType,
   isAbstractType,
   isLeafType,
   isListType,
@@ -318,7 +319,8 @@ function executeOperation(
   operation: OperationDefinitionNode,
   rootValue: unknown,
 ): PromiseOrValue<ObjMap<unknown> | null> {
-  const rootType = exeContext.schema.getRootType(operation.operation);
+  // TODO: replace getOperationRootType with schema.getRootType
+  const rootType = getOperationRootType(exeContext.schema, operation);
   if (rootType == null) {
     throw new GraphQLError(
       `Schema is not configured to execute ${operation.operation} operation.`,

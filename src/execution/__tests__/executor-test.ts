@@ -924,7 +924,7 @@ describe('Execute: Handles basic execution tasks', () => {
       data: null,
       errors: [
         {
-          message: 'Schema is not configured to execute query operation.',
+          message: 'Schema does not define the required query root type.',
           locations: [{ line: 2, column: 7 }],
         },
       ],
@@ -936,7 +936,7 @@ describe('Execute: Handles basic execution tasks', () => {
       data: null,
       errors: [
         {
-          message: 'Schema is not configured to execute mutation operation.',
+          message: 'Schema is not configured for mutations.',
           locations: [{ line: 3, column: 7 }],
         },
       ],
@@ -948,8 +948,7 @@ describe('Execute: Handles basic execution tasks', () => {
       data: null,
       errors: [
         {
-          message:
-            'Schema is not configured to execute subscription operation.',
+          message: 'Schema is not configured for subscriptions.',
           locations: [{ line: 4, column: 7 }],
         },
       ],
