@@ -154,7 +154,7 @@ export async function createSourceEventStream(
   }
 
   try {
-    const eventStream = await executeSubscription(exeContext);
+    const eventStream = await executeSubscriptionRootField(exeContext);
 
     // Assert field returned an event stream, otherwise yield an error.
     if (!isAsyncIterable(eventStream)) {
@@ -175,7 +175,7 @@ export async function createSourceEventStream(
   }
 }
 
-async function executeSubscription(
+async function executeSubscriptionRootField(
   exeContext: ExecutionContext,
 ): Promise<unknown> {
   const { schema, fragments, operation, variableValues, rootValue } =
