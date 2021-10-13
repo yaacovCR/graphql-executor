@@ -323,7 +323,7 @@ export function buildExecutionContext(
 function executeQueryOrMutationRootFields(
   exeContext: ExecutionContext,
   // @ts-expect-error
-  ): PromiseOrValue<ObjMap<unknown> | null> {
+): PromiseOrValue<ObjMap<unknown> | null> {
   const { schema, operation, rootValue } = exeContext;
 
   // TODO: replace getOperationRootType with schema.getRootType
