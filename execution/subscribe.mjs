@@ -137,7 +137,7 @@ export async function createSourceEventStream(
   }
 
   try {
-    const eventStream = await executeSubscription(exeContext); // Assert field returned an event stream, otherwise yield an error.
+    const eventStream = await executeSubscriptionRootField(exeContext); // Assert field returned an event stream, otherwise yield an error.
 
     if (!isAsyncIterable(eventStream)) {
       throw new Error(
@@ -160,7 +160,7 @@ export async function createSourceEventStream(
   }
 }
 
-async function executeSubscription(exeContext) {
+async function executeSubscriptionRootField(exeContext) {
   const { schema, fragments, operation, variableValues, rootValue } =
     exeContext;
   const rootType = schema.getSubscriptionType();

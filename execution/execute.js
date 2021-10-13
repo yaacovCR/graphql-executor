@@ -90,7 +90,7 @@ const collectSubfields = (0, _memoize.memoize3)(
  * a GraphQLError will be thrown immediately explaining the invalid input.
  */
 function execute(args) {
-  const { schema, document, variableValues, rootValue } = args; // If arguments are missing or incorrect, throw an error.
+  const { schema, document, variableValues } = args; // If arguments are missing or incorrect, throw an error.
 
   assertValidExecutionArguments(schema, document, variableValues); // If a valid execution context cannot be created due to incorrect arguments,
   // a "Response" with only errors is returned.
@@ -101,9 +101,8 @@ function execute(args) {
     return {
       errors: exeContext,
     };
-  } // Return a Promise that will eventually resolve to the data described by
-  // The "Response" section of the GraphQL specification.
-  //
+  } // Return data or a  Promise that will eventually resolve to the data described
+  // by the "Response" section of the GraphQL specification.
   // If errors are encountered while executing a GraphQL field, only that
   // field and its descendants will be omitted, and sibling fields will still
   // be executed. An execution which encounters errors will still result in a
@@ -114,8 +113,7 @@ function execute(args) {
   // in this case is the entire response.
 
   try {
-    const { operation } = exeContext;
-    const result = executeOperation(exeContext, operation, rootValue);
+    const result = executeQueryOrMutationRootFields(exeContext);
 
     if ((0, _isPromise.isPromise)(result)) {
       return result.then(
@@ -293,15 +291,13 @@ function buildExecutionContext(args) {
   };
 }
 /**
- * Implements the "Executing operations" section of the spec.
+ * Executes the root fields specified by query or mutation operation.
  */
 
-function executeOperation(exeContext, operation, rootValue) {
-  // TODO: replace getOperationRootType with schema.getRootType
-  const rootType = (0, _graphql.getOperationRootType)(
-    exeContext.schema,
-    operation,
-  );
+function executeQueryOrMutationRootFields(exeContext) {
+  const { schema, operation, rootValue } = exeContext; // TODO: replace getOperationRootType with schema.getRootType
+
+  const rootType = (0, _graphql.getOperationRootType)(schema, operation);
   /* if (rootType == null) {
     throw new GraphQLError(
       `Schema is not configured to execute ${operation.operation} operation.`,
