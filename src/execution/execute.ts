@@ -19,7 +19,6 @@ import type {
 import {
   GraphQLError,
   Kind,
-  OperationTypeNode,
   assertValidSchema,
   getOperationRootType,
   isAbstractType,
@@ -316,6 +315,7 @@ export function buildExecutionContext(
  */
 function executeQueryOrMutationRootFields(
   exeContext: ExecutionContext,
+  // @ts-expect-error
 ): PromiseOrValue<ObjMap<unknown> | null> {
   const { schema, operation, rootValue } = exeContext;
 
@@ -338,12 +338,11 @@ function executeQueryOrMutationRootFields(
   const path = undefined;
 
   switch (operation.operation) {
-    // TODO: Remove when OperationTypeNode correctly exported upstream as value.
-    // @ts-expect-error
-    case OperationTypeNode.QUERY:
+    // TODO: Change 'query', etc. => to OperationTypeNode.QUERY, etc. when upstream
+    // graphql-js properly exports OperationTypeNode as a value.
+    case 'query':
       return executeFields(exeContext, rootType, rootValue, path, rootFields);
-    // @ts-expect-error
-    case OperationTypeNode.MUTATION:
+    case 'mutation':
       return executeFieldsSerially(
         exeContext,
         rootType,
@@ -351,8 +350,7 @@ function executeQueryOrMutationRootFields(
         path,
         rootFields,
       );
-    // @ts-expect-error
-    case OperationTypeNode.SUBSCRIPTION:
+    case 'subscription':
       // TODO: deprecate `subscribe` and move all logic here
       // Temporary solution until we finish merging execute and subscribe together
       return executeFields(exeContext, rootType, rootValue, path, rootFields);
