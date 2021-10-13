@@ -27,12 +27,20 @@ import { getArgumentValues, getVariableValues } from './values.mjs';
 import {
   collectFields,
   collectSubfields as _collectSubfields,
-} from './collectFields.mjs';
+} from './collectFields.mjs'; // TODO: Remove when upstream graphql-js properly exports OperationTypeNode as value.
+
+var OperationTypeNode;
 /**
  * A memoized collection of relevant subfields with regard to the return
  * type. Memoizing ensures the subfields are not repeatedly calculated, which
  * saves overhead when resolving lists of values.
  */
+
+(function (OperationTypeNode) {
+  OperationTypeNode['QUERY'] = 'query';
+  OperationTypeNode['MUTATION'] = 'mutation';
+  OperationTypeNode['SUBSCRIPTION'] = 'subscription';
+})(OperationTypeNode || (OperationTypeNode = {}));
 
 const collectSubfields = memoize3((exeContext, returnType, fieldNodes) =>
   _collectSubfields(
@@ -285,7 +293,9 @@ export function buildExecutionContext(args) {
  * Executes the root fields specified by query or mutation operation.
  */
 
-function executeQueryOrMutationRootFields(exeContext) {
+function executeQueryOrMutationRootFields(
+  exeContext, // @ts-expect-error
+) {
   const { schema, operation, rootValue } = exeContext; // TODO: replace getOperationRootType with schema.getRootType
 
   const rootType = getOperationRootType(schema, operation);
@@ -306,10 +316,10 @@ function executeQueryOrMutationRootFields(exeContext) {
   const path = undefined;
 
   switch (operation.operation) {
-    case 'query':
+    case OperationTypeNode.QUERY:
       return executeFields(exeContext, rootType, rootValue, path, rootFields);
 
-    case 'mutation':
+    case OperationTypeNode.MUTATION:
       return executeFieldsSerially(
         exeContext,
         rootType,
@@ -318,7 +328,7 @@ function executeQueryOrMutationRootFields(exeContext) {
         rootFields,
       );
 
-    case 'subscription':
+    case OperationTypeNode.SUBSCRIPTION:
       // TODO: deprecate `subscribe` and move all logic here
       // Temporary solution until we finish merging execute and subscribe together
       return executeFields(exeContext, rootType, rootValue, path, rootFields);
