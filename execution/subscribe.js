@@ -5,6 +5,7 @@ Object.defineProperty(exports, '__esModule', {
 });
 exports.subscribe = subscribe;
 exports.createSourceEventStream = createSourceEventStream;
+exports.createSourceEventStreamImpl = createSourceEventStreamImpl;
 
 var _graphql = require('graphql');
 
@@ -44,25 +45,25 @@ var _mapAsyncIterator = require('./mapAsyncIterator.js');
  * Accepts either an object with named arguments, or individual arguments.
  */
 async function subscribe(args) {
-  const {
-    schema,
-    document,
-    rootValue,
-    contextValue,
-    variableValues,
-    operationName,
-    fieldResolver,
-    subscribeFieldResolver,
-  } = args;
-  const resultOrStream = await createSourceEventStream(
-    schema,
-    document,
-    rootValue,
-    contextValue,
-    variableValues,
-    operationName,
-    subscribeFieldResolver,
-  );
+  const { schema, document, variableValues } = args; // If arguments are missing or incorrectly typed, this is an internal
+  // developer mistake which should throw an early error.
+
+  (0, _execute.assertValidExecutionArguments)(schema, document, variableValues); // If a valid execution context cannot be created due to incorrect arguments,
+  // a "Response" with only errors is returned.
+
+  const exeContext = (0, _execute.buildExecutionContext)(args); // Return early errors if execution context failed.
+
+  if (!('schema' in exeContext)) {
+    return {
+      errors: exeContext,
+    };
+  }
+
+  return executeSubscription(exeContext);
+}
+
+async function executeSubscription(exeContext) {
+  const resultOrStream = await createSourceEventStreamImpl(exeContext);
 
   if (!(0, _isAsyncIterable.isAsyncIterable)(resultOrStream)) {
     return resultOrStream;
@@ -74,14 +75,10 @@ async function subscribe(args) {
   // "ExecuteQuery" algorithm, for which `execute` is also used.
 
   const mapSourceToResponse = (payload) =>
-    (0, _execute.execute)({
-      schema,
-      document,
+    (0, _execute.executeQueryOrMutation)({
+      ...exeContext,
       rootValue: payload,
-      contextValue,
-      variableValues,
-      operationName,
-      fieldResolver,
+      errors: [],
     }); // Map every source value to a ExecutionResult value as described above.
 
   return (0, _mapAsyncIterator.mapAsyncIterator)(
@@ -148,6 +145,10 @@ async function createSourceEventStream(
     };
   }
 
+  return createSourceEventStreamImpl(exeContext);
+}
+
+async function createSourceEventStreamImpl(exeContext) {
   try {
     const eventStream = await executeSubscriptionRootField(exeContext); // Assert field returned an event stream, otherwise yield an error.
 
