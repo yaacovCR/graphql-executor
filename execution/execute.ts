@@ -48,7 +48,13 @@ import { getArgumentValues, getVariableValues } from './values.ts';
 import {
   collectFields,
   collectSubfields as _collectSubfields,
-} from './collectFields.ts';
+} from './collectFields.ts'; // TODO: Remove when upstream graphql-js properly exports OperationTypeNode as value.
+
+enum OperationTypeNode {
+  QUERY = 'query',
+  MUTATION = 'mutation',
+  SUBSCRIPTION = 'subscription',
+}
 /**
  * A memoized collection of relevant subfields with regard to the return
  * type. Memoizing ensures the subfields are not repeatedly calculated, which
@@ -325,7 +331,8 @@ export function buildExecutionContext(
  */
 
 function executeQueryOrMutationRootFields(
-  exeContext: ExecutionContext,
+  exeContext: // @ts-expect-error
+  ExecutionContext,
 ): PromiseOrValue<ObjMap<unknown> | null> {
   const { schema, operation, rootValue } = exeContext; // TODO: replace getOperationRootType with schema.getRootType
 
@@ -347,10 +354,10 @@ function executeQueryOrMutationRootFields(
   const path = undefined;
 
   switch (operation.operation) {
-    case 'query':
+    case OperationTypeNode.QUERY:
       return executeFields(exeContext, rootType, rootValue, path, rootFields);
 
-    case 'mutation':
+    case OperationTypeNode.MUTATION:
       return executeFieldsSerially(
         exeContext,
         rootType,
@@ -359,7 +366,7 @@ function executeQueryOrMutationRootFields(
         rootFields,
       );
 
-    case 'subscription':
+    case OperationTypeNode.SUBSCRIPTION:
       // TODO: deprecate `subscribe` and move all logic here
       // Temporary solution until we finish merging execute and subscribe together
       return executeFields(exeContext, rootType, rootValue, path, rootFields);
