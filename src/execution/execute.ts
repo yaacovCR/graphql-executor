@@ -19,7 +19,6 @@ import type {
 import {
   GraphQLError,
   Kind,
-  OperationTypeNode,
   assertValidSchema,
   getOperationRootType,
   isAbstractType,
@@ -53,6 +52,13 @@ import {
   collectFields,
   collectSubfields as _collectSubfields,
 } from './collectFields';
+
+// TODO: Remove when upstream graphql-js properly exports OperationTypeNode as value.
+enum OperationTypeNode {
+  QUERY = 'query',
+  MUTATION = 'mutation',
+  SUBSCRIPTION = 'subscription',
+}
 
 /**
  * A memoized collection of relevant subfields with regard to the return
@@ -316,7 +322,8 @@ export function buildExecutionContext(
  */
 function executeQueryOrMutationRootFields(
   exeContext: ExecutionContext,
-): PromiseOrValue<ObjMap<unknown> | null> {
+  // @ts-expect-error
+  ): PromiseOrValue<ObjMap<unknown> | null> {
   const { schema, operation, rootValue } = exeContext;
 
   // TODO: replace getOperationRootType with schema.getRootType
@@ -338,11 +345,8 @@ function executeQueryOrMutationRootFields(
   const path = undefined;
 
   switch (operation.operation) {
-    // TODO: Remove when OperationTypeNode correctly exported upstream as value.
-    // @ts-expect-error
     case OperationTypeNode.QUERY:
       return executeFields(exeContext, rootType, rootValue, path, rootFields);
-    // @ts-expect-error
     case OperationTypeNode.MUTATION:
       return executeFieldsSerially(
         exeContext,
@@ -351,7 +355,6 @@ function executeQueryOrMutationRootFields(
         path,
         rootFields,
       );
-    // @ts-expect-error
     case OperationTypeNode.SUBSCRIPTION:
       // TODO: deprecate `subscribe` and move all logic here
       // Temporary solution until we finish merging execute and subscribe together
