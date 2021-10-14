@@ -30,17 +30,8 @@ var _executor = require('./executor.js');
  * Accepts either an object with named arguments, or individual arguments.
  */
 async function subscribe(args) {
-  // If a valid execution context cannot be created due to incorrect arguments,
-  // a "Response" with only errors is returned.
-  const exeContext = (0, _executor.buildExecutionContext)(args); // Return early errors if execution context failed.
-
-  if (!('schema' in exeContext)) {
-    return {
-      errors: exeContext,
-    };
-  }
-
-  return (0, _executor.executeSubscription)(exeContext);
+  const executor = new _executor.Executor();
+  return executor.executeSubscription(args);
 }
 /**
  * Implements the "CreateSourceEventStream" algorithm described in the
@@ -80,9 +71,8 @@ async function createSourceEventStream(
   operationName,
   subscribeFieldResolver,
 ) {
-  // If a valid execution context cannot be created due to incorrect arguments,
-  // a "Response" with only errors is returned.
-  const exeContext = (0, _executor.buildExecutionContext)({
+  const executor = new _executor.Executor();
+  return executor.createSourceEventStream({
     schema,
     document,
     rootValue,
@@ -90,13 +80,5 @@ async function createSourceEventStream(
     variableValues,
     operationName,
     subscribeFieldResolver,
-  }); // Return early errors if execution context failed.
-
-  if (!('schema' in exeContext)) {
-    return {
-      errors: exeContext,
-    };
-  }
-
-  return (0, _executor.createSourceEventStreamImpl)(exeContext);
+  });
 }

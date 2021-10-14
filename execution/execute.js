@@ -21,17 +21,8 @@ var _executor = require('./executor.js');
  * a GraphQLError will be thrown immediately explaining the invalid input.
  */
 function execute(args) {
-  // If a valid execution context cannot be created due to incorrect arguments,
-  // a "Response" with only errors is returned.
-  const exeContext = (0, _executor.buildExecutionContext)(args); // Return early errors if execution context failed.
-
-  if (!('schema' in exeContext)) {
-    return {
-      errors: exeContext,
-    };
-  }
-
-  return (0, _executor.executeQueryOrMutation)(exeContext);
+  const executor = new _executor.Executor();
+  return executor.executeQueryOrMutation(args);
 }
 /**
  * Also implements the "Executing requests" section of the GraphQL specification.

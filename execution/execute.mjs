@@ -1,5 +1,5 @@
 import { isPromise } from '../jsutils/isPromise.mjs';
-import { buildExecutionContext, executeQueryOrMutation } from './executor.mjs';
+import { Executor } from './executor.mjs';
 /**
  * Implements the "Executing requests" section of the GraphQL specification.
  *
@@ -12,17 +12,8 @@ import { buildExecutionContext, executeQueryOrMutation } from './executor.mjs';
  */
 
 export function execute(args) {
-  // If a valid execution context cannot be created due to incorrect arguments,
-  // a "Response" with only errors is returned.
-  const exeContext = buildExecutionContext(args); // Return early errors if execution context failed.
-
-  if (!('schema' in exeContext)) {
-    return {
-      errors: exeContext,
-    };
-  }
-
-  return executeQueryOrMutation(exeContext);
+  const executor = new Executor();
+  return executor.executeQueryOrMutation(args);
 }
 /**
  * Also implements the "Executing requests" section of the GraphQL specification.
