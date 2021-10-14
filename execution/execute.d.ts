@@ -159,9 +159,3 @@ export declare function getFieldDef(
   parentType: GraphQLObjectType,
   fieldNode: FieldNode,
 ): Maybe<GraphQLField<unknown, unknown>>;
-export declare function executeSubscription(
-  exeContext: ExecutionContext,
-): Promise<AsyncGenerator<ExecutionResult, void, void> | ExecutionResult>;
-export declare function createSourceEventStreamImpl(
-  exeContext: ExecutionContext,
-): Promise<AsyncIterable<unknown> | ExecutionResult>;
