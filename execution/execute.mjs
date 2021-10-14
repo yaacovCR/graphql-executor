@@ -174,7 +174,8 @@ function assertValidExecutionArguments(schema, document, rawVariableValues) {
  * Constructs a ExecutionContext object from the arguments passed to
  * execute, which we will pass throughout the other execution methods.
  *
- * Throws a GraphQLError if a valid execution context cannot be created.
+ * Returns an array of GraphQLErrors if a valid execution context
+ * cannot be created.
  *
  * @internal
  */
