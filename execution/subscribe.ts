@@ -5,12 +5,12 @@ import type {
   GraphQLSchema,
 } from 'graphql';
 import type { Maybe } from '../jsutils/Maybe.ts';
-import type { ExecutionArgs } from './execute.ts';
+import type { ExecutionArgs } from './executor.ts';
 import {
   buildExecutionContext,
   createSourceEventStreamImpl,
   executeSubscription,
-} from './execute.ts';
+} from './executor.ts';
 /**
  * Implements the "Subscribe" algorithm described in the GraphQL specification.
  *

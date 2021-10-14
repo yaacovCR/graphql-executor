@@ -8,7 +8,7 @@
  * module. In the next major release, the `graphql/subscription` module
  * will be dropped entirely.
  */
-import type { ExecutionArgs } from '../execution/execute.ts';
+import type { ExecutionArgs } from '../execution/executor.ts';
 /**
  * @deprecated use ExecutionArgs instead. Will be removed in v17
  *
