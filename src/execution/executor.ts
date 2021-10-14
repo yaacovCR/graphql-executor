@@ -55,25 +55,6 @@ import {
 } from './collectFields';
 import { mapAsyncIterator } from './mapAsyncIterator';
 
-/**
- * A memoized collection of relevant subfields with regard to the return
- * type. Memoizing ensures the subfields are not repeatedly calculated, which
- * saves overhead when resolving lists of values.
- */
-const collectSubfields = memoize3(
-  (
-    exeContext: ExecutionContext,
-    returnType: GraphQLObjectType,
-    fieldNodes: ReadonlyArray<FieldNode>,
-  ) =>
-    _collectSubfields(
-      exeContext.schema,
-      exeContext.fragments,
-      exeContext.variableValues,
-      returnType,
-      fieldNodes,
-    ),
-);
 
 /**
  * Terminology
@@ -125,6 +106,26 @@ export interface ExecutionArgs {
   typeResolver?: Maybe<GraphQLTypeResolver<any, any>>;
   subscribeFieldResolver?: Maybe<GraphQLFieldResolver<any, any>>;
 }
+
+/**
+ * A memoized collection of relevant subfields with regard to the return
+ * type. Memoizing ensures the subfields are not repeatedly calculated, which
+ * saves overhead when resolving lists of values.
+ */
+ const collectSubfields = memoize3(
+  (
+    exeContext: ExecutionContext,
+    returnType: GraphQLObjectType,
+    fieldNodes: ReadonlyArray<FieldNode>,
+  ) =>
+    _collectSubfields(
+      exeContext.schema,
+      exeContext.fragments,
+      exeContext.variableValues,
+      returnType,
+      fieldNodes,
+    ),
+);
 
 export function executeQueryOrMutation(exeContext: ExecutionContext) {
   // Return data or a Promise that will eventually resolve to the data described
