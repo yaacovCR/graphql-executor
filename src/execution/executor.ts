@@ -55,7 +55,6 @@ import {
 } from './collectFields';
 import { mapAsyncIterator } from './mapAsyncIterator';
 
-
 /**
  * Terminology
  *
@@ -272,6 +271,21 @@ export function buildExecutionContext(
     fieldResolver: fieldResolver ?? defaultFieldResolver,
     typeResolver: typeResolver ?? defaultTypeResolver,
     subscribeFieldResolver: subscribeFieldResolver ?? defaultFieldResolver,
+    errors: [],
+  };
+}
+
+/**
+ * Constructs a perPayload ExecutionContext object from an initial
+ * ExecutionObject and the payload value.
+ */
+  function buildPerPayloadExecutionContext(
+  exeContext: ExecutionContext,
+  payload: unknown,
+): ExecutionContext {
+  return {
+    ...exeContext,
+    rootValue: payload,
     errors: [],
   };
 }
@@ -936,12 +950,13 @@ export async function executeSubscription(
   // the GraphQL specification. The `execute` function provides the
   // "ExecuteSubscriptionEvent" algorithm, as it is nearly identical to the
   // "ExecuteQuery" algorithm, for which `execute` is also used.
-  const mapSourceToResponse = (payload: unknown) =>
-    executeQueryOrMutation({
-      ...exeContext,
-      rootValue: payload,
-      errors: [],
-    });
+  const mapSourceToResponse = (payload: unknown) => {
+    const perPayloadExecutionContext = buildPerPayloadExecutionContext(
+      exeContext,
+      payload,
+    );
+    return executeQueryOrMutation(perPayloadExecutionContext);
+  };
 
   // Map every source value to a ExecutionResult value as described above.
   return mapAsyncIterator(resultOrStream, mapSourceToResponse);
@@ -1046,17 +1061,17 @@ async function executeSubscriptionRootField(
  * and returns it as the result, or if it's a function, returns the result
  * of calling that function while passing along args and context value.
  */
- export const defaultFieldResolver: GraphQLFieldResolver<unknown, unknown> =
- function (source: any, args, contextValue, info) {
-   // ensure source is a value for which property access is acceptable.
-   if (isObjectLike(source) || typeof source === 'function') {
-     const property = source[info.fieldName];
-     if (typeof property === 'function') {
-       return source[info.fieldName](args, contextValue, info);
-     }
-     return property;
-   }
- };
+export const defaultFieldResolver: GraphQLFieldResolver<unknown, unknown> =
+  function (source: any, args, contextValue, info) {
+    // ensure source is a value for which property access is acceptable.
+    if (isObjectLike(source) || typeof source === 'function') {
+      const property = source[info.fieldName];
+      if (typeof property === 'function') {
+        return source[info.fieldName](args, contextValue, info);
+      }
+      return property;
+    }
+  };
 
  /**
  * If a resolveType function is not given, then a default resolve behavior is
