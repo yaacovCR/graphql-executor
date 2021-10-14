@@ -8,7 +8,7 @@ import {
   assertValidExecutionArguments,
   buildExecutionContext,
   buildResolveInfo,
-  execute,
+  executeQueryOrMutation,
   getFieldDef,
 } from './execute.mjs';
 import { mapAsyncIterator } from './mapAsyncIterator.mjs';
@@ -35,25 +35,25 @@ import { mapAsyncIterator } from './mapAsyncIterator.mjs';
  */
 
 export async function subscribe(args) {
-  const {
-    schema,
-    document,
-    rootValue,
-    contextValue,
-    variableValues,
-    operationName,
-    fieldResolver,
-    subscribeFieldResolver,
-  } = args;
-  const resultOrStream = await createSourceEventStream(
-    schema,
-    document,
-    rootValue,
-    contextValue,
-    variableValues,
-    operationName,
-    subscribeFieldResolver,
-  );
+  const { schema, document, variableValues } = args; // If arguments are missing or incorrectly typed, this is an internal
+  // developer mistake which should throw an early error.
+
+  assertValidExecutionArguments(schema, document, variableValues); // If a valid execution context cannot be created due to incorrect arguments,
+  // a "Response" with only errors is returned.
+
+  const exeContext = buildExecutionContext(args); // Return early errors if execution context failed.
+
+  if (!('schema' in exeContext)) {
+    return {
+      errors: exeContext,
+    };
+  }
+
+  return executeSubscription(exeContext);
+}
+
+async function executeSubscription(exeContext) {
+  const resultOrStream = await createSourceEventStreamImpl(exeContext);
 
   if (!isAsyncIterable(resultOrStream)) {
     return resultOrStream;
@@ -65,15 +65,7 @@ export async function subscribe(args) {
   // "ExecuteQuery" algorithm, for which `execute` is also used.
 
   const mapSourceToResponse = (payload) =>
-    execute({
-      schema,
-      document,
-      rootValue: payload,
-      contextValue,
-      variableValues,
-      operationName,
-      fieldResolver,
-    }); // Map every source value to a ExecutionResult value as described above.
+    executeQueryOrMutation({ ...exeContext, rootValue: payload, errors: [] }); // Map every source value to a ExecutionResult value as described above.
 
   return mapAsyncIterator(resultOrStream, mapSourceToResponse);
 }
@@ -136,6 +128,9 @@ export async function createSourceEventStream(
     };
   }
 
+  return createSourceEventStreamImpl(exeContext);
+}
+export async function createSourceEventStreamImpl(exeContext) {
   try {
     const eventStream = await executeSubscriptionRootField(exeContext); // Assert field returned an event stream, otherwise yield an error.
 

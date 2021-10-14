@@ -92,7 +92,12 @@ export function execute(args) {
     return {
       errors: exeContext,
     };
-  } // Return data or a  Promise that will eventually resolve to the data described
+  }
+
+  return executeQueryOrMutation(exeContext);
+}
+export function executeQueryOrMutation(exeContext) {
+  // Return data or a Promise that will eventually resolve to the data described
   // by the "Response" section of the GraphQL specification.
   // If errors are encountered while executing a GraphQL field, only that
   // field and its descendants will be omitted, and sibling fields will still
@@ -102,7 +107,6 @@ export function execute(args) {
   // Errors from sub-fields of a NonNull type may propagate to the top level,
   // at which point we still log the error and null the parent field, which
   // in this case is the entire response.
-
   try {
     const result = executeQueryOrMutationRootFields(exeContext);
 
