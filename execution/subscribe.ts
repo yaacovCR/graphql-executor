@@ -6,11 +6,7 @@ import type {
 } from 'graphql';
 import type { Maybe } from '../jsutils/Maybe.ts';
 import type { ExecutionArgs } from './executor.ts';
-import {
-  buildExecutionContext,
-  createSourceEventStreamImpl,
-  executeSubscription,
-} from './executor.ts';
+import { Executor } from './executor.ts';
 /**
  * Implements the "Subscribe" algorithm described in the GraphQL specification.
  *
@@ -36,17 +32,8 @@ import {
 export async function subscribe(
   args: ExecutionArgs,
 ): Promise<AsyncGenerator<ExecutionResult, void, void> | ExecutionResult> {
-  // If a valid execution context cannot be created due to incorrect arguments,
-  // a "Response" with only errors is returned.
-  const exeContext = buildExecutionContext(args); // Return early errors if execution context failed.
-
-  if (!('schema' in exeContext)) {
-    return {
-      errors: exeContext,
-    };
-  }
-
-  return executeSubscription(exeContext);
+  const executor = new Executor();
+  return executor.executeSubscription(args);
 }
 /**
  * Implements the "CreateSourceEventStream" algorithm described in the
@@ -88,9 +75,8 @@ export async function createSourceEventStream(
   operationName?: Maybe<string>,
   subscribeFieldResolver?: Maybe<GraphQLFieldResolver<any, any>>,
 ): Promise<AsyncIterable<unknown> | ExecutionResult> {
-  // If a valid execution context cannot be created due to incorrect arguments,
-  // a "Response" with only errors is returned.
-  const exeContext = buildExecutionContext({
+  const executor = new Executor();
+  return executor.createSourceEventStream({
     schema,
     document,
     rootValue,
@@ -98,13 +84,5 @@ export async function createSourceEventStream(
     variableValues,
     operationName,
     subscribeFieldResolver,
-  }); // Return early errors if execution context failed.
-
-  if (!('schema' in exeContext)) {
-    return {
-      errors: exeContext,
-    };
-  }
-
-  return createSourceEventStreamImpl(exeContext);
+  });
 }
