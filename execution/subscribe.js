@@ -45,12 +45,8 @@ var _mapAsyncIterator = require('./mapAsyncIterator.js');
  * Accepts either an object with named arguments, or individual arguments.
  */
 async function subscribe(args) {
-  const { schema, document, variableValues } = args; // If arguments are missing or incorrectly typed, this is an internal
-  // developer mistake which should throw an early error.
-
-  (0, _execute.assertValidExecutionArguments)(schema, document, variableValues); // If a valid execution context cannot be created due to incorrect arguments,
+  // If a valid execution context cannot be created due to incorrect arguments,
   // a "Response" with only errors is returned.
-
   const exeContext = (0, _execute.buildExecutionContext)(args); // Return early errors if execution context failed.
 
   if (!('schema' in exeContext)) {
@@ -124,11 +120,8 @@ async function createSourceEventStream(
   operationName,
   subscribeFieldResolver,
 ) {
-  // If arguments are missing or incorrectly typed, this is an internal
-  // developer mistake which should throw an early error.
-  (0, _execute.assertValidExecutionArguments)(schema, document, variableValues); // If a valid execution context cannot be created due to incorrect arguments,
+  // If a valid execution context cannot be created due to incorrect arguments,
   // a "Response" with only errors is returned.
-
   const exeContext = (0, _execute.buildExecutionContext)({
     schema,
     document,

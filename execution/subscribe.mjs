@@ -5,7 +5,6 @@ import { addPath, pathToArray } from '../jsutils/Path.mjs';
 import { collectFields } from './collectFields.mjs';
 import { getArgumentValues } from './values.mjs';
 import {
-  assertValidExecutionArguments,
   buildExecutionContext,
   buildResolveInfo,
   executeQueryOrMutation,
@@ -35,12 +34,8 @@ import { mapAsyncIterator } from './mapAsyncIterator.mjs';
  */
 
 export async function subscribe(args) {
-  const { schema, document, variableValues } = args; // If arguments are missing or incorrectly typed, this is an internal
-  // developer mistake which should throw an early error.
-
-  assertValidExecutionArguments(schema, document, variableValues); // If a valid execution context cannot be created due to incorrect arguments,
+  // If a valid execution context cannot be created due to incorrect arguments,
   // a "Response" with only errors is returned.
-
   const exeContext = buildExecutionContext(args); // Return early errors if execution context failed.
 
   if (!('schema' in exeContext)) {
@@ -107,11 +102,8 @@ export async function createSourceEventStream(
   operationName,
   subscribeFieldResolver,
 ) {
-  // If arguments are missing or incorrectly typed, this is an internal
-  // developer mistake which should throw an early error.
-  assertValidExecutionArguments(schema, document, variableValues); // If a valid execution context cannot be created due to incorrect arguments,
+  // If a valid execution context cannot be created due to incorrect arguments,
   // a "Response" with only errors is returned.
-
   const exeContext = buildExecutionContext({
     schema,
     document,

@@ -81,11 +81,8 @@ const collectSubfields = memoize3((exeContext, returnType, fieldNodes) =>
  * a GraphQLError will be thrown immediately explaining the invalid input.
  */
 export function execute(args) {
-  const { schema, document, variableValues } = args; // If arguments are missing or incorrect, throw an error.
-
-  assertValidExecutionArguments(schema, document, variableValues); // If a valid execution context cannot be created due to incorrect arguments,
+  // If a valid execution context cannot be created due to incorrect arguments,
   // a "Response" with only errors is returned.
-
   const exeContext = buildExecutionContext(args); // Return early errors if execution context failed.
 
   if (!('schema' in exeContext)) {
@@ -159,15 +156,9 @@ function buildResponse(data, errors) {
 /**
  * Essential assertions before executing to provide developer feedback for
  * improper use of the GraphQL library.
- *
- * @internal
  */
 
-export function assertValidExecutionArguments(
-  schema,
-  document,
-  rawVariableValues,
-) {
+function assertValidExecutionArguments(schema, document, rawVariableValues) {
   document || devAssert(false, 'Must provide document.'); // If the schema used for execution is invalid, throw an error.
 
   assertValidSchema(schema); // Variables, if provided, must be an object.
@@ -201,7 +192,10 @@ export function buildExecutionContext(args) {
     fieldResolver,
     typeResolver,
     subscribeFieldResolver,
-  } = args;
+  } = args; // If arguments are missing or incorrectly typed, this is an internal
+  // developer mistake which should throw an error.
+
+  assertValidExecutionArguments(schema, document, rawVariableValues);
   let operation;
   const fragments = Object.create(null);
 
