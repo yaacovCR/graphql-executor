@@ -13,7 +13,6 @@ import type { ExecutionArgs, ExecutionContext } from './execute.ts';
 import { collectFields } from './collectFields.ts';
 import { getArgumentValues } from './values.ts';
 import {
-  assertValidExecutionArguments,
   buildExecutionContext,
   buildResolveInfo,
   executeQueryOrMutation,
@@ -45,12 +44,8 @@ import { mapAsyncIterator } from './mapAsyncIterator.ts';
 export async function subscribe(
   args: ExecutionArgs,
 ): Promise<AsyncGenerator<ExecutionResult, void, void> | ExecutionResult> {
-  const { schema, document, variableValues } = args; // If arguments are missing or incorrectly typed, this is an internal
-  // developer mistake which should throw an early error.
-
-  assertValidExecutionArguments(schema, document, variableValues); // If a valid execution context cannot be created due to incorrect arguments,
+  // If a valid execution context cannot be created due to incorrect arguments,
   // a "Response" with only errors is returned.
-
   const exeContext = buildExecutionContext(args); // Return early errors if execution context failed.
 
   if (!('schema' in exeContext)) {
@@ -121,11 +116,8 @@ export async function createSourceEventStream(
   operationName?: Maybe<string>,
   subscribeFieldResolver?: Maybe<GraphQLFieldResolver<any, any>>,
 ): Promise<AsyncIterable<unknown> | ExecutionResult> {
-  // If arguments are missing or incorrectly typed, this is an internal
-  // developer mistake which should throw an early error.
-  assertValidExecutionArguments(schema, document, variableValues); // If a valid execution context cannot be created due to incorrect arguments,
+  // If a valid execution context cannot be created due to incorrect arguments,
   // a "Response" with only errors is returned.
-
   const exeContext = buildExecutionContext({
     schema,
     document,
