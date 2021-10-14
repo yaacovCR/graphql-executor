@@ -9,7 +9,7 @@
  * will be dropped entirely.
  */
 
-import type { ExecutionArgs } from '../execution/execute';
+import type { ExecutionArgs } from '../execution/executor';
 
 /**
  * @deprecated use ExecutionArgs instead. Will be removed in v17
