@@ -126,7 +126,50 @@ export interface ExecutionArgs {
     ),
 );
 
-export function executeQueryOrMutation(exeContext: ExecutionContext) {
+/**
+ * Implements the "Executing requests" section of the spec for queries and mutations.
+ */
+ export function executeQueryOrMutation(args: ExecutionArgs): PromiseOrValue<ExecutionResult> {
+  const exeContext = buildExecutionContext(args);
+
+  // If a valid execution context cannot be created due to incorrect arguments,
+  // a "Response" with only errors is returned.
+  if (!('schema' in exeContext)) {
+    return { errors: exeContext };
+  }
+
+  return executeQueryOrMutationImpl(exeContext);
+}
+
+export async function executeSubscription(
+  args: ExecutionArgs,
+): Promise<AsyncGenerator<ExecutionResult, void, void> | ExecutionResult> {
+  const exeContext = buildExecutionContext(args);
+
+  // If a valid execution context cannot be created due to incorrect arguments,
+  // a "Response" with only errors is returned.
+  if (!('schema' in exeContext)) {
+    return { errors: exeContext };
+  }
+
+  return executeSubscriptionImpl(exeContext);
+}
+
+export async function createSourceEventStream(
+  args: ExecutionArgs,
+): Promise<AsyncIterable<unknown> | ExecutionResult> {
+  const exeContext = buildExecutionContext(args);
+
+  // If a valid execution context cannot be created due to incorrect arguments,
+  // a "Response" with only errors is returned.
+  if (!('schema' in exeContext)) {
+    return { errors: exeContext };
+  }
+
+  return createSourceEventStreamImpl(exeContext);
+}
+
+export function executeQueryOrMutationImpl(exeContext: ExecutionContext) {
   // Return data or a Promise that will eventually resolve to the data described
   // by the "Response" section of the GraphQL specification.
 
@@ -935,7 +978,7 @@ export function getFieldDef(
   return parentType.getFields()[fieldName];
 }
 
-export async function executeSubscription(
+async function executeSubscriptionImpl(
   exeContext: ExecutionContext,
 ): Promise<AsyncGenerator<ExecutionResult, void, void> | ExecutionResult> {
   const resultOrStream = await createSourceEventStreamImpl(exeContext);
@@ -955,7 +998,7 @@ export async function executeSubscription(
       exeContext,
       payload,
     );
-    return executeQueryOrMutation(perPayloadExecutionContext);
+    return executeQueryOrMutationImpl(perPayloadExecutionContext);
   };
 
   // Map every source value to a ExecutionResult value as described above.
