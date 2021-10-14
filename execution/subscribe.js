@@ -6,7 +6,7 @@ Object.defineProperty(exports, '__esModule', {
 exports.subscribe = subscribe;
 exports.createSourceEventStream = createSourceEventStream;
 
-var _execute = require('./execute.js');
+var _executor = require('./executor.js');
 
 /**
  * Implements the "Subscribe" algorithm described in the GraphQL specification.
@@ -32,7 +32,7 @@ var _execute = require('./execute.js');
 async function subscribe(args) {
   // If a valid execution context cannot be created due to incorrect arguments,
   // a "Response" with only errors is returned.
-  const exeContext = (0, _execute.buildExecutionContext)(args); // Return early errors if execution context failed.
+  const exeContext = (0, _executor.buildExecutionContext)(args); // Return early errors if execution context failed.
 
   if (!('schema' in exeContext)) {
     return {
@@ -40,7 +40,7 @@ async function subscribe(args) {
     };
   }
 
-  return (0, _execute.executeSubscription)(exeContext);
+  return (0, _executor.executeSubscription)(exeContext);
 }
 /**
  * Implements the "CreateSourceEventStream" algorithm described in the
@@ -82,7 +82,7 @@ async function createSourceEventStream(
 ) {
   // If a valid execution context cannot be created due to incorrect arguments,
   // a "Response" with only errors is returned.
-  const exeContext = (0, _execute.buildExecutionContext)({
+  const exeContext = (0, _executor.buildExecutionContext)({
     schema,
     document,
     rootValue,
@@ -98,5 +98,5 @@ async function createSourceEventStream(
     };
   }
 
-  return (0, _execute.createSourceEventStreamImpl)(exeContext);
+  return (0, _executor.createSourceEventStreamImpl)(exeContext);
 }

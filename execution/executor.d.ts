@@ -1,20 +1,19 @@
 import type {
   DocumentNode,
   ExecutionResult,
-  FieldNode,
-  FragmentDefinitionNode,
+  GraphQLSchema,
+  GraphQLObjectType,
   GraphQLField,
   GraphQLFieldResolver,
-  GraphQLObjectType,
   GraphQLResolveInfo,
-  GraphQLSchema,
   GraphQLTypeResolver,
   OperationDefinitionNode,
+  FieldNode,
+  FragmentDefinitionNode,
 } from 'graphql';
 import { GraphQLError } from 'graphql';
-import type { ObjMap } from '../jsutils/ObjMap';
 import type { Path } from '../jsutils/Path';
-import type { PromiseOrValue } from '../jsutils/PromiseOrValue';
+import type { ObjMap } from '../jsutils/ObjMap';
 import type { Maybe } from '../jsutils/Maybe';
 /**
  * Terminology
@@ -41,7 +40,7 @@ import type { Maybe } from '../jsutils/Maybe';
  * Namely, schema of the type system that is currently executing,
  * and the fragments defined in the query document
  */
-export interface ExecutionContext {
+interface ExecutionContext {
   schema: GraphQLSchema;
   fragments: ObjMap<FragmentDefinitionNode>;
   rootValue: unknown;
@@ -68,19 +67,6 @@ export interface ExecutionArgs {
   typeResolver?: Maybe<GraphQLTypeResolver<any, any>>;
   subscribeFieldResolver?: Maybe<GraphQLFieldResolver<any, any>>;
 }
-/**
- * Implements the "Executing requests" section of the GraphQL specification.
- *
- * Returns either a synchronous ExecutionResult (if all encountered resolvers
- * are synchronous), or a Promise of an ExecutionResult that will eventually be
- * resolved and never rejected.
- *
- * If the arguments to this function do not result in a legal execution context,
- * a GraphQLError will be thrown immediately explaining the invalid input.
- */
-export declare function execute(
-  args: ExecutionArgs,
-): PromiseOrValue<ExecutionResult>;
 export declare function executeQueryOrMutation(
   exeContext: ExecutionContext,
 ):
@@ -94,12 +80,6 @@ export declare function executeQueryOrMutation(
         import('graphql/jsutils/ObjMap').ObjMap<unknown>
       >
     >;
-/**
- * Also implements the "Executing requests" section of the GraphQL specification.
- * However, it guarantees to complete synchronously (or throw an error) assuming
- * that all field resolvers are also synchronous.
- */
-export declare function executeSync(args: ExecutionArgs): ExecutionResult;
 /**
  * Constructs a ExecutionContext object from the arguments passed to
  * execute, which we will pass throughout the other execution methods.
@@ -165,3 +145,4 @@ export declare function executeSubscription(
 export declare function createSourceEventStreamImpl(
   exeContext: ExecutionContext,
 ): Promise<AsyncIterable<unknown> | ExecutionResult>;
+export {};

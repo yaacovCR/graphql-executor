@@ -2,7 +2,7 @@ import {
   buildExecutionContext,
   createSourceEventStreamImpl,
   executeSubscription,
-} from './execute.mjs';
+} from './executor.mjs';
 /**
  * Implements the "Subscribe" algorithm described in the GraphQL specification.
  *
