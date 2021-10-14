@@ -25,9 +25,9 @@ GraphQL.js provides two important capabilities: building a typed schema and
 executing requests against that type schema.
 
 GraphQL Executor refactors the execution pipeline from GraphQL.js into an exported
-versioned, `Executor` class. The included `execute` function is simply a thin wrapper
-around the `Executor.executeQueryOrMutation()` and `Executor.executeSubscription()`
-functions.
+versioned, an `Executor` class. An `execute` function is simply a thin wrapper around
+the `Executor.executeQueryOrMutation(args)` and `Executor.executeSubscription(args)`
+methods.
 
 To customize execution:
 
@@ -37,17 +37,8 @@ To customize execution:
 
 ```ts
 export function execute(args: ExecutionArgs): PromiseOrValue<ExecutionResult> {
-  let executor: Executor;
-  try {
-    executor = new Executor(args);
-  } catch (error) {
-    if (isAggregateOfGraphQLErrors(error)) {
-      return { errors: error.errors };
-    }
-    throw error;
-  }
-
-  return executor.executeQueryOrMutation();
+  const executor = new Executor(args);
+  return executor.executeQueryOrMutation(args);
 }
 ```
 
