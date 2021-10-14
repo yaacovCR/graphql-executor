@@ -81,19 +81,6 @@ export interface ExecutionArgs {
 export declare function execute(
   args: ExecutionArgs,
 ): PromiseOrValue<ExecutionResult>;
-export declare function executeQueryOrMutation(
-  exeContext: ExecutionContext,
-):
-  | ExecutionResult<
-      import('graphql/jsutils/ObjMap').ObjMap<unknown>,
-      import('graphql/jsutils/ObjMap').ObjMap<unknown>
-    >
-  | Promise<
-      ExecutionResult<
-        import('graphql/jsutils/ObjMap').ObjMap<unknown>,
-        import('graphql/jsutils/ObjMap').ObjMap<unknown>
-      >
-    >;
 /**
  * Also implements the "Executing requests" section of the GraphQL specification.
  * However, it guarantees to complete synchronously (or throw an error) assuming

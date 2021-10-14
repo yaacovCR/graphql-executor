@@ -4,7 +4,6 @@ Object.defineProperty(exports, '__esModule', {
   value: true,
 });
 exports.execute = execute;
-exports.executeQueryOrMutation = executeQueryOrMutation;
 exports.executeSync = executeSync;
 exports.assertValidExecutionArguments = assertValidExecutionArguments;
 exports.buildExecutionContext = buildExecutionContext;
@@ -38,20 +37,11 @@ var _values = require('./values.js');
 
 var _collectFields = require('./collectFields.js');
 
-// TODO: Remove when upstream graphql-js properly exports OperationTypeNode as value.
-var OperationTypeNode;
 /**
  * A memoized collection of relevant subfields with regard to the return
  * type. Memoizing ensures the subfields are not repeatedly calculated, which
  * saves overhead when resolving lists of values.
  */
-
-(function (OperationTypeNode) {
-  OperationTypeNode['QUERY'] = 'query';
-  OperationTypeNode['MUTATION'] = 'mutation';
-  OperationTypeNode['SUBSCRIPTION'] = 'subscription';
-})(OperationTypeNode || (OperationTypeNode = {}));
-
 const collectSubfields = (0, _memoize.memoize3)(
   (exeContext, returnType, fieldNodes) =>
     (0, _collectFields.collectSubfields)(
@@ -111,13 +101,7 @@ function execute(args) {
     return {
       errors: exeContext,
     };
-  }
-
-  return executeQueryOrMutation(exeContext);
-}
-
-function executeQueryOrMutation(exeContext) {
-  // Return data or a Promise that will eventually resolve to the data described
+  } // Return data or a  Promise that will eventually resolve to the data described
   // by the "Response" section of the GraphQL specification.
   // If errors are encountered while executing a GraphQL field, only that
   // field and its descendants will be omitted, and sibling fields will still
@@ -127,6 +111,7 @@ function executeQueryOrMutation(exeContext) {
   // Errors from sub-fields of a NonNull type may propagate to the top level,
   // at which point we still log the error and null the parent field, which
   // in this case is the entire response.
+
   try {
     const result = executeQueryOrMutationRootFields(exeContext);
 
@@ -332,10 +317,12 @@ function executeQueryOrMutationRootFields(
   const path = undefined;
 
   switch (operation.operation) {
-    case OperationTypeNode.QUERY:
+    // TODO: Change 'query', etc. => to OperationTypeNode.QUERY, etc. when upstream
+    // graphql-js properly exports OperationTypeNode as a value.
+    case 'query':
       return executeFields(exeContext, rootType, rootValue, path, rootFields);
 
-    case OperationTypeNode.MUTATION:
+    case 'mutation':
       return executeFieldsSerially(
         exeContext,
         rootType,
@@ -344,7 +331,7 @@ function executeQueryOrMutationRootFields(
         rootFields,
       );
 
-    case OperationTypeNode.SUBSCRIPTION:
+    case 'subscription':
       // TODO: deprecate `subscribe` and move all logic here
       // Temporary solution until we finish merging execute and subscribe together
       return executeFields(exeContext, rootType, rootValue, path, rootFields);
