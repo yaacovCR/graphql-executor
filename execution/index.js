@@ -9,6 +9,12 @@ Object.defineProperty(exports, 'responsePathAsArray', {
     return _Path.pathToArray;
   },
 });
+Object.defineProperty(exports, 'Executor', {
+  enumerable: true,
+  get: function () {
+    return _executor.Executor;
+  },
+});
 Object.defineProperty(exports, 'defaultFieldResolver', {
   enumerable: true,
   get: function () {
