@@ -12,10 +12,6 @@ function toJSONDeep(value: unknown): unknown {
     return value;
   }
 
-  if (typeof value.toJSON === 'function') {
-    return value.toJSON();
-  }
-
   if (Array.isArray(value)) {
     return value.map(toJSONDeep);
   }
