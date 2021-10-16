@@ -37,7 +37,7 @@ To customize execution:
 
 ```ts
 export function execute(args: ExecutionArgs): PromiseOrValue<ExecutionResult> {
-  const executor = new Executor(args);
+  const executor = new MyCustomExecutor(args);
   return executor.executeQueryOrMutation(args);
 }
 ```
@@ -59,7 +59,7 @@ npm install graphql-executor@git://github.com/yaacovCR/graphql-executor.git#npm
 GraphQL Executor is a general-purpose library and can be used both in a Node server
 and in the browser.
 
-Building a project using GraphQL.js with [webpack](https://webpack.js.org) or
+Building a project using GraphQL Executor with [webpack](https://webpack.js.org) or
 [rollup](https://github.com/rollup/rollup) should just work and only include
 the portions of the library you use. This works because GraphQL.js is distributed
 with both CommonJS (`require()`) and ESModule (`import`) files. Ensure that any
@@ -67,11 +67,12 @@ custom build configurations look for `.mjs` files!
 
 ### Contributing
 
-We actively welcome pull requests. Learn how to [contribute](./.github/CONTRIBUTING.md).
+We actively welcome pull requests. GraphQL Executor is spec-compliant but is open to adopting
+experimental behavior such as `@defer`/`@stream` support.
 
 ### Changelog
 
-Changes are tracked as [GitHub releases](https://github.com/graphql/graphql-js/releases).
+Changes are tracked as [GitHub releases](https://github.com/yaacovCR/graphql-executor/releases).
 
 ### License
 
