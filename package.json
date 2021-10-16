@@ -44,7 +44,7 @@
     "gitpublish:deno": "bash ./resources/gitpublish.sh deno denoDist"
   },
   "dependencies": {
-    "graphql": "16.0.0-rc.4"
+    "graphql": "^15.0.0 || ^16.0.0-rc"
   },
   "devDependencies": {
     "@babel/core": "7.15.5",

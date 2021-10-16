@@ -107,11 +107,14 @@ jobs:
           fail_ci_if_error: true
 
   test:
-    name: Run tests on Node v${{ matrix.node_version_to_setup }}
+    name: Test GraphQL v${{ matrix.graphql_version }} with Node v${{ matrix.node_version_to_setup }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
         node_version_to_setup: [12, 14, 16]
+        graphql_version:
+          - 15
+          - rc
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
@@ -125,15 +128,52 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ~/.npm
-          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.OS }}-node-${{ matrix.graphql_version }}-graphql-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.OS }}-node-
+            ${{ runner.OS }}-node-${{ matrix.graphql_version }}-graphql-
+
+      - name: Force GraphQL Version
+        run: npm install graphql@${{ matrix.graphql_version }}
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm install
 
       - name: Run Tests
         run: npm run testonly
+
+  build:
+    name: Build with GraphQL v${{ matrix.graphql_version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        graphql_version:
+          - 15
+          - rc
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ env.NODE_VERSION_USED_FOR_DEVELOPMENT }}
+
+      - name: Cache Node.js modules
+        uses: actions/cache@v2
+        with:
+          path: ~/.npm
+          key: ${{ runner.OS }}-node-${{ matrix.graphql_version }}-graphql-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.OS }}-node-${{ matrix.graphql_version }}-graphql-
+
+      - name: Force GraphQL Version
+        run: npm install graphql@${{ matrix.graphql_version }}
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Build
+        run: npm run build
 
   benchmark:
     name: Run benchmark
@@ -207,7 +247,7 @@ jobs:
       github.event_name == 'push' &&
       github.repository == 'yaacovCR/graphql-executor' &&
       github.ref == 'refs/heads/main'
-    needs: [test, lint, checkForCommonlyIgnoredFiles]
+    needs: [test, lint, build, checkForCommonlyIgnoredFiles]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
@@ -243,7 +283,7 @@ jobs:
       github.event_name == 'push' &&
       github.repository == 'yaacovCR/graphql-executor' &&
       github.ref == 'refs/heads/main'
-    needs: [test, lint, checkForCommonlyIgnoredFiles]
+    needs: [test, lint, build, checkForCommonlyIgnoredFiles]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
