@@ -80,6 +80,7 @@ function buildPackageJSON() {
   delete packageJSON.private;
   delete packageJSON.scripts;
   delete packageJSON.devDependencies;
+  delete packageJSON.publishConfig;
 
   const { version } = packageJSON;
   const versionMatch = /^\d+\.\d+\.\d+-?(?<preReleaseTag>.*)?$/.exec(version);
