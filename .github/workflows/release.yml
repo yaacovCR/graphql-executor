@@ -5,6 +5,8 @@ on:
     branches:
       - main
 
+env:
+  NODE_VERSION_USED_FOR_DEVELOPMENT: 16
 jobs:
   release:
     name: Release
