@@ -3,7 +3,6 @@
   "version": "0.0.3",
   "description": "A customizable GraphQL Spec compliant Executor class.",
   "license": "MIT",
-  "private": true,
   "main": "index",
   "module": "index.mjs",
   "types": "index.d.ts",
@@ -41,8 +40,7 @@
     "gitpublish:npm": "bash ./resources/gitpublish.sh npm npmDist",
     "gitpublish:deno": "bash ./resources/gitpublish.sh deno denoDist",
     "changeset": "changeset add",
-    "prerelease": "npm run build:npm",
-    "release": "changeset publish"
+    "release": "npm run build:npm && changeset publish && npm install --package-lock-only --engine-strict --strict-peer-deps"
   },
   "publishConfig": {
     "directory": "npmDist"
