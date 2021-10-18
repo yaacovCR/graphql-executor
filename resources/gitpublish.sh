@@ -57,6 +57,6 @@ if git diff --staged --quiet; then
   echo "Nothing to publish"
 else
   git commit -a -m "Deploy $HEAD_REV to '$BRANCH' branch"
-  git push > /dev/null 2>&1
+  git push
   echo "Pushed"
 fi
