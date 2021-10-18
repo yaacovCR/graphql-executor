@@ -1,2 +1,10 @@
 /** Execute GraphQL queries. */
-export { Executor } from './execution/index.mjs';
+export {
+  Executor,
+  defaultFieldResolver,
+  defaultTypeResolver,
+  execute,
+  executeSync,
+  subscribe,
+  createSourceEventStream,
+} from './execution/index.mjs';
