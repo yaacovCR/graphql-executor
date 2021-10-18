@@ -7,3 +7,7 @@ export {
 } from './executor';
 
 export type { ExecutionArgs } from './executor';
+
+export { execute, executeSync } from './execute';
+
+export { subscribe, createSourceEventStream } from './subscribe';
