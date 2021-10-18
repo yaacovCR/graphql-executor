@@ -77,7 +77,6 @@ function buildPackageJSON() {
     fs.readFileSync(require.resolve('../package.json'), 'utf-8'),
   );
 
-  delete packageJSON.private;
   delete packageJSON.scripts;
   delete packageJSON.devDependencies;
   delete packageJSON.publishConfig;
