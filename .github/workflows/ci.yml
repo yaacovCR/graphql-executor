@@ -310,4 +310,4 @@ jobs:
       - name: Deploy to `deno` branch
         run: npm run gitpublish:deno
         env:
-          GH_TOKEN: ${{ secrets.GH_NPM_BRANCH_PUBLISH_TOKEN  }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN  }}
