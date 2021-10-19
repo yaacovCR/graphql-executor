@@ -1,5 +1,11 @@
 # graphql-executor
 
+## 0.0.6
+
+### Patch Changes
+
+- 43faf000: Update dependencies.
+
 ## 0.0.5
 
 ### Patch Changes
