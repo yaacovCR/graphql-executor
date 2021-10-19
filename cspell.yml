@@ -1,15 +1,6 @@
 language: en
+useGitignore: true
 ignorePaths:
-  # Copied from '.gitignore', please keep it in sync.
-  - diff-npm-package.html
-  - .eslintcache
-  - node_modules
-  - coverage
-  - npmDist
-  - denoDist
-  - npm
-  - deno
-
   # Excluded from spelling check
   - cspell.yml
   - package.json
@@ -28,6 +19,7 @@ words:
   - graphiql
   - sublinks
   - instanceof
+  - changesets
 
   # Different names used inside tests
   - Skywalker
