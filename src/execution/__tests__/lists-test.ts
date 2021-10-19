@@ -193,6 +193,68 @@ describe('Execute: Handles list nullability', () => {
     });
   });
 
+  it('Contains multiple errors', async () => {
+    const listField = [1, new Error('bad'), new Error('bad again')];
+    const badError = {
+      message: 'bad',
+      locations: [{ line: 1, column: 3 }],
+      path: ['listField', 1],
+    };
+    const badAgainError = {
+      message: 'bad again',
+      locations: [{ line: 1, column: 3 }],
+      path: ['listField', 2],
+    };
+
+    expectJSON(await complete({ listField, as: '[Int]' })).toDeepEqual({
+      data: { listField: [1, null, null] },
+      errors: [badError, badAgainError],
+    });
+    expectJSON(await complete({ listField, as: '[Int]!' })).toDeepEqual({
+      data: { listField: [1, null, null] },
+      errors: [badError, badAgainError],
+    });
+    expectJSON(await complete({ listField, as: '[Int!]' })).toDeepEqual({
+      data: { listField: null },
+      errors: [badError],
+    });
+    expectJSON(await complete({ listField, as: '[Int!]!' })).toDeepEqual({
+      data: null,
+      errors: [badError],
+    });
+  });
+
+  it('Contains multiple errors', async () => {
+    const listField = [1, new Error('bad'), new Error('bad again')];
+    const badError = {
+      message: 'bad',
+      locations: [{ line: 1, column: 3 }],
+      path: ['listField', 1],
+    };
+    const badAgainError = {
+      message: 'bad again',
+      locations: [{ line: 1, column: 3 }],
+      path: ['listField', 2],
+    };
+
+    expectJSON(await complete({ listField, as: '[Int]' })).toDeepEqual({
+      data: { listField: [1, null, null] },
+      errors: [badError, badAgainError],
+    });
+    expectJSON(await complete({ listField, as: '[Int]!' })).toDeepEqual({
+      data: { listField: [1, null, null] },
+      errors: [badError, badAgainError],
+    });
+    expectJSON(await complete({ listField, as: '[Int!]' })).toDeepEqual({
+      data: { listField: null },
+      errors: [badError],
+    });
+    expectJSON(await complete({ listField, as: '[Int!]!' })).toDeepEqual({
+      data: null,
+      errors: [badError],
+    });
+  });
+
   it('Results in error', async () => {
     const listField = new Error('bad');
     const errors = [
@@ -218,6 +280,72 @@ describe('Execute: Handles list nullability', () => {
     expectJSON(await complete({ listField, as: '[Int!]!' })).toDeepEqual({
       data: null,
       errors,
+    });
+  });
+
+  describe('Waits for all list promises to settle before returning error', () => {
+    const schema = buildSchema('type Query { listField: [Int!] }');
+    const document = parse('{ listField }');
+
+    async function completeSlowAndFast(args?: { reverse?: boolean }) {
+      const fastItem = Promise.resolve(new Error('fastError'));
+
+      let slowSettled = false;
+      const slowItem = new Promise((resolve) =>
+        setTimeout(() => {
+          slowSettled = true;
+          resolve(new Error('slowError'));
+        }, 500),
+      );
+
+      const listField = [slowItem, fastItem];
+
+      if (args?.reverse) {
+        listField.reverse();
+      }
+
+      const result = await execute({
+        schema,
+        document,
+        rootValue: { listField },
+      });
+
+      return {
+        slowSettled,
+        result,
+      };
+    }
+
+    it('Waits if the slow item is first', async () => {
+      const { slowSettled, result } = await completeSlowAndFast();
+      expect(slowSettled).to.equal(true);
+      expectJSON(result).toDeepEqual({
+        data: { listField: null },
+        errors: [
+          {
+            message: 'fastError',
+            locations: [{ line: 1, column: 3 }],
+            path: ['listField', 1],
+          },
+        ],
+      });
+    });
+
+    it('Waits if the slow item is last', async () => {
+      const { slowSettled, result } = await completeSlowAndFast({
+        reverse: true,
+      });
+      expect(slowSettled).to.equal(true);
+      expectJSON(result).toDeepEqual({
+        data: { listField: null },
+        errors: [
+          {
+            message: 'fastError',
+            locations: [{ line: 1, column: 3 }],
+            path: ['listField', 0],
+          },
+        ],
+      });
     });
   });
 });
