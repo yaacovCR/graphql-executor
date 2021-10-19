@@ -19,6 +19,7 @@ words:
   - graphiql
   - sublinks
   - instanceof
+  - changesets
 
   # Different names used inside tests
   - Skywalker
