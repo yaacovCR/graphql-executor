@@ -1,6 +1,6 @@
 # GraphQL Executor
 
-A GraphQL Spec compliant Executor class based on [graphql-js](https://github.com/graphql/graphql-js/)
+A customizable GraphQL Spec compliant Executor based on [graphql-js](https://github.com/graphql/graphql-js/)
 
 ### Installation
 
@@ -18,7 +18,7 @@ yarn add graphql-executor
 
 ### Usage
 
-For the default behavior:
+For the default GraphQL-Executor behavior:
 
 1. Use the `execute` and `subscribe` methods exported by `graphql-executor` in place of those exported by `graphql-js`.
 
@@ -26,9 +26,9 @@ To customize execution:
 (A) fork this package, customize the code, and carry on as above, or
 (B) override the internal `Executor` class:
 
-1. When overriding the `Executor` class, remember to pin the version of `graphql-executor` you use, as the Executor class remains internal with all changes considered non-breaking.
+1. Remember to pin the version of `graphql-executor` you use, as the `Executor` class remains internal with all changes considered non-breaking.
 2. Subclass the exported `Executor` class.
-3. Override `Executor` methods as desired to provide your custom functionality.
+3. Override your subclassed `Executor` methods as desired to provide your custom functionality.
 4. Create a new custom `execute` function calling this subclass.
 
 ```ts
@@ -50,10 +50,10 @@ GraphQL Executor provides:
 
 1. A way to fork the GraphQL.JS executor without introducing multiple versions of
    `graphql-js` into your project. `graphql-executor` is a smart fork of only the `execution` module of `graphql-js`. You can safely fork `graphql-executor` to customize your execution flow as needed.
-2. A code-only method of customizing the executor by sub-classing the exported internal `Executor` class as above.
+2. A code-only method of customizing the executor by subclassing the exported internal `Executor` class as above.
 3. Direct benefits from our own customizations! GraphQL Executor is spec-compliant, but aims to support experimental features (such as `@defer`/`@stream` support) and provide other improvements as possible. See (https://github.com/yaacovCR/graphql-executor/releases) to track any new features.
 
-### The Long Version:
+### The Long Version
 
 [GraphQL.js](https://github.com/graphql/graphql-js) occupies a foundational position
 within the Javascript GraphQL ecosystem as the central dependency for almost all other
@@ -103,10 +103,12 @@ GraphQL Executor is a "smartly" forked version of the `graphql.js` package that 
 only the `execution` module and still depends on the `graphql-js` package for all other
 purposes, thereby eliding the issues above.
 
-GraphQL Executor refactors the execution pipeline from GraphQL.js into an exported
+GraphQL Executor also refactors the execution pipeline from GraphQL.js into an exported
 versioned, an `Executor` class. An `execute` function is simply a thin wrapper around
 the `Executor.executeQueryOrMutation(args)` and `Executor.executeSubscription(args)`
-methods. You can subclass the Executor class to very simply.
+methods. You can subclass the `Executor` class to customize the executor pipeline without
+maintaining a separate repository. The `Executor` class is internal, so when utilizing this
+method, you must pin the version of the `graphql-executor` package.
 
 ### Contributing
 
