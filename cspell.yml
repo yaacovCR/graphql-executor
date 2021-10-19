@@ -20,6 +20,7 @@ words:
   - sublinks
   - instanceof
   - changesets
+  - subclassing
 
   # Different names used inside tests
   - Skywalker
