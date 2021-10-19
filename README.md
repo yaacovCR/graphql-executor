@@ -20,7 +20,7 @@ yarn add graphql-executor
 
 For the default behavior:
 
-1. Use the `execute` and `subscribe` methods exported by `graphl-executor` in place of those exported by `graphql-js`.
+1. Use the `execute` and `subscribe` methods exported by `graphql-executor` in place of those exported by `graphql-js`.
 
 To customize execution:
 (A) fork this package, customize the code, and carry on as above, or
@@ -50,7 +50,7 @@ GraphQL Executor provides:
 
 1. A way to fork the GraphQL.JS executor without introducing multiple versions of
    `graphql-js` into your project. `graphql-executor` is a smart fork of only the `execution` module of `graphql-js`. You can safely fork `graphql-executor` to customize your execution flow as needed.
-2. A code-only method of customizing the executor by subclassing the exported internal `Executor` class as above.
+2. A code-only method of customizing the executor by sub-classing the exported internal `Executor` class as above.
 3. Direct benefits from our own customizations! GraphQL Executor is spec-compliant, but aims to support experimental features (such as `@defer`/`@stream` support) and provide other improvements as possible. See (https://github.com/yaacovCR/graphql-executor/releases) to track any new features.
 
 ### The Long Version:
@@ -59,7 +59,7 @@ GraphQL Executor provides:
 within the Javascript GraphQL ecosystem as the central dependency for almost all other
 community packages. GraphQL.js provides two key capabilities: building a typed schema
 and executing requests against that type schema; it also includes a parser for the
-GraphQL langugage and a handful of additional extremely helpful utilities. The vast
+GraphQL language and a handful of additional extremely helpful utilities. The vast
 majority of community packages depend in some way upon this bedrock to provide all
 additional custom functionality.
 

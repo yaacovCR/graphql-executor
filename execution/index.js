@@ -3,16 +3,16 @@
 Object.defineProperty(exports, '__esModule', {
   value: true,
 });
-Object.defineProperty(exports, 'responsePathAsArray', {
-  enumerable: true,
-  get: function () {
-    return _Path.pathToArray;
-  },
-});
 Object.defineProperty(exports, 'Executor', {
   enumerable: true,
   get: function () {
     return _executor.Executor;
+  },
+});
+Object.defineProperty(exports, 'createSourceEventStream', {
+  enumerable: true,
+  get: function () {
+    return _subscribe.createSourceEventStream;
   },
 });
 Object.defineProperty(exports, 'defaultFieldResolver', {
@@ -39,16 +39,16 @@ Object.defineProperty(exports, 'executeSync', {
     return _execute.executeSync;
   },
 });
+Object.defineProperty(exports, 'responsePathAsArray', {
+  enumerable: true,
+  get: function () {
+    return _Path.pathToArray;
+  },
+});
 Object.defineProperty(exports, 'subscribe', {
   enumerable: true,
   get: function () {
     return _subscribe.subscribe;
-  },
-});
-Object.defineProperty(exports, 'createSourceEventStream', {
-  enumerable: true,
-  get: function () {
-    return _subscribe.createSourceEventStream;
   },
 });
 

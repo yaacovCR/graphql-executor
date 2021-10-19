@@ -9,6 +9,12 @@ Object.defineProperty(exports, 'Executor', {
     return _index.Executor;
   },
 });
+Object.defineProperty(exports, 'createSourceEventStream', {
+  enumerable: true,
+  get: function () {
+    return _index.createSourceEventStream;
+  },
+});
 Object.defineProperty(exports, 'defaultFieldResolver', {
   enumerable: true,
   get: function () {
@@ -37,12 +43,6 @@ Object.defineProperty(exports, 'subscribe', {
   enumerable: true,
   get: function () {
     return _index.subscribe;
-  },
-});
-Object.defineProperty(exports, 'createSourceEventStream', {
-  enumerable: true,
-  get: function () {
-    return _index.createSourceEventStream;
   },
 });
 
