@@ -9,3 +9,6 @@
 
 # Ignore TS files inside integration test
 /integrationTests/ts/*.ts
+
+# Ignore TS files inside jit-benchmarks
+/jit-benchmarks/*.ts
