@@ -525,6 +525,69 @@ describe('Execute: handles non-nullable types', () => {
     });
   });
 
+  describe('waits for all resolvers to settle prior to returning', () => {
+    const schemaWithSlowAndFast = buildSchema(
+      'type Query { slowError: String! fastError: String! }',
+    );
+
+    async function completeSlowAndFast(query: string) {
+      let slowSettled = false;
+      const result = await execute({
+        schema: schemaWithSlowAndFast,
+        document: parse(query),
+        rootValue: {
+          fastError: () => Promise.resolve(new Error('fastError')),
+          slowError: () =>
+            new Promise((resolve) =>
+              setTimeout(() => {
+                slowSettled = true;
+                resolve(new Error('slowError'));
+              }, 500),
+            ),
+        },
+      });
+
+      return {
+        slowSettled,
+        result,
+      };
+    }
+
+    it('waits if slowError is listed first', async () => {
+      const { slowSettled, result } = await completeSlowAndFast(
+        '{ slowError, fastError }',
+      );
+      expect(slowSettled).to.equal(true);
+      expectJSON(result).toDeepEqual({
+        data: null,
+        errors: [
+          {
+            message: 'fastError',
+            path: ['fastError'],
+            locations: [{ line: 1, column: 14 }],
+          },
+        ],
+      });
+    });
+
+    it('waits if slowError is listed last', async () => {
+      const { slowSettled, result } = await completeSlowAndFast(
+        '{ fastError, slowError }',
+      );
+      expect(slowSettled).to.equal(true);
+      expectJSON(result).toDeepEqual({
+        data: null,
+        errors: [
+          {
+            message: 'fastError',
+            path: ['fastError'],
+            locations: [{ line: 1, column: 3 }],
+          },
+        ],
+      });
+    });
+  });
+
   describe('Handles non-null argument', () => {
     const schemaWithNonNullArg = new GraphQLSchema({
       query: new GraphQLObjectType({
