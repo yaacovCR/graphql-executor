@@ -41,10 +41,10 @@ import { devAssert } from '../jsutils/devAssert.ts';
 import { isPromise } from '../jsutils/isPromise.ts';
 import { isObjectLike } from '../jsutils/isObjectLike.ts';
 import { promiseReduce } from '../jsutils/promiseReduce.ts';
-import { promiseForObject } from '../jsutils/promiseForObject.ts';
 import { addPath, pathToArray } from '../jsutils/Path.ts';
 import { isAsyncIterable } from '../jsutils/isAsyncIterable.ts';
 import { isIterableObject } from '../jsutils/isIterableObject.ts';
+import { resolveAfterAll } from '../jsutils/resolveAfterAll.ts';
 import { getVariableValues, getArgumentValues } from './values.ts';
 import {
   collectFields,
@@ -388,8 +388,8 @@ export class Executor {
     const path = undefined;
 
     switch (operation.operation) {
-      // TODO: Change 'query', etc. => to OperationTypeNode.QUERY, etc.
-      // when ready to drop v15 support.
+      // TODO: Change 'query', etc. => to OperationTypeNode.QUERY, etc. when upstream
+      // graphql-js properly exports OperationTypeNode as a value.
       case 'query':
         return this.executeFields(
           exeContext,
@@ -474,7 +474,7 @@ export class Executor {
     fields: Map<string, ReadonlyArray<FieldNode>>,
   ): PromiseOrValue<ObjMap<unknown>> {
     const results = Object.create(null);
-    let containsPromise = false;
+    const promises: Array<Promise<void>> = [];
 
     for (const [responseName, fieldNodes] of fields.entries()) {
       const fieldPath = addPath(path, responseName, parentType.name);
@@ -487,21 +487,24 @@ export class Executor {
       );
 
       if (result !== undefined) {
-        results[responseName] = result;
-
         if (isPromise(result)) {
-          containsPromise = true;
+          const promise = result.then((resolved) => {
+            results[responseName] = resolved;
+          });
+          promises.push(promise);
+        } else {
+          results[responseName] = result;
         }
       }
     } // If there are no promises, we can just return the object
 
-    if (!containsPromise) {
+    if (!promises.length) {
       return results;
-    } // Otherwise, results is a map from field name to the result of resolving that
-    // field, which is possibly a promise. Return a promise that will return this
-    // same map, but with any promises replaced with the values they resolved to.
+    } // Otherwise, results will only eventually be a map from field name to the
+    // result of resolving that field, which is possibly a promise. Return a
+    // promise that will return this map after resolution is complete.
 
-    return promiseForObject(results);
+    return resolveAfterAll(results, promises);
   }
   /**
    * Implements the "Executing field" section of the spec
@@ -756,7 +759,7 @@ export class Executor {
     // where the list contains no Promises by avoiding creating another Promise.
 
     const itemType = returnType.ofType;
-    let containsPromise = false;
+    const promises: Array<Promise<void>> = [];
     const completedResults = Array.from(result, (item, index) => {
       // No need to modify the info object containing the path,
       // since from here on it is not ever accessed by resolver functions.
@@ -787,27 +790,36 @@ export class Executor {
           );
         }
 
-        if (isPromise(completedItem)) {
-          containsPromise = true; // Note: we don't rely on a `catch` method, but we do expect "thenable"
-          // to take a second callback for the error case.
+        if (!isPromise(completedItem)) {
+          return completedItem;
+        } // Note: we don't rely on a `catch` method, but we do expect "thenable"
+        // to take a second callback for the error case.
 
-          return completedItem.then(undefined, (rawError) => {
+        const promise = completedItem
+          .then(undefined, (rawError) => {
             const error = locatedError(
               rawError,
               fieldNodes,
               pathToArray(itemPath),
             );
             return this.handleFieldError(error, itemType, exeContext);
+          })
+          .then((resolved) => {
+            completedResults[index] = resolved;
           });
-        }
-
-        return completedItem;
+        promises.push(promise);
+        return undefined;
       } catch (rawError) {
         const error = locatedError(rawError, fieldNodes, pathToArray(itemPath));
         return this.handleFieldError(error, itemType, exeContext);
       }
     });
-    return containsPromise ? Promise.all(completedResults) : completedResults;
+
+    if (!promises.length) {
+      return completedResults;
+    }
+
+    return resolveAfterAll(completedResults, promises);
   }
   /**
    * Complete a Scalar or Enum by serializing to a valid value, returning
@@ -1012,7 +1024,7 @@ export class Executor {
    * __schema, __type and __typename. __typename is special because
    * it can always be queried as a field, even in situations where no
    * other fields are allowed, like on a Union. __schema and __type
-   * could get automatically added to the query type, but that uld
+   * could get automatically added to the query type, but that would
    * require mutating type definitions, which would cause issues.
    *
    */
