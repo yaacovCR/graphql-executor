@@ -287,7 +287,7 @@ export declare class Executor {
    * __schema, __type and __typename. __typename is special because
    * it can always be queried as a field, even in situations where no
    * other fields are allowed, like on a Union. __schema and __type
-   * could get automatically added to the query type, but that uld
+   * could get automatically added to the query type, but that would
    * require mutating type definitions, which would cause issues.
    *
    */
