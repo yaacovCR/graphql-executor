@@ -1,7 +1,7 @@
 'use strict';
 
 const { parse } = require('graphql/language/parser.js');
-const { execute } = require('graphql/execution/execute.js');
+const { execute } = require('graphql-executor/execution/execute.js');
 const { buildSchema } = require('graphql/utilities/buildASTSchema.js');
 
 const schema = buildSchema('type Query { listField: [String] }');
