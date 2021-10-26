@@ -1,5 +1,13 @@
 # graphql-executor
 
+## 0.0.8
+
+### Patch Changes
+
+- 8df89b5a: Allow list field resolvers to return async iterables
+
+  https://github.com/graphql/graphql-js/pull/2757
+
 ## 0.0.7
 
 ### Patch Changes
