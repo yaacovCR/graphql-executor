@@ -49,7 +49,11 @@ import { isAsyncIterable } from '../jsutils/isAsyncIterable';
 import { isIterableObject } from '../jsutils/isIterableObject';
 import { resolveAfterAll } from '../jsutils/resolveAfterAll';
 
-import { getVariableValues, getArgumentValues, getDirectiveValues } from './values';
+import {
+  getVariableValues,
+  getArgumentValues,
+  getDirectiveValues,
+} from './values';
 import {
   collectFields,
   collectSubfields as _collectSubfields,
@@ -920,7 +924,7 @@ export class Executor {
         index++;
         continue;
       }
-      
+
       this.completeListItemValue(
         completedResults,
         index++,
@@ -975,7 +979,9 @@ export class Executor {
     return {
       initialCount:
         // istanbul ignore next (initialCount is required number argument)
-        typeof stream.initialCount === 'number' ? stream.initialCount : undefined,
+        typeof stream.initialCount === 'number'
+          ? stream.initialCount
+          : undefined,
       label: typeof stream.label === 'string' ? stream.label : undefined,
     };
   }
