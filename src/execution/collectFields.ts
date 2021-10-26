@@ -18,7 +18,19 @@ import {
 
 import type { ObjMap } from '../jsutils/ObjMap';
 
+import { GraphQLDeferDirective } from '../type/index';
+
 import { getDirectiveValues } from './values';
+
+export interface PatchFields {
+  label?: string;
+  fields: Map<string, ReadonlyArray<FieldNode>>;
+}
+
+export interface FieldsAndPatches {
+  fields: Map<string, ReadonlyArray<FieldNode>>;
+  patches: Array<PatchFields>;
+}
 
 /**
  * Given a selectionSet, collect all of the fields and returns it at the end.
@@ -35,8 +47,9 @@ export function collectFields(
   variableValues: { [variable: string]: unknown },
   runtimeType: GraphQLObjectType,
   selectionSet: SelectionSetNode,
-): Map<string, ReadonlyArray<FieldNode>> {
+): FieldsAndPatches {
   const fields = new Map();
+  const patches: Array<PatchFields> = [];
   collectFieldsImpl(
     schema,
     fragments,
@@ -44,9 +57,10 @@ export function collectFields(
     runtimeType,
     selectionSet,
     fields,
+    patches,
     new Set(),
   );
-  return fields;
+  return { fields, patches };
 }
 
 /**
@@ -65,8 +79,9 @@ export function collectSubfields(
   variableValues: { [variable: string]: unknown },
   returnType: GraphQLObjectType,
   fieldNodes: ReadonlyArray<FieldNode>,
-): Map<string, ReadonlyArray<FieldNode>> {
+): FieldsAndPatches {
   const subFieldNodes = new Map();
+  const subPatches: Array<PatchFields> = [];
   const visitedFragmentNames = new Set<string>();
   for (const node of fieldNodes) {
     if (node.selectionSet) {
@@ -77,11 +92,15 @@ export function collectSubfields(
         returnType,
         node.selectionSet,
         subFieldNodes,
+        subPatches,
         visitedFragmentNames,
       );
     }
   }
-  return subFieldNodes;
+  return {
+    fields: subFieldNodes,
+    patches: subPatches,
+  };
 }
 
 function collectFieldsImpl(
@@ -91,6 +110,7 @@ function collectFieldsImpl(
   runtimeType: GraphQLObjectType,
   selectionSet: SelectionSetNode,
   fields: Map<string, Array<FieldNode>>,
+  patches: Array<PatchFields>,
   visitedFragmentNames: Set<string>,
 ): void {
   for (const selection of selectionSet.selections) {
@@ -115,26 +135,51 @@ function collectFieldsImpl(
         ) {
           continue;
         }
-        collectFieldsImpl(
-          schema,
-          fragments,
-          variableValues,
-          runtimeType,
-          selection.selectionSet,
-          fields,
-          visitedFragmentNames,
-        );
+
+        const defer = getDeferValues(variableValues, selection);
+
+        if (defer) {
+          const patchFields = new Map();
+          collectFieldsImpl(
+            schema,
+            fragments,
+            variableValues,
+            runtimeType,
+            selection.selectionSet,
+            patchFields,
+            patches,
+            visitedFragmentNames,
+          );
+          patches.push({
+            label: defer.label,
+            fields: patchFields,
+          });
+        } else {
+          collectFieldsImpl(
+            schema,
+            fragments,
+            variableValues,
+            runtimeType,
+            selection.selectionSet,
+            fields,
+            patches,
+            visitedFragmentNames,
+          );
+        }
         break;
       }
       case Kind.FRAGMENT_SPREAD: {
         const fragName = selection.name.value;
-        if (
-          visitedFragmentNames.has(fragName) ||
-          !shouldIncludeNode(variableValues, selection)
-        ) {
+
+        if (!shouldIncludeNode(variableValues, selection)) {
           continue;
         }
-        visitedFragmentNames.add(fragName);
+
+        const defer = getDeferValues(variableValues, selection);
+        if (visitedFragmentNames.has(fragName) && !defer) {
+          continue;
+        }
+
         const fragment = fragments[fragName];
         if (
           !fragment ||
@@ -142,19 +187,64 @@ function collectFieldsImpl(
         ) {
           continue;
         }
-        collectFieldsImpl(
-          schema,
-          fragments,
-          variableValues,
-          runtimeType,
-          fragment.selectionSet,
-          fields,
-          visitedFragmentNames,
-        );
+        visitedFragmentNames.add(fragName);
+
+        if (defer) {
+          const patchFields = new Map();
+          collectFieldsImpl(
+            schema,
+            fragments,
+            variableValues,
+            runtimeType,
+            fragment.selectionSet,
+            patchFields,
+            patches,
+            visitedFragmentNames,
+          );
+          patches.push({
+            label: defer.label,
+            fields: patchFields,
+          });
+        } else {
+          collectFieldsImpl(
+            schema,
+            fragments,
+            variableValues,
+            runtimeType,
+            fragment.selectionSet,
+            fields,
+            patches,
+            visitedFragmentNames,
+          );
+        }
         break;
       }
     }
   }
+}
+
+/**
+ * Returns an object containing the `@defer` arguments if a field should be
+ * deferred based on the experimental flag, defer directive present and
+ * not disabled by the "if" argument.
+ */
+function getDeferValues(
+  variableValues: { [variable: string]: unknown },
+  node: FragmentSpreadNode | InlineFragmentNode,
+): undefined | { label?: string } {
+  const defer = getDirectiveValues(GraphQLDeferDirective, node, variableValues);
+
+  if (!defer) {
+    return;
+  }
+
+  if (defer.if === false) {
+    return;
+  }
+
+  return {
+    label: typeof defer.label === 'string' ? defer.label : undefined,
+  };
 }
 
 /**

@@ -1,13 +1,12 @@
 import type {
   DocumentNode,
-  ExecutionResult,
   GraphQLFieldResolver,
   GraphQLSchema,
 } from 'graphql';
 
 import type { Maybe } from '../jsutils/Maybe';
 
-import type { ExecutionArgs } from './executor';
+import type { ExecutionArgs, ExecutionResult } from './executor';
 import { Executor } from './executor';
 
 /**

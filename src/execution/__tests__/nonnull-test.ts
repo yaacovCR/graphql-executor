@@ -1,7 +1,6 @@
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
-import type { ExecutionResult } from 'graphql';
 import {
   GraphQLNonNull,
   GraphQLObjectType,
@@ -11,8 +10,11 @@ import {
   parse,
 } from 'graphql';
 
+import type { PromiseOrValue } from '../../jsutils/PromiseOrValue';
+
 import { expectJSON } from '../../__testUtils__/expectJSON';
 
+import type { ExecutionResult, AsyncExecutionResult } from '../executor';
 import { execute, executeSync } from '../execute';
 
 const syncError = new Error('sync');
@@ -110,7 +112,7 @@ const schema = buildSchema(`
 function executeQuery(
   query: string,
   rootValue: unknown,
-): ExecutionResult | Promise<ExecutionResult> {
+): PromiseOrValue<ExecutionResult | AsyncIterable<AsyncExecutionResult>> {
   return execute({ schema, document: parse(query), rootValue });
 }
 
