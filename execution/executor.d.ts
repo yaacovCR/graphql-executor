@@ -252,6 +252,17 @@ export declare class Executor {
     path: Path,
     iterator: AsyncIterator<unknown>,
   ): Promise<ReadonlyArray<unknown>>;
+  completeListItemValue(
+    completedResults: Array<unknown>,
+    index: number,
+    promises: Array<Promise<void>>,
+    item: unknown,
+    exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
+    fieldNodes: ReadonlyArray<FieldNode>,
+    info: GraphQLResolveInfo,
+    itemPath: Path,
+  ): void;
   /**
    * Complete a Scalar or Enum by serializing to a valid value, returning
    * null if serialization is not possible.
