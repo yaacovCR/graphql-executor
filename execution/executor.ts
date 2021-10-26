@@ -751,6 +751,20 @@ export class Executor {
     path: Path,
     result: unknown,
   ): PromiseOrValue<ReadonlyArray<unknown>> {
+    const itemType = returnType.ofType;
+
+    if (isAsyncIterable(result)) {
+      const iterator = result[Symbol.asyncIterator]();
+      return this.completeAsyncIteratorValue(
+        exeContext,
+        itemType,
+        fieldNodes,
+        info,
+        path,
+        iterator,
+      );
+    }
+
     if (!isIterableObject(result)) {
       throw new GraphQLError(
         `Expected Iterable, but did not find one for field "${info.parentType.name}.${info.fieldName}".`,
@@ -758,7 +772,6 @@ export class Executor {
     } // This is specified as a simple map, however we're optimizing the path
     // where the list contains no Promises by avoiding creating another Promise.
 
-    const itemType = returnType.ofType;
     const promises: Array<Promise<void>> = [];
     const completedResults = Array.from(result, (item, index) => {
       // No need to modify the info object containing the path,
@@ -820,6 +833,80 @@ export class Executor {
     }
 
     return resolveAfterAll(completedResults, promises);
+  }
+  /**
+   * Complete a async iterator value by completing the result and calling
+   * recursively until all the results are completed.
+   */
+
+  completeAsyncIteratorValue(
+    exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
+    fieldNodes: ReadonlyArray<FieldNode>,
+    info: GraphQLResolveInfo,
+    path: Path,
+    iterator: AsyncIterator<unknown>,
+  ): Promise<ReadonlyArray<unknown>> {
+    const promises: Array<Promise<void>> = [];
+    return new Promise<ReadonlyArray<unknown>>((resolve) => {
+      const next = (index: number, completedResults: Array<unknown>) => {
+        const fieldPath = addPath(path, index, undefined);
+        iterator.next().then(
+          ({ value, done }) => {
+            if (done) {
+              resolve(completedResults);
+              return;
+            } // TODO can the error checking logic be consolidated with completeListValue?
+
+            try {
+              const completedItem = this.completeValue(
+                exeContext,
+                itemType,
+                fieldNodes,
+                info,
+                fieldPath,
+                value,
+              );
+              completedResults.push(completedItem);
+
+              if (isPromise(completedItem)) {
+                const promise = completedItem.then((resolved) => {
+                  completedResults[index] = resolved;
+                });
+                promises.push(promise);
+              }
+            } catch (rawError) {
+              completedResults.push(null);
+              const error = locatedError(
+                rawError,
+                fieldNodes,
+                pathToArray(fieldPath),
+              );
+              this.handleFieldError(error, itemType, exeContext);
+              resolve(completedResults);
+            }
+
+            next(index + 1, completedResults);
+          },
+          (rawError) => {
+            completedResults.push(null);
+            const error = locatedError(
+              rawError,
+              fieldNodes,
+              pathToArray(fieldPath),
+            );
+            this.handleFieldError(error, itemType, exeContext);
+            resolve(completedResults);
+          },
+        );
+      };
+
+      next(0, []);
+    }).then((completedResults) =>
+      promises.length
+        ? resolveAfterAll(completedResults, promises)
+        : completedResults,
+    );
   }
   /**
    * Complete a Scalar or Enum by serializing to a valid value, returning
