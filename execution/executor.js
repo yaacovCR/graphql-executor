@@ -672,6 +672,20 @@ class Executor {
    */
 
   completeListValue(exeContext, returnType, fieldNodes, info, path, result) {
+    const itemType = returnType.ofType;
+
+    if ((0, _isAsyncIterable.isAsyncIterable)(result)) {
+      const iterator = result[Symbol.asyncIterator]();
+      return this.completeAsyncIteratorValue(
+        exeContext,
+        itemType,
+        fieldNodes,
+        info,
+        path,
+        iterator,
+      );
+    }
+
     if (!(0, _isIterableObject.isIterableObject)(result)) {
       throw new _graphql.GraphQLError(
         `Expected Iterable, but did not find one for field "${info.parentType.name}.${info.fieldName}".`,
@@ -679,7 +693,6 @@ class Executor {
     } // This is specified as a simple map, however we're optimizing the path
     // where the list contains no Promises by avoiding creating another Promise.
 
-    const itemType = returnType.ofType;
     const promises = [];
     const completedResults = Array.from(result, (item, index) => {
       // No need to modify the info object containing the path,
@@ -745,6 +758,80 @@ class Executor {
     }
 
     return (0, _resolveAfterAll.resolveAfterAll)(completedResults, promises);
+  }
+  /**
+   * Complete a async iterator value by completing the result and calling
+   * recursively until all the results are completed.
+   */
+
+  completeAsyncIteratorValue(
+    exeContext,
+    itemType,
+    fieldNodes,
+    info,
+    path,
+    iterator,
+  ) {
+    const promises = [];
+    return new Promise((resolve) => {
+      const next = (index, completedResults) => {
+        const fieldPath = (0, _Path.addPath)(path, index, undefined);
+        iterator.next().then(
+          ({ value, done }) => {
+            if (done) {
+              resolve(completedResults);
+              return;
+            } // TODO can the error checking logic be consolidated with completeListValue?
+
+            try {
+              const completedItem = this.completeValue(
+                exeContext,
+                itemType,
+                fieldNodes,
+                info,
+                fieldPath,
+                value,
+              );
+              completedResults.push(completedItem);
+
+              if ((0, _isPromise.isPromise)(completedItem)) {
+                const promise = completedItem.then((resolved) => {
+                  completedResults[index] = resolved;
+                });
+                promises.push(promise);
+              }
+            } catch (rawError) {
+              completedResults.push(null);
+              const error = (0, _graphql.locatedError)(
+                rawError,
+                fieldNodes,
+                (0, _Path.pathToArray)(fieldPath),
+              );
+              this.handleFieldError(error, itemType, exeContext);
+              resolve(completedResults);
+            }
+
+            next(index + 1, completedResults);
+          },
+          (rawError) => {
+            completedResults.push(null);
+            const error = (0, _graphql.locatedError)(
+              rawError,
+              fieldNodes,
+              (0, _Path.pathToArray)(fieldPath),
+            );
+            this.handleFieldError(error, itemType, exeContext);
+            resolve(completedResults);
+          },
+        );
+      };
+
+      next(0, []);
+    }).then((completedResults) =>
+      promises.length
+        ? (0, _resolveAfterAll.resolveAfterAll)(completedResults, promises)
+        : completedResults,
+    );
   }
   /**
    * Complete a Scalar or Enum by serializing to a valid value, returning

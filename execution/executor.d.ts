@@ -241,6 +241,18 @@ export declare class Executor {
     result: unknown,
   ): PromiseOrValue<ReadonlyArray<unknown>>;
   /**
+   * Complete a async iterator value by completing the result and calling
+   * recursively until all the results are completed.
+   */
+  completeAsyncIteratorValue(
+    exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
+    fieldNodes: ReadonlyArray<FieldNode>,
+    info: GraphQLResolveInfo,
+    path: Path,
+    iterator: AsyncIterator<unknown>,
+  ): Promise<ReadonlyArray<unknown>>;
+  /**
    * Complete a Scalar or Enum by serializing to a valid value, returning
    * null if serialization is not possible.
    */
