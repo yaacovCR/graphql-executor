@@ -1772,6 +1772,8 @@ export class Executor {
     await Promise.all(
       exeContext.iterators.map((iterator) => iterator.return?.()),
     );
+    // no updates will be missed, transitions only happen to `done` state
+    // eslint-disable-next-line require-atomic-updates
     exeContext.isDone = true;
     return { value: undefined, done: true };
   }
@@ -1783,6 +1785,8 @@ export class Executor {
     await Promise.all(
       exeContext.iterators.map((iterator) => iterator.return?.()),
     );
+    // no updates will be missed, transitions only happen to `done` state
+    // eslint-disable-next-line require-atomic-updates
     exeContext.isDone = true;
     return Promise.reject(error);
   }
