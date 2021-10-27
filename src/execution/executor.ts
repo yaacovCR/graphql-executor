@@ -209,7 +209,10 @@ export class Executor {
    */
   executeQueryOrMutation(
     args: ExecutionArgs,
-  ): PromiseOrValue<ExecutionResult | AsyncIterable<AsyncExecutionResult>> {
+  ): PromiseOrValue<
+    | ExecutionResult
+    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+  > {
     const exeContext = this.buildExecutionContext(args);
 
     // If a valid execution context cannot be created due to incorrect arguments,
@@ -254,7 +257,10 @@ export class Executor {
 
   executeQueryOrMutationImpl(
     exeContext: ExecutionContext,
-  ): PromiseOrValue<ExecutionResult | AsyncIterable<AsyncExecutionResult>> {
+  ): PromiseOrValue<
+    | ExecutionResult
+    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+  > {
     // Return data or a Promise that will eventually resolve to the data described
     // by the "Response" section of the GraphQL specification.
 
@@ -291,7 +297,10 @@ export class Executor {
   buildResponse(
     exeContext: ExecutionContext,
     data: ObjMap<unknown> | null,
-  ): PromiseOrValue<ExecutionResult | AsyncIterable<AsyncExecutionResult>> {
+  ): PromiseOrValue<
+    | ExecutionResult
+    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+  > {
     const initialResult =
       exeContext.errors.length === 0
         ? { data }
