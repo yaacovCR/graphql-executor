@@ -6,7 +6,7 @@ import type {
 
 import type { Maybe } from '../jsutils/Maybe';
 
-import type { ExecutionArgs, ExecutionResult } from './executor';
+import type { ExecutionArgs, ExecutionResult, AsyncExecutionResult } from './executor';
 import { Executor } from './executor';
 
 /**
@@ -32,7 +32,10 @@ import { Executor } from './executor';
  */
 export async function subscribe(
   args: ExecutionArgs,
-): Promise<AsyncGenerator<ExecutionResult, void, void> | ExecutionResult> {
+): Promise<
+  | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+  | ExecutionResult
+> {
   const executor = new Executor();
   return executor.executeSubscription(args);
 }

@@ -480,8 +480,7 @@ export class Executor {
           fields,
         );
         break;
-      case 'subscription':
-        // TODO: deprecate `subscribe` and move all logic here
+      default:
         // Temporary solution until we finish merging execute and subscribe together
         result = this.executeFields(
           exeContext,
@@ -491,10 +490,6 @@ export class Executor {
           fields,
           exeContext.errors,
         );
-        break;
-      default:
-        // istanbul ignore next (Not reachable. All possible types have been considered)
-        invariant(false);
     }
 
     for (const patch of patches) {
