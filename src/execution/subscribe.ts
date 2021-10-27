@@ -6,7 +6,11 @@ import type {
 
 import type { Maybe } from '../jsutils/Maybe';
 
-import type { ExecutionArgs, ExecutionResult, AsyncExecutionResult } from './executor';
+import type {
+  ExecutionArgs,
+  ExecutionResult,
+  AsyncExecutionResult,
+} from './executor';
 import { Executor } from './executor';
 
 /**
