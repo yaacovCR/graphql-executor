@@ -122,10 +122,15 @@ const query = new GraphQLObjectType({
   name: 'Query',
 });
 
-async function complete(document: DocumentNode) {
+async function complete(document: DocumentNode, disableIncremental = false) {
   const schema = new GraphQLSchema({ query });
 
-  const result = await execute({ schema, document, rootValue: {} });
+  const result = await execute({
+    schema,
+    document,
+    rootValue: {},
+    disableIncremental,
+  });
 
   if (isAsyncIterable(result)) {
     const results = [];
@@ -231,6 +236,14 @@ describe('Execute: stream directive', () => {
         hasNext: false,
       },
     ]);
+  });
+  it('Can disable @stream using disableIncremental argument', async () => {
+    const document = parse('{ scalarList @stream(initialCount: 0) }');
+    const result = await complete(document, true);
+
+    expect(result).to.deep.equal({
+      data: { scalarList: ['apple', 'banana', 'coconut'] },
+    });
   });
   it('Can disable @stream using if argument', async () => {
     const document = parse(

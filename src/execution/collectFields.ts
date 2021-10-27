@@ -47,6 +47,7 @@ export function collectFields(
   variableValues: { [variable: string]: unknown },
   runtimeType: GraphQLObjectType,
   selectionSet: SelectionSetNode,
+  ignoreDefer = false,
 ): FieldsAndPatches {
   const fields = new Map();
   const patches: Array<PatchFields> = [];
@@ -59,6 +60,7 @@ export function collectFields(
     fields,
     patches,
     new Set(),
+    ignoreDefer,
   );
   return { fields, patches };
 }
@@ -79,6 +81,7 @@ export function collectSubfields(
   variableValues: { [variable: string]: unknown },
   returnType: GraphQLObjectType,
   fieldNodes: ReadonlyArray<FieldNode>,
+  ignoreDefer = false,
 ): FieldsAndPatches {
   const subFieldNodes = new Map();
   const subPatches: Array<PatchFields> = [];
@@ -94,6 +97,7 @@ export function collectSubfields(
         subFieldNodes,
         subPatches,
         visitedFragmentNames,
+        ignoreDefer,
       );
     }
   }
@@ -112,6 +116,7 @@ function collectFieldsImpl(
   fields: Map<string, Array<FieldNode>>,
   patches: Array<PatchFields>,
   visitedFragmentNames: Set<string>,
+  ignoreDefer: boolean,
 ): void {
   for (const selection of selectionSet.selections) {
     switch (selection.kind) {
@@ -138,7 +143,7 @@ function collectFieldsImpl(
 
         const defer = getDeferValues(variableValues, selection);
 
-        if (defer) {
+        if (!ignoreDefer && defer) {
           const patchFields = new Map();
           collectFieldsImpl(
             schema,
@@ -149,6 +154,7 @@ function collectFieldsImpl(
             patchFields,
             patches,
             visitedFragmentNames,
+            ignoreDefer,
           );
           patches.push({
             label: defer.label,
@@ -164,6 +170,7 @@ function collectFieldsImpl(
             fields,
             patches,
             visitedFragmentNames,
+            ignoreDefer,
           );
         }
         break;
@@ -189,7 +196,7 @@ function collectFieldsImpl(
         }
         visitedFragmentNames.add(fragName);
 
-        if (defer) {
+        if (!ignoreDefer && defer) {
           const patchFields = new Map();
           collectFieldsImpl(
             schema,
@@ -200,6 +207,7 @@ function collectFieldsImpl(
             patchFields,
             patches,
             visitedFragmentNames,
+            ignoreDefer,
           );
           patches.push({
             label: defer.label,
@@ -215,6 +223,7 @@ function collectFieldsImpl(
             fields,
             patches,
             visitedFragmentNames,
+            ignoreDefer,
           );
         }
         break;

@@ -60,13 +60,14 @@ const query = new GraphQLObjectType({
   name: 'Query',
 });
 
-async function complete(document: DocumentNode) {
+async function complete(document: DocumentNode, disableIncremental = false) {
   const schema = new GraphQLSchema({ query });
 
   const result = await execute({
     schema,
     document,
     rootValue: {},
+    disableIncremental,
   });
 
   if (isAsyncIterable(result)) {
@@ -113,6 +114,29 @@ describe('Execute: defer directive', () => {
         hasNext: false,
       },
     ]);
+  });
+  it('Can disable defer using disableIncremental argument', async () => {
+    const document = parse(`
+      query HeroNameQuery {
+        hero {
+          id
+          ...NameFragment @defer
+        }
+      }
+      fragment NameFragment on Hero {
+        name
+      }
+    `);
+    const result = await complete(document, true);
+
+    expect(result).to.deep.equal({
+      data: {
+        hero: {
+          id: '1',
+          name: 'Luke',
+        },
+      },
+    });
   });
   it('Can disable defer using if argument', async () => {
     const document = parse(`

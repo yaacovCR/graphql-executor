@@ -97,6 +97,7 @@ interface ExecutionContext {
   fieldResolver: GraphQLFieldResolver<any, any>;
   typeResolver: GraphQLTypeResolver<any, any>;
   subscribeFieldResolver: GraphQLFieldResolver<any, any>;
+  disableIncremental: boolean;
   errors: Array<GraphQLError>;
   subsequentPayloads: Array<Promise<IteratorResult<DispatcherResult, void>>>;
   initialResult?: ExecutionResult;
@@ -115,6 +116,7 @@ export interface ExecutionArgs {
   fieldResolver?: Maybe<GraphQLFieldResolver<any, any>>;
   typeResolver?: Maybe<GraphQLTypeResolver<any, any>>;
   subscribeFieldResolver?: Maybe<GraphQLFieldResolver<any, any>>;
+  disableIncremental?: Maybe<boolean>;
 }
 
 /**
@@ -201,6 +203,7 @@ export class Executor {
         exeContext.variableValues,
         returnType,
         fieldNodes,
+        exeContext.disableIncremental,
       ),
   );
 
@@ -354,6 +357,7 @@ export class Executor {
       fieldResolver,
       typeResolver,
       subscribeFieldResolver,
+      disableIncremental,
     } = args;
 
     // If arguments are missing or incorrectly typed, this is an internal
@@ -417,6 +421,7 @@ export class Executor {
       fieldResolver: fieldResolver ?? defaultFieldResolver,
       typeResolver: typeResolver ?? defaultTypeResolver,
       subscribeFieldResolver: subscribeFieldResolver ?? defaultFieldResolver,
+      disableIncremental: disableIncremental ?? false,
       errors: [],
       subsequentPayloads: [],
       iterators: [],
@@ -463,6 +468,7 @@ export class Executor {
       exeContext.variableValues,
       rootType,
       operation.selectionSet,
+      exeContext.disableIncremental,
     );
     const path = undefined;
 
@@ -958,6 +964,10 @@ export class Executor {
         initialCount?: number;
         label?: string;
       } {
+    if (exeContext.disableIncremental) {
+      return;
+    }
+
     // validation only allows equivalent streams on multiple fields, so it is
     // safe to only check the first fieldNode for the stream directive
     const stream = getDirectiveValues(
@@ -1475,6 +1485,7 @@ export class Executor {
       variableValues,
       rootType,
       operation.selectionSet,
+      true,
     );
     const [responseName, fieldNodes] = [...fields.entries()][0];
     const fieldDef = this.getFieldDef(schema, rootType, fieldNodes[0]);
