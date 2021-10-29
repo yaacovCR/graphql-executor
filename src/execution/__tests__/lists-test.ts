@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
-import type { ExecutionResult, GraphQLFieldResolver } from 'graphql';
+import type { GraphQLFieldResolver } from 'graphql';
 import {
   GraphQLList,
   GraphQLObjectType,
@@ -15,6 +15,7 @@ import type { PromiseOrValue } from '../../jsutils/PromiseOrValue';
 
 import { expectJSON } from '../../__testUtils__/expectJSON';
 
+import type { ExecutionResult, AsyncExecutionResult } from '../executor';
 import { execute, executeSync } from '../execute';
 
 describe('Execute: Accepts any iterable as list value', () => {
@@ -85,7 +86,7 @@ describe('Execute: Accepts async iterables as list value', () => {
 
   function completeObjectList(
     resolve: GraphQLFieldResolver<{ index: number }, unknown>,
-  ): PromiseOrValue<ExecutionResult> {
+  ): PromiseOrValue<ExecutionResult | AsyncIterable<AsyncExecutionResult>> {
     const schema = new GraphQLSchema({
       query: new GraphQLObjectType({
         name: 'Query',
