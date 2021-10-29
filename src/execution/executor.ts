@@ -196,7 +196,7 @@ export class Executor {
       exeContext: ExecutionContext,
       returnType: GraphQLObjectType,
       fieldNodes: ReadonlyArray<FieldNode>,
-    ) =>
+    ) => 
       _collectSubfields(
         exeContext.schema,
         exeContext.fragments,
@@ -1468,7 +1468,7 @@ export class Executor {
   async executeSubscriptionRootField(
     exeContext: ExecutionContext,
   ): Promise<unknown> {
-    const { schema, fragments, operation, variableValues, rootValue } =
+    const { schema, fragments, operation, variableValues, rootValue, disableIncremental } =
       exeContext;
 
     const rootType = schema.getSubscriptionType();
@@ -1485,7 +1485,7 @@ export class Executor {
       variableValues,
       rootType,
       operation.selectionSet,
-      true,
+      disableIncremental,
     );
     const [responseName, fieldNodes] = [...fields.entries()][0];
     const fieldDef = this.getFieldDef(schema, rootType, fieldNodes[0]);
