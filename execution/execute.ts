@@ -1,7 +1,11 @@
-import type { ExecutionResult } from 'graphql';
 import type { PromiseOrValue } from '../jsutils/PromiseOrValue.ts';
 import { isPromise } from '../jsutils/isPromise.ts';
-import type { ExecutionArgs } from './executor.ts';
+import { isAsyncIterable } from '../jsutils/isAsyncIterable.ts';
+import type {
+  ExecutionArgs,
+  ExecutionResult,
+  AsyncExecutionResult,
+} from './executor.ts';
 import { Executor } from './executor.ts';
 /**
  * Implements the "Executing requests" section of the GraphQL specification.
@@ -14,7 +18,9 @@ import { Executor } from './executor.ts';
  * a GraphQLError will be thrown immediately explaining the invalid input.
  */
 
-export function execute(args: ExecutionArgs): PromiseOrValue<ExecutionResult> {
+export function execute(
+  args: ExecutionArgs,
+): PromiseOrValue<ExecutionResult | AsyncIterable<AsyncExecutionResult>> {
   const executor = new Executor();
   return executor.executeQueryOrMutation(args);
 }
@@ -27,7 +33,7 @@ export function execute(args: ExecutionArgs): PromiseOrValue<ExecutionResult> {
 export function executeSync(args: ExecutionArgs): ExecutionResult {
   const result = execute(args); // Assert that the execution was synchronous.
 
-  if (isPromise(result)) {
+  if (isPromise(result) || isAsyncIterable(result)) {
     throw new Error('GraphQL execution failed to complete synchronously.');
   }
 

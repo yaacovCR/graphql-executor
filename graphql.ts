@@ -1,5 +1,4 @@
 import type {
-  ExecutionResult,
   GraphQLFieldResolver,
   GraphQLSchema,
   GraphQLTypeResolver,
@@ -9,6 +8,11 @@ import { parse, validate, validateSchema } from 'graphql';
 import type { PromiseOrValue } from './jsutils/PromiseOrValue.ts';
 import { isPromise } from './jsutils/isPromise.ts';
 import type { Maybe } from './jsutils/Maybe.ts';
+import { isAsyncIterable } from './jsutils/isAsyncIterable.ts';
+import type {
+  ExecutionResult,
+  AsyncExecutionResult,
+} from './execution/executor.ts';
 import { execute } from './execution/execute.ts';
 /**
  * This is the primary entry point function for fulfilling GraphQL operations
@@ -62,7 +66,9 @@ export interface GraphQLArgs {
   fieldResolver?: Maybe<GraphQLFieldResolver<any, any>>;
   typeResolver?: Maybe<GraphQLTypeResolver<any, any>>;
 }
-export function graphql(args: GraphQLArgs): Promise<ExecutionResult> {
+export function graphql(
+  args: GraphQLArgs,
+): Promise<ExecutionResult | AsyncIterable<AsyncExecutionResult>> {
   // Always return a Promise for a consistent API.
   return new Promise((resolve) => resolve(graphqlImpl(args)));
 }
@@ -76,14 +82,16 @@ export function graphql(args: GraphQLArgs): Promise<ExecutionResult> {
 export function graphqlSync(args: GraphQLArgs): ExecutionResult {
   const result = graphqlImpl(args); // Assert that the execution was synchronous.
 
-  if (isPromise(result)) {
+  if (isPromise(result) || isAsyncIterable(result)) {
     throw new Error('GraphQL execution failed to complete synchronously.');
   }
 
   return result;
 }
 
-function graphqlImpl(args: GraphQLArgs): PromiseOrValue<ExecutionResult> {
+function graphqlImpl(
+  args: GraphQLArgs,
+): PromiseOrValue<ExecutionResult | AsyncIterable<AsyncExecutionResult>> {
   const {
     schema,
     source,
