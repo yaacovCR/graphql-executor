@@ -16,6 +16,7 @@ import {
   typeFromAST,
 } from 'graphql';
 
+import type { Maybe } from '../jsutils/Maybe';
 import type { ObjMap } from '../jsutils/ObjMap';
 
 import { GraphQLDeferDirective } from '../type/index';
@@ -47,7 +48,7 @@ export function collectFields(
   variableValues: { [variable: string]: unknown },
   runtimeType: GraphQLObjectType,
   selectionSet: SelectionSetNode,
-  ignoreDefer = false,
+  ignoreDefer?: Maybe<boolean>,
 ): FieldsAndPatches {
   const fields = new Map();
   const patches: Array<PatchFields> = [];
@@ -81,7 +82,7 @@ export function collectSubfields(
   variableValues: { [variable: string]: unknown },
   returnType: GraphQLObjectType,
   fieldNodes: ReadonlyArray<FieldNode>,
-  ignoreDefer = false,
+  ignoreDefer?: Maybe<boolean>,
 ): FieldsAndPatches {
   const subFieldNodes = new Map();
   const subPatches: Array<PatchFields> = [];
@@ -116,7 +117,7 @@ function collectFieldsImpl(
   fields: Map<string, Array<FieldNode>>,
   patches: Array<PatchFields>,
   visitedFragmentNames: Set<string>,
-  ignoreDefer: boolean,
+  ignoreDefer?: Maybe<boolean>,
 ): void {
   for (const selection of selectionSet.selections) {
     switch (selection.kind) {
