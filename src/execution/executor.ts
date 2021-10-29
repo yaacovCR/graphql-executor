@@ -196,15 +196,18 @@ export class Executor {
       exeContext: ExecutionContext,
       returnType: GraphQLObjectType,
       fieldNodes: ReadonlyArray<FieldNode>,
-    ) => 
-      _collectSubfields(
-        exeContext.schema,
-        exeContext.fragments,
-        exeContext.variableValues,
+    ) => {
+      const { schema, fragments, variableValues, disableIncremental } =
+        exeContext;
+      return _collectSubfields(
+        schema,
+        fragments,
+        variableValues,
         returnType,
         fieldNodes,
-        exeContext.disableIncremental,
-      ),
+        disableIncremental,
+      );
+    },
   );
 
   /**
@@ -451,7 +454,14 @@ export class Executor {
   executeQueryOrMutationRootFields(
     exeContext: ExecutionContext,
   ): PromiseOrValue<ObjMap<unknown> | null> {
-    const { schema, operation, rootValue } = exeContext;
+    const {
+      schema,
+      fragments,
+      rootValue,
+      operation,
+      variableValues,
+      disableIncremental,
+    } = exeContext;
 
     // TODO: replace getOperationRootType with schema.getRootType
     const rootType = getOperationRootType(schema, operation);
@@ -463,12 +473,12 @@ export class Executor {
     } */
 
     const { fields, patches } = collectFields(
-      exeContext.schema,
-      exeContext.fragments,
-      exeContext.variableValues,
+      schema,
+      fragments,
+      variableValues,
       rootType,
       operation.selectionSet,
-      exeContext.disableIncremental,
+      disableIncremental,
     );
     const path = undefined;
 
@@ -1468,8 +1478,14 @@ export class Executor {
   async executeSubscriptionRootField(
     exeContext: ExecutionContext,
   ): Promise<unknown> {
-    const { schema, fragments, operation, variableValues, rootValue, disableIncremental } =
-      exeContext;
+    const {
+      schema,
+      fragments,
+      rootValue,
+      operation,
+      variableValues,
+      disableIncremental,
+    } = exeContext;
 
     const rootType = schema.getSubscriptionType();
     if (rootType == null) {
