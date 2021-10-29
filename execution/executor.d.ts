@@ -1,6 +1,5 @@
 import type {
   DocumentNode,
-  ExecutionResult,
   GraphQLSchema,
   GraphQLObjectType,
   GraphQLOutputType,
@@ -57,7 +56,13 @@ interface ExecutionContext {
   fieldResolver: GraphQLFieldResolver<any, any>;
   typeResolver: GraphQLTypeResolver<any, any>;
   subscribeFieldResolver: GraphQLFieldResolver<any, any>;
+  disableIncremental: boolean;
   errors: Array<GraphQLError>;
+  subsequentPayloads: Array<Promise<IteratorResult<DispatcherResult, void>>>;
+  initialResult?: ExecutionResult;
+  iterators: Array<AsyncIterator<unknown>>;
+  isDone: boolean;
+  hasReturnedInitialResult: boolean;
 }
 export interface ExecutionArgs {
   schema: GraphQLSchema;
@@ -71,7 +76,59 @@ export interface ExecutionArgs {
   fieldResolver?: Maybe<GraphQLFieldResolver<any, any>>;
   typeResolver?: Maybe<GraphQLTypeResolver<any, any>>;
   subscribeFieldResolver?: Maybe<GraphQLFieldResolver<any, any>>;
+  disableIncremental?: Maybe<boolean>;
 }
+/**
+ * The result of GraphQL execution.
+ *
+ *   - `errors` is included when any errors occurred as a non-empty array.
+ *   - `data` is the result of a successful execution of the query.
+ *   - `hasNext` is true if a future payload is expected.
+ *   - `extensions` is reserved for adding non-standard properties.
+ */
+export interface ExecutionResult<
+  TData = ObjMap<unknown>,
+  TExtensions = ObjMap<unknown>,
+> {
+  errors?: ReadonlyArray<GraphQLError>;
+  data?: TData | null;
+  hasNext?: boolean;
+  extensions?: TExtensions;
+}
+/**
+ * The result of an asynchronous GraphQL patch.
+ *
+ *   - `errors` is included when any errors occurred as a non-empty array.
+ *   - `data` is the result of the additional asynchronous data.
+ *   - `path` is the location of data.
+ *   - `label` is the label provided to `@defer` or `@stream`.
+ *   - `hasNext` is true if a future payload is expected.
+ *   - `extensions` is reserved for adding non-standard properties.
+ */
+export interface ExecutionPatchResult<
+  TData = ObjMap<unknown> | unknown,
+  TExtensions = ObjMap<unknown>,
+> {
+  errors?: ReadonlyArray<GraphQLError>;
+  data?: TData | null;
+  path?: ReadonlyArray<string | number>;
+  label?: string;
+  hasNext: boolean;
+  extensions?: TExtensions;
+}
+/**
+ * Same as ExecutionPatchResult, but without hasNext
+ */
+interface DispatcherResult {
+  errors?: ReadonlyArray<GraphQLError>;
+  data?: ObjMap<unknown> | unknown | null;
+  path: ReadonlyArray<string | number>;
+  label?: string;
+  extensions?: ObjMap<unknown>;
+}
+export declare type AsyncExecutionResult =
+  | ExecutionResult
+  | ExecutionPatchResult;
 /**
  * Executor class responsible for implementing the Execution section of the GraphQL spec.
  *
@@ -95,28 +152,42 @@ export declare class Executor {
     a1: ExecutionContext,
     a2: GraphQLObjectType<any, any>,
     a3: readonly FieldNode[],
-  ) => Map<string, readonly FieldNode[]>;
+  ) => import('./collectFields').FieldsAndPatches;
   /**
    * Implements the "Executing requests" section of the spec for queries and mutations.
    */
-  executeQueryOrMutation(args: ExecutionArgs): PromiseOrValue<ExecutionResult>;
+  executeQueryOrMutation(
+    args: ExecutionArgs,
+  ): PromiseOrValue<
+    | ExecutionResult
+    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+  >;
   executeSubscription(
     args: ExecutionArgs,
-  ): Promise<AsyncGenerator<ExecutionResult, void, void> | ExecutionResult>;
+  ): Promise<
+    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    | ExecutionResult
+  >;
   createSourceEventStream(
     args: ExecutionArgs,
   ): Promise<AsyncIterable<unknown> | ExecutionResult>;
   executeQueryOrMutationImpl(
     exeContext: ExecutionContext,
-  ): PromiseOrValue<ExecutionResult>;
+  ): PromiseOrValue<
+    | ExecutionResult
+    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+  >;
   /**
    * Given a completed execution context and data, build the `{ errors, data }`
    * response defined by the "Response" section of the GraphQL specification.
    */
   buildResponse(
+    exeContext: ExecutionContext,
     data: ObjMap<unknown> | null,
-    errors: ReadonlyArray<GraphQLError>,
-  ): ExecutionResult;
+  ): PromiseOrValue<
+    | ExecutionResult
+    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+  >;
   /**
    * Essential assertions before executing to provide developer feedback for
    * improper use of the GraphQL library.
@@ -173,6 +244,7 @@ export declare class Executor {
     sourceValue: unknown,
     path: Path | undefined,
     fields: Map<string, ReadonlyArray<FieldNode>>,
+    errors: Array<GraphQLError>,
   ): PromiseOrValue<ObjMap<unknown>>;
   /**
    * Implements the "Executing field" section of the spec
@@ -186,6 +258,7 @@ export declare class Executor {
     source: unknown,
     fieldNodes: ReadonlyArray<FieldNode>,
     path: Path,
+    errors: Array<GraphQLError>,
   ): PromiseOrValue<unknown>;
   buildResolveInfo(
     exeContext: ExecutionContext,
@@ -197,7 +270,7 @@ export declare class Executor {
   handleFieldError(
     error: GraphQLError,
     returnType: GraphQLOutputType,
-    exeContext: ExecutionContext,
+    errors: Array<GraphQLError>,
   ): null;
   /**
    * Implements the instructions for completeValue as defined in the
@@ -227,6 +300,7 @@ export declare class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
+    errors: Array<GraphQLError>,
   ): PromiseOrValue<unknown>;
   /**
    * Complete a list value by completing each item in the list with the
@@ -239,7 +313,22 @@ export declare class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
+    errors: Array<GraphQLError>,
   ): PromiseOrValue<ReadonlyArray<unknown>>;
+  /**
+   * Returns an object containing the `@stream` arguments if a field should be
+   * streamed based on the experimental flag, stream directive present and
+   * not disabled by the "if" argument.
+   */
+  getStreamValues(
+    exeContext: ExecutionContext,
+    fieldNodes: ReadonlyArray<FieldNode>,
+  ):
+    | undefined
+    | {
+        initialCount?: number;
+        label?: string;
+      };
   /**
    * Complete a async iterator value by completing the result and calling
    * recursively until all the results are completed.
@@ -251,6 +340,7 @@ export declare class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     iterator: AsyncIterator<unknown>,
+    errors: Array<GraphQLError>,
   ): Promise<ReadonlyArray<unknown>>;
   completeListItemValue(
     completedResults: Array<unknown>,
@@ -262,6 +352,7 @@ export declare class Executor {
     fieldNodes: ReadonlyArray<FieldNode>,
     info: GraphQLResolveInfo,
     itemPath: Path,
+    errors: Array<GraphQLError>,
   ): void;
   /**
    * Complete a Scalar or Enum by serializing to a valid value, returning
@@ -279,6 +370,7 @@ export declare class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
+    errors: Array<GraphQLError>,
   ): PromiseOrValue<ObjMap<unknown>>;
   ensureValidRuntimeType(
     runtimeTypeName: unknown,
@@ -298,12 +390,21 @@ export declare class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
+    errors: Array<GraphQLError>,
   ): PromiseOrValue<ObjMap<unknown>>;
   invalidReturnTypeError(
     returnType: GraphQLObjectType,
     result: unknown,
     fieldNodes: ReadonlyArray<FieldNode>,
   ): GraphQLError;
+  collectAndExecuteSubfields(
+    exeContext: ExecutionContext,
+    returnType: GraphQLObjectType,
+    fieldNodes: ReadonlyArray<FieldNode>,
+    path: Path,
+    result: unknown,
+    errors: Array<GraphQLError>,
+  ): PromiseOrValue<ObjMap<unknown>>;
   /**
    * This method looks up the field on the given type definition.
    * It has special casing for the three introspection fields,
@@ -321,11 +422,64 @@ export declare class Executor {
   ): Maybe<GraphQLField<unknown, unknown>>;
   executeSubscriptionImpl(
     exeContext: ExecutionContext,
-  ): Promise<AsyncGenerator<ExecutionResult, void, void> | ExecutionResult>;
+  ): Promise<
+    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    | ExecutionResult
+  >;
   createSourceEventStreamImpl(
     exeContext: ExecutionContext,
   ): Promise<AsyncIterable<unknown> | ExecutionResult>;
   executeSubscriptionRootField(exeContext: ExecutionContext): Promise<unknown>;
+  hasSubsequentPayloads(exeContext: ExecutionContext): boolean;
+  addFields(
+    exeContext: ExecutionContext,
+    promiseOrData: PromiseOrValue<ObjMap<unknown>>,
+    errors: Array<GraphQLError>,
+    label?: string,
+    path?: Path,
+  ): void;
+  addValue(
+    path: Path,
+    promiseOrData: PromiseOrValue<unknown>,
+    exeContext: ExecutionContext,
+    fieldNodes: ReadonlyArray<FieldNode>,
+    info: GraphQLResolveInfo,
+    itemType: GraphQLOutputType,
+    label?: string,
+  ): void;
+  addAsyncIteratorValue(
+    initialIndex: number,
+    iterator: AsyncIterator<unknown>,
+    exeContext: ExecutionContext,
+    fieldNodes: ReadonlyArray<FieldNode>,
+    info: GraphQLResolveInfo,
+    itemType: GraphQLOutputType,
+    path?: Path,
+    label?: string,
+  ): void;
+  _race(
+    exeContext: ExecutionContext,
+  ): Promise<IteratorResult<ExecutionPatchResult, void>>;
+  _next(
+    exeContext: ExecutionContext,
+  ): Promise<IteratorResult<AsyncExecutionResult, void>>;
+  _return(
+    exeContext: ExecutionContext,
+  ): Promise<IteratorResult<AsyncExecutionResult, void>>;
+  _throw(
+    exeContext: ExecutionContext,
+    error?: unknown,
+  ): Promise<IteratorResult<AsyncExecutionResult, void>>;
+  get(
+    exeContext: ExecutionContext,
+    initialResult: ExecutionResult,
+  ): AsyncGenerator<AsyncExecutionResult>;
+  createPatchResult(
+    data: ObjMap<unknown> | unknown | null,
+    label?: string,
+    path?: Path,
+    errors?: ReadonlyArray<GraphQLError>,
+  ): DispatcherResult;
 }
 /**
  * If a resolve function is not given, then a default resolve behavior is used

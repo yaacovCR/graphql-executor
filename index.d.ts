@@ -9,3 +9,5 @@ export {
   subscribe,
   createSourceEventStream,
 } from './execution/index';
+/** Directives for defer/stream support */
+export { GraphQLDeferDirective, GraphQLStreamDirective } from './type/index';

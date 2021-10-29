@@ -9,6 +9,18 @@ Object.defineProperty(exports, 'Executor', {
     return _index.Executor;
   },
 });
+Object.defineProperty(exports, 'GraphQLDeferDirective', {
+  enumerable: true,
+  get: function () {
+    return _index2.GraphQLDeferDirective;
+  },
+});
+Object.defineProperty(exports, 'GraphQLStreamDirective', {
+  enumerable: true,
+  get: function () {
+    return _index2.GraphQLStreamDirective;
+  },
+});
 Object.defineProperty(exports, 'createSourceEventStream', {
   enumerable: true,
   get: function () {
@@ -47,3 +59,5 @@ Object.defineProperty(exports, 'subscribe', {
 });
 
 var _index = require('./execution/index.js');
+
+var _index2 = require('./type/index.js');

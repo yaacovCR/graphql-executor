@@ -1,6 +1,9 @@
-import type { ExecutionResult } from 'graphql';
 import type { PromiseOrValue } from '../jsutils/PromiseOrValue';
-import type { ExecutionArgs } from './executor';
+import type {
+  ExecutionArgs,
+  ExecutionResult,
+  AsyncExecutionResult,
+} from './executor';
 /**
  * Implements the "Executing requests" section of the GraphQL specification.
  *
@@ -13,7 +16,7 @@ import type { ExecutionArgs } from './executor';
  */
 export declare function execute(
   args: ExecutionArgs,
-): PromiseOrValue<ExecutionResult>;
+): PromiseOrValue<ExecutionResult | AsyncIterable<AsyncExecutionResult>>;
 /**
  * Also implements the "Executing requests" section of the GraphQL specification.
  * However, it guarantees to complete synchronously (or throw an error) assuming

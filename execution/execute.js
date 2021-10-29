@@ -8,6 +8,8 @@ exports.executeSync = executeSync;
 
 var _isPromise = require('../jsutils/isPromise.js');
 
+var _isAsyncIterable = require('../jsutils/isAsyncIterable.js');
+
 var _executor = require('./executor.js');
 
 /**
@@ -33,7 +35,10 @@ function execute(args) {
 function executeSync(args) {
   const result = execute(args); // Assert that the execution was synchronous.
 
-  if ((0, _isPromise.isPromise)(result)) {
+  if (
+    (0, _isPromise.isPromise)(result) ||
+    (0, _isAsyncIterable.isAsyncIterable)(result)
+  ) {
     throw new Error('GraphQL execution failed to complete synchronously.');
   }
 

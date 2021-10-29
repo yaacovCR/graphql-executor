@@ -1,11 +1,14 @@
 import type {
   DocumentNode,
-  ExecutionResult,
   GraphQLFieldResolver,
   GraphQLSchema,
 } from 'graphql';
 import type { Maybe } from '../jsutils/Maybe';
-import type { ExecutionArgs } from './executor';
+import type {
+  ExecutionArgs,
+  ExecutionResult,
+  AsyncExecutionResult,
+} from './executor';
 /**
  * Implements the "Subscribe" algorithm described in the GraphQL specification.
  *
@@ -29,7 +32,10 @@ import type { ExecutionArgs } from './executor';
  */
 export declare function subscribe(
   args: ExecutionArgs,
-): Promise<AsyncGenerator<ExecutionResult, void, void> | ExecutionResult>;
+): Promise<
+  | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+  | ExecutionResult
+>;
 /**
  * Implements the "CreateSourceEventStream" algorithm described in the
  * GraphQL specification, resolving the subscription source event stream.

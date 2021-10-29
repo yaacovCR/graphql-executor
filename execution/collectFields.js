@@ -8,6 +8,8 @@ exports.collectSubfields = collectSubfields;
 
 var _graphql = require('graphql');
 
+var _index = require('../type/index.js');
+
 var _values = require('./values.js');
 
 /**
@@ -25,8 +27,10 @@ function collectFields(
   variableValues,
   runtimeType,
   selectionSet,
+  ignoreDefer,
 ) {
   const fields = new Map();
+  const patches = [];
   collectFieldsImpl(
     schema,
     fragments,
@@ -34,9 +38,14 @@ function collectFields(
     runtimeType,
     selectionSet,
     fields,
+    patches,
     new Set(),
+    ignoreDefer,
   );
-  return fields;
+  return {
+    fields,
+    patches,
+  };
 }
 /**
  * Given an array of field nodes, collects all of the subfields of the passed
@@ -55,8 +64,10 @@ function collectSubfields(
   variableValues,
   returnType,
   fieldNodes,
+  ignoreDefer,
 ) {
   const subFieldNodes = new Map();
+  const subPatches = [];
   const visitedFragmentNames = new Set();
 
   for (const node of fieldNodes) {
@@ -68,12 +79,17 @@ function collectSubfields(
         returnType,
         node.selectionSet,
         subFieldNodes,
+        subPatches,
         visitedFragmentNames,
+        ignoreDefer,
       );
     }
   }
 
-  return subFieldNodes;
+  return {
+    fields: subFieldNodes,
+    patches: subPatches,
+  };
 }
 
 function collectFieldsImpl(
@@ -83,7 +99,9 @@ function collectFieldsImpl(
   runtimeType,
   selectionSet,
   fields,
+  patches,
   visitedFragmentNames,
+  ignoreDefer,
 ) {
   for (const selection of selectionSet.selections) {
     switch (selection.kind) {
@@ -112,29 +130,55 @@ function collectFieldsImpl(
           continue;
         }
 
-        collectFieldsImpl(
-          schema,
-          fragments,
-          variableValues,
-          runtimeType,
-          selection.selectionSet,
-          fields,
-          visitedFragmentNames,
-        );
+        const defer = getDeferValues(variableValues, selection);
+
+        if (!ignoreDefer && defer) {
+          const patchFields = new Map();
+          collectFieldsImpl(
+            schema,
+            fragments,
+            variableValues,
+            runtimeType,
+            selection.selectionSet,
+            patchFields,
+            patches,
+            visitedFragmentNames,
+            ignoreDefer,
+          );
+          patches.push({
+            label: defer.label,
+            fields: patchFields,
+          });
+        } else {
+          collectFieldsImpl(
+            schema,
+            fragments,
+            variableValues,
+            runtimeType,
+            selection.selectionSet,
+            fields,
+            patches,
+            visitedFragmentNames,
+            ignoreDefer,
+          );
+        }
+
         break;
       }
 
       case _graphql.Kind.FRAGMENT_SPREAD: {
         const fragName = selection.name.value;
 
-        if (
-          visitedFragmentNames.has(fragName) ||
-          !shouldIncludeNode(variableValues, selection)
-        ) {
+        if (!shouldIncludeNode(variableValues, selection)) {
           continue;
         }
 
-        visitedFragmentNames.add(fragName);
+        const defer = getDeferValues(variableValues, selection);
+
+        if (visitedFragmentNames.has(fragName) && !defer) {
+          continue;
+        }
+
         const fragment = fragments[fragName];
 
         if (
@@ -144,19 +188,68 @@ function collectFieldsImpl(
           continue;
         }
 
-        collectFieldsImpl(
-          schema,
-          fragments,
-          variableValues,
-          runtimeType,
-          fragment.selectionSet,
-          fields,
-          visitedFragmentNames,
-        );
+        visitedFragmentNames.add(fragName);
+
+        if (!ignoreDefer && defer) {
+          const patchFields = new Map();
+          collectFieldsImpl(
+            schema,
+            fragments,
+            variableValues,
+            runtimeType,
+            fragment.selectionSet,
+            patchFields,
+            patches,
+            visitedFragmentNames,
+            ignoreDefer,
+          );
+          patches.push({
+            label: defer.label,
+            fields: patchFields,
+          });
+        } else {
+          collectFieldsImpl(
+            schema,
+            fragments,
+            variableValues,
+            runtimeType,
+            fragment.selectionSet,
+            fields,
+            patches,
+            visitedFragmentNames,
+            ignoreDefer,
+          );
+        }
+
         break;
       }
     }
   }
+}
+/**
+ * Returns an object containing the `@defer` arguments if a field should be
+ * deferred based on the experimental flag, defer directive present and
+ * not disabled by the "if" argument.
+ */
+
+function getDeferValues(variableValues, node) {
+  const defer = (0, _values.getDirectiveValues)(
+    _index.GraphQLDeferDirective,
+    node,
+    variableValues,
+  );
+
+  if (!defer) {
+    return;
+  }
+
+  if (defer.if === false) {
+    return;
+  }
+
+  return {
+    label: typeof defer.label === 'string' ? defer.label : undefined,
+  };
 }
 /**
  * Determines if a field should be included based on the `@include` and `@skip`

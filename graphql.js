@@ -10,6 +10,8 @@ var _graphql = require('graphql');
 
 var _isPromise = require('./jsutils/isPromise.js');
 
+var _isAsyncIterable = require('./jsutils/isAsyncIterable.js');
+
 var _execute = require('./execution/execute.js');
 
 function graphql(args) {
@@ -26,7 +28,10 @@ function graphql(args) {
 function graphqlSync(args) {
   const result = graphqlImpl(args); // Assert that the execution was synchronous.
 
-  if ((0, _isPromise.isPromise)(result)) {
+  if (
+    (0, _isPromise.isPromise)(result) ||
+    (0, _isAsyncIterable.isAsyncIterable)(result)
+  ) {
     throw new Error('GraphQL execution failed to complete synchronously.');
   }
 

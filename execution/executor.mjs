@@ -27,6 +27,7 @@ import {
   isNonNullType,
   locatedError,
 } from 'graphql';
+import { GraphQLStreamDirective } from '../type/directives.mjs';
 import { inspect } from '../jsutils/inspect.mjs';
 import { memoize3 } from '../jsutils/memoize3.mjs';
 import { invariant } from '../jsutils/invariant.mjs';
@@ -38,12 +39,17 @@ import { addPath, pathToArray } from '../jsutils/Path.mjs';
 import { isAsyncIterable } from '../jsutils/isAsyncIterable.mjs';
 import { isIterableObject } from '../jsutils/isIterableObject.mjs';
 import { resolveAfterAll } from '../jsutils/resolveAfterAll.mjs';
-import { getVariableValues, getArgumentValues } from './values.mjs';
+import {
+  getVariableValues,
+  getArgumentValues,
+  getDirectiveValues,
+} from './values.mjs';
 import {
   collectFields,
   collectSubfields as _collectSubfields,
 } from './collectFields.mjs';
 import { mapAsyncIterator } from './mapAsyncIterator.mjs';
+import { flattenAsyncIterator } from './flattenAsyncIterator.mjs';
 /**
  * Terminology
  *
@@ -89,15 +95,18 @@ export class Executor {
     _defineProperty(
       this,
       'collectSubfields',
-      memoize3((exeContext, returnType, fieldNodes) =>
-        _collectSubfields(
-          exeContext.schema,
-          exeContext.fragments,
-          exeContext.variableValues,
+      memoize3((exeContext, returnType, fieldNodes) => {
+        const { schema, fragments, variableValues, disableIncremental } =
+          exeContext;
+        return _collectSubfields(
+          schema,
+          fragments,
+          variableValues,
           returnType,
           fieldNodes,
-        ),
-      ),
+          disableIncremental,
+        );
+      }),
     );
   }
 
@@ -159,18 +168,18 @@ export class Executor {
 
       if (isPromise(result)) {
         return result.then(
-          (data) => this.buildResponse(data, exeContext.errors),
+          (data) => this.buildResponse(exeContext, data),
           (error) => {
             exeContext.errors.push(error);
-            return this.buildResponse(null, exeContext.errors);
+            return this.buildResponse(exeContext, null);
           },
         );
       }
 
-      return this.buildResponse(result, exeContext.errors);
+      return this.buildResponse(exeContext, result);
     } catch (error) {
       exeContext.errors.push(error);
-      return this.buildResponse(null, exeContext.errors);
+      return this.buildResponse(exeContext, null);
     }
   }
   /**
@@ -178,15 +187,22 @@ export class Executor {
    * response defined by the "Response" section of the GraphQL specification.
    */
 
-  buildResponse(data, errors) {
-    return errors.length === 0
-      ? {
-          data,
-        }
-      : {
-          errors,
-          data,
-        };
+  buildResponse(exeContext, data) {
+    const initialResult =
+      exeContext.errors.length === 0
+        ? {
+            data,
+          }
+        : {
+            errors: exeContext.errors,
+            data,
+          };
+
+    if (this.hasSubsequentPayloads(exeContext)) {
+      return this.get(exeContext, initialResult);
+    }
+
+    return initialResult;
   }
   /**
    * Essential assertions before executing to provide developer feedback for
@@ -226,6 +242,7 @@ export class Executor {
       fieldResolver,
       typeResolver,
       subscribeFieldResolver,
+      disableIncremental,
     } = args; // If arguments are missing or incorrectly typed, this is an internal
     // developer mistake which should throw an error.
 
@@ -312,7 +329,15 @@ export class Executor {
         subscribeFieldResolver !== null && subscribeFieldResolver !== void 0
           ? subscribeFieldResolver
           : defaultFieldResolver,
+      disableIncremental:
+        disableIncremental !== null && disableIncremental !== void 0
+          ? disableIncremental
+          : false,
       errors: [],
+      subsequentPayloads: [],
+      iterators: [],
+      isDone: false,
+      hasReturnedInitialResult: false,
     };
   }
   /**
@@ -327,10 +352,15 @@ export class Executor {
    * Executes the root fields specified by query or mutation operation.
    */
 
-  executeQueryOrMutationRootFields(
-    exeContext, // @ts-expect-error
-  ) {
-    const { schema, operation, rootValue } = exeContext; // TODO: replace getOperationRootType with schema.getRootType
+  executeQueryOrMutationRootFields(exeContext) {
+    const {
+      schema,
+      fragments,
+      rootValue,
+      operation,
+      variableValues,
+      disableIncremental,
+    } = exeContext; // TODO: replace getOperationRootType with schema.getRootType
 
     const rootType = getOperationRootType(schema, operation);
     /* if (rootType == null) {
@@ -340,47 +370,73 @@ export class Executor {
       );
     } */
 
-    const rootFields = collectFields(
-      exeContext.schema,
-      exeContext.fragments,
-      exeContext.variableValues,
+    const { fields, patches } = collectFields(
+      schema,
+      fragments,
+      variableValues,
       rootType,
       operation.selectionSet,
+      disableIncremental,
     );
     const path = undefined;
+    let result;
 
     switch (operation.operation) {
       // TODO: Change 'query', etc. => to OperationTypeNode.QUERY, etc. when upstream
       // graphql-js properly exports OperationTypeNode as a value.
       case 'query':
-        return this.executeFields(
+        result = this.executeFields(
           exeContext,
           rootType,
           rootValue,
           path,
-          rootFields,
+          fields,
+          exeContext.errors,
         );
+        break;
 
       case 'mutation':
-        return this.executeFieldsSerially(
+        result = this.executeFieldsSerially(
           exeContext,
           rootType,
           rootValue,
           path,
-          rootFields,
+          fields,
         );
+        break;
 
-      case 'subscription':
-        // TODO: deprecate `subscribe` and move all logic here
+      default:
         // Temporary solution until we finish merging execute and subscribe together
-        return this.executeFields(
+        result = this.executeFields(
           exeContext,
           rootType,
           rootValue,
           path,
-          rootFields,
+          fields,
+          exeContext.errors,
         );
     }
+
+    for (const patch of patches) {
+      const { label, fields: patchFields } = patch;
+      const errors = [];
+      this.addFields(
+        exeContext,
+        this.executeFields(
+          exeContext,
+          rootType,
+          rootValue,
+          path,
+          patchFields,
+          errors,
+        ),
+        errors,
+        label,
+        path,
+      );
+    }
+
+    return result;
   }
   /**
    * Implements the "Executing selection sets" section of the spec
@@ -398,6 +454,7 @@ export class Executor {
           sourceValue,
           fieldNodes,
           fieldPath,
+          exeContext.errors,
         );
 
         if (result === undefined) {
@@ -422,7 +479,7 @@ export class Executor {
    * for fields that may be executed in parallel.
    */
 
-  executeFields(exeContext, parentType, sourceValue, path, fields) {
+  executeFields(exeContext, parentType, sourceValue, path, fields, errors) {
     const results = Object.create(null);
     const promises = [];
 
@@ -434,6 +491,7 @@ export class Executor {
         sourceValue,
         fieldNodes,
         fieldPath,
+        errors,
       );
 
       if (result !== undefined) {
@@ -463,7 +521,7 @@ export class Executor {
    * serialize scalars, or execute the sub-selection-set for objects.
    */
 
-  executeField(exeContext, parentType, source, fieldNodes, path) {
+  executeField(exeContext, parentType, source, fieldNodes, path, errors) {
     var _fieldDef$resolve;
 
     const fieldDef = this.getFieldDef(
@@ -515,6 +573,7 @@ export class Executor {
             info,
             path,
             resolved,
+            errors,
           ),
         );
       } else {
@@ -525,6 +584,7 @@ export class Executor {
           info,
           path,
           result,
+          errors,
         );
       }
 
@@ -533,14 +593,14 @@ export class Executor {
         // to take a second callback for the error case.
         return completed.then(undefined, (rawError) => {
           const error = locatedError(rawError, fieldNodes, pathToArray(path));
-          return this.handleFieldError(error, returnType, exeContext);
+          return this.handleFieldError(error, returnType, errors);
         });
       }
 
       return completed;
     } catch (rawError) {
       const error = locatedError(rawError, fieldNodes, pathToArray(path));
-      return this.handleFieldError(error, returnType, exeContext);
+      return this.handleFieldError(error, returnType, errors);
     }
   }
 
@@ -561,7 +621,7 @@ export class Executor {
     };
   }
 
-  handleFieldError(error, returnType, exeContext) {
+  handleFieldError(error, returnType, errors) {
     // If the field type is non-nullable, then it is resolved without any
     // protection from errors, however it still properly locates the error.
     if (isNonNullType(returnType)) {
@@ -569,7 +629,7 @@ export class Executor {
     } // Otherwise, error protection is applied, logging the error and resolving
     // a null value for this field if one is encountered.
 
-    exeContext.errors.push(error);
+    errors.push(error);
     return null;
   }
   /**
@@ -594,7 +654,15 @@ export class Executor {
    * value by executing all sub-selections.
    */
 
-  completeValue(exeContext, returnType, fieldNodes, info, path, result) {
+  completeValue(
+    exeContext,
+    returnType,
+    fieldNodes,
+    info,
+    path,
+    result,
+    errors,
+  ) {
     // If result is an Error, throw a located error.
     if (result instanceof Error) {
       throw result;
@@ -609,6 +677,7 @@ export class Executor {
         info,
         path,
         result,
+        errors,
       );
 
       if (completed === null) {
@@ -632,6 +701,7 @@ export class Executor {
         info,
         path,
         result,
+        errors,
       );
     } // If field type is a leaf type, Scalar or Enum, serialize to a valid value,
     // returning null if serialization is not possible.
@@ -649,6 +719,7 @@ export class Executor {
         info,
         path,
         result,
+        errors,
       );
     } // If field type is Object, execute and complete all sub-selections.
     // istanbul ignore else (See: 'https://github.com/graphql/graphql-js/issues/2618')
@@ -661,6 +732,7 @@ export class Executor {
         info,
         path,
         result,
+        errors,
       );
     } // istanbul ignore next (Not reachable. All possible output types have been considered)
 
@@ -676,7 +748,15 @@ export class Executor {
    * inner type
    */
 
-  completeListValue(exeContext, returnType, fieldNodes, info, path, result) {
+  completeListValue(
+    exeContext,
+    returnType,
+    fieldNodes,
+    info,
+    path,
+    result,
+    errors,
+  ) {
     const itemType = returnType.ofType;
 
     if (isAsyncIterable(result)) {
@@ -688,6 +768,7 @@ export class Executor {
         info,
         path,
         iterator,
+        errors,
       );
     }
 
@@ -695,7 +776,9 @@ export class Executor {
       throw new GraphQLError(
         `Expected Iterable, but did not find one for field "${info.parentType.name}.${info.fieldName}".`,
       );
-    } // This is specified as a simple map, however we're optimizing the path
+    }
+
+    const stream = this.getStreamValues(exeContext, fieldNodes); // This is specified as a simple map, however we're optimizing the path
     // where the list contains no Promises by avoiding creating another Promise.
 
     const promises = [];
@@ -706,6 +789,25 @@ export class Executor {
       // No need to modify the info object containing the path,
       // since from here on it is not ever accessed by resolver functions.
       const itemPath = addPath(path, index, undefined);
+
+      if (
+        stream &&
+        typeof stream.initialCount === 'number' &&
+        index >= stream.initialCount
+      ) {
+        this.addValue(
+          itemPath,
+          item,
+          exeContext,
+          fieldNodes,
+          info,
+          itemType,
+          stream.label,
+        );
+        index++;
+        continue;
+      }
+
       this.completeListItemValue(
         completedResults,
         index++,
@@ -716,6 +818,7 @@ export class Executor {
         fieldNodes,
         info,
         itemPath,
+        errors,
       );
     }
 
@@ -724,6 +827,41 @@ export class Executor {
     }
 
     return resolveAfterAll(completedResults, promises);
+  }
+  /**
+   * Returns an object containing the `@stream` arguments if a field should be
+   * streamed based on the experimental flag, stream directive present and
+   * not disabled by the "if" argument.
+   */
+
+  getStreamValues(exeContext, fieldNodes) {
+    if (exeContext.disableIncremental) {
+      return;
+    } // validation only allows equivalent streams on multiple fields, so it is
+    // safe to only check the first fieldNode for the stream directive
+
+    const stream = getDirectiveValues(
+      GraphQLStreamDirective,
+      fieldNodes[0],
+      exeContext.variableValues,
+    );
+
+    if (!stream) {
+      return;
+    }
+
+    if (stream.if === false) {
+      return;
+    }
+
+    return {
+      // istanbul ignore next (initialCount is required number argument)
+      initialCount:
+        typeof stream.initialCount === 'number'
+          ? stream.initialCount
+          : undefined,
+      label: typeof stream.label === 'string' ? stream.label : undefined,
+    };
   }
   /**
    * Complete a async iterator value by completing the result and calling
@@ -737,14 +875,34 @@ export class Executor {
     info,
     path,
     iterator,
+    errors,
   ) {
-    // This is specified as a simple map, however we're optimizing the path
+    const stream = this.getStreamValues(exeContext, fieldNodes); // This is specified as a simple map, however we're optimizing the path
     // where the list contains no Promises by avoiding creating another Promise.
+
     const promises = [];
     const completedResults = [];
     let index = 0; // eslint-disable-next-line no-constant-condition
 
     while (true) {
+      if (
+        stream &&
+        typeof stream.initialCount === 'number' &&
+        index >= stream.initialCount
+      ) {
+        this.addAsyncIteratorValue(
+          index,
+          iterator,
+          exeContext,
+          fieldNodes,
+          info,
+          itemType,
+          path,
+          stream.label,
+        );
+        break;
+      }
+
       const itemPath = addPath(path, index, undefined);
       let iteratorResult;
 
@@ -753,9 +911,7 @@ export class Executor {
         iteratorResult = await iterator.next();
       } catch (rawError) {
         const error = locatedError(rawError, fieldNodes, pathToArray(itemPath));
-        completedResults.push(
-          this.handleFieldError(error, itemType, exeContext),
-        );
+        completedResults.push(this.handleFieldError(error, itemType, errors));
         break;
       }
 
@@ -775,6 +931,7 @@ export class Executor {
         fieldNodes,
         info,
         itemPath,
+        errors,
       );
       index++;
     }
@@ -794,6 +951,7 @@ export class Executor {
     fieldNodes,
     info,
     itemPath,
+    errors,
   ) {
     try {
       let completedItem;
@@ -807,6 +965,7 @@ export class Executor {
             info,
             itemPath,
             resolved,
+            errors,
           ),
         );
       } else {
@@ -817,6 +976,7 @@ export class Executor {
           info,
           itemPath,
           item,
+          errors,
         );
       }
 
@@ -834,7 +994,7 @@ export class Executor {
             fieldNodes,
             pathToArray(itemPath),
           );
-          return this.handleFieldError(error, itemType, exeContext);
+          return this.handleFieldError(error, itemType, errors);
         })
         .then((resolved) => {
           completedResults[index] = resolved;
@@ -842,11 +1002,7 @@ export class Executor {
       promises.push(promise);
     } catch (rawError) {
       const error = locatedError(rawError, fieldNodes, pathToArray(itemPath));
-      completedResults[index] = this.handleFieldError(
-        error,
-        itemType,
-        exeContext,
-      );
+      completedResults[index] = this.handleFieldError(error, itemType, errors);
     }
   }
   /**
@@ -880,6 +1036,7 @@ export class Executor {
     info,
     path,
     result,
+    errors,
   ) {
     var _returnType$resolveTy;
 
@@ -907,6 +1064,7 @@ export class Executor {
           info,
           path,
           result,
+          errors,
         ),
       );
     }
@@ -925,6 +1083,7 @@ export class Executor {
       info,
       path,
       result,
+      errors,
     );
   }
 
@@ -986,16 +1145,18 @@ export class Executor {
    * Complete an Object value by executing all sub-selections.
    */
 
-  completeObjectValue(exeContext, returnType, fieldNodes, info, path, result) {
-    // Collect sub-fields to execute to complete this value.
-    const subFieldNodes = this.collectSubfields(
-      exeContext,
-      returnType,
-      fieldNodes,
-    ); // If there is an isTypeOf predicate function, call it with the
+  completeObjectValue(
+    exeContext,
+    returnType,
+    fieldNodes,
+    info,
+    path,
+    result,
+    errors,
+  ) {
+    // If there is an isTypeOf predicate function, call it with the
     // current result. If isTypeOf returns false, then raise an error rather
     // than continuing execution.
-
     if (returnType.isTypeOf) {
       const isTypeOf = returnType.isTypeOf(
         result,
@@ -1009,12 +1170,13 @@ export class Executor {
             throw this.invalidReturnTypeError(returnType, result, fieldNodes);
           }
 
-          return this.executeFields(
+          return this.collectAndExecuteSubfields(
             exeContext,
             returnType,
-            result,
+            fieldNodes,
             path,
-            subFieldNodes,
+            result,
+            errors,
           );
         });
       }
@@ -1024,12 +1186,13 @@ export class Executor {
       }
     }
 
-    return this.executeFields(
+    return this.collectAndExecuteSubfields(
       exeContext,
       returnType,
-      result,
+      fieldNodes,
       path,
-      subFieldNodes,
+      result,
+      errors,
     );
   }
 
@@ -1040,6 +1203,48 @@ export class Executor {
       )}.`,
       fieldNodes,
     );
+  }
+
+  collectAndExecuteSubfields(
+    exeContext,
+    returnType,
+    fieldNodes,
+    path,
+    result,
+    errors,
+  ) {
+    // Collect sub-fields to execute to complete this value.
+    const { fields: subFieldNodes, patches: subPatches } =
+      this.collectSubfields(exeContext, returnType, fieldNodes);
+    const subFields = this.executeFields(
+      exeContext,
+      returnType,
+      result,
+      path,
+      subFieldNodes,
+      errors,
+    );
+
+    for (const subPatch of subPatches) {
+      const { label, fields: subPatchFieldNodes } = subPatch;
+      const subPatchErrors = [];
+      this.addFields(
+        exeContext,
+        this.executeFields(
+          exeContext,
+          returnType,
+          result,
+          path,
+          subPatchFieldNodes,
+          subPatchErrors,
+        ),
+        subPatchErrors,
+        label,
+        path,
+      );
+    }
+
+    return subFields;
   }
   /**
    * This method looks up the field on the given type definition.
@@ -1092,7 +1297,9 @@ export class Executor {
       return this.executeQueryOrMutationImpl(perPayloadExecutionContext);
     }; // Map every source value to a ExecutionResult value as described above.
 
-    return mapAsyncIterator(resultOrStream, mapSourceToResponse);
+    return flattenAsyncIterator(
+      mapAsyncIterator(resultOrStream, mapSourceToResponse),
+    );
   }
 
   async createSourceEventStreamImpl(exeContext) {
@@ -1121,8 +1328,14 @@ export class Executor {
   }
 
   async executeSubscriptionRootField(exeContext) {
-    const { schema, fragments, operation, variableValues, rootValue } =
-      exeContext;
+    const {
+      schema,
+      fragments,
+      rootValue,
+      operation,
+      variableValues,
+      disableIncremental,
+    } = exeContext;
     const rootType = schema.getSubscriptionType();
 
     if (rootType == null) {
@@ -1132,14 +1345,15 @@ export class Executor {
       );
     }
 
-    const rootFields = collectFields(
+    const { fields } = collectFields(
       schema,
       fragments,
       variableValues,
       rootType,
       operation.selectionSet,
+      disableIncremental,
     );
-    const [responseName, fieldNodes] = [...rootFields.entries()][0];
+    const [responseName, fieldNodes] = [...fields.entries()][0];
     const fieldDef = this.getFieldDef(schema, rootType, fieldNodes[0]);
 
     if (!fieldDef) {
@@ -1188,6 +1402,303 @@ export class Executor {
     } catch (error) {
       throw locatedError(error, fieldNodes, pathToArray(path));
     }
+  }
+
+  hasSubsequentPayloads(exeContext) {
+    return exeContext.subsequentPayloads.length !== 0;
+  }
+
+  addFields(exeContext, promiseOrData, errors, label, path) {
+    exeContext.subsequentPayloads.push(
+      Promise.resolve(promiseOrData).then((data) => ({
+        value: this.createPatchResult(data, label, path, errors),
+        done: false,
+      })),
+    );
+  }
+
+  addValue(path, promiseOrData, exeContext, fieldNodes, info, itemType, label) {
+    const errors = [];
+    exeContext.subsequentPayloads.push(
+      Promise.resolve(promiseOrData)
+        .then((resolved) =>
+          this.completeValue(
+            exeContext,
+            itemType,
+            fieldNodes,
+            info,
+            path,
+            resolved,
+            errors,
+          ),
+        ) // Note: we don't rely on a `catch` method, but we do expect "thenable"
+        // to take a second callback for the error case.
+        .then(undefined, (rawError) => {
+          const error = locatedError(rawError, fieldNodes, pathToArray(path));
+          return this.handleFieldError(error, itemType, errors);
+        })
+        .then((data) => ({
+          value: this.createPatchResult(data, label, path, errors),
+          done: false,
+        })),
+    );
+  }
+
+  addAsyncIteratorValue(
+    initialIndex,
+    iterator,
+    exeContext,
+    fieldNodes,
+    info,
+    itemType,
+    path,
+    label,
+  ) {
+    const { subsequentPayloads, iterators } = exeContext;
+    iterators.push(iterator);
+
+    const next = (index) => {
+      const fieldPath = addPath(path, index, undefined);
+      const patchErrors = [];
+      subsequentPayloads.push(
+        iterator.next().then(
+          ({ value: data, done }) => {
+            if (done) {
+              iterators.splice(iterators.indexOf(iterator), 1);
+              return {
+                value: undefined,
+                done: true,
+              };
+            } // eslint-disable-next-line node/callback-return
+
+            next(index + 1);
+
+            try {
+              const completedItem = this.completeValue(
+                exeContext,
+                itemType,
+                fieldNodes,
+                info,
+                fieldPath,
+                data,
+                patchErrors,
+              );
+
+              if (isPromise(completedItem)) {
+                return completedItem.then((resolveItem) => ({
+                  value: this.createPatchResult(
+                    resolveItem,
+                    label,
+                    fieldPath,
+                    patchErrors,
+                  ),
+                  done: false,
+                }));
+              }
+
+              return {
+                value: this.createPatchResult(
+                  completedItem,
+                  label,
+                  fieldPath,
+                  patchErrors,
+                ),
+                done: false,
+              };
+            } catch (rawError) {
+              const error = locatedError(
+                rawError,
+                fieldNodes,
+                pathToArray(fieldPath),
+              );
+              this.handleFieldError(error, itemType, patchErrors);
+              return {
+                value: this.createPatchResult(
+                  null,
+                  label,
+                  fieldPath,
+                  patchErrors,
+                ),
+                done: false,
+              };
+            }
+          },
+          (rawError) => {
+            const error = locatedError(
+              rawError,
+              fieldNodes,
+              pathToArray(fieldPath),
+            );
+            this.handleFieldError(error, itemType, patchErrors);
+            return {
+              value: this.createPatchResult(
+                null,
+                label,
+                fieldPath,
+                patchErrors,
+              ),
+              done: false,
+            };
+          },
+        ),
+      );
+    };
+
+    next(initialIndex);
+  }
+
+  _race(exeContext) {
+    if (exeContext.isDone) {
+      return Promise.resolve({
+        value: {
+          hasNext: false,
+        },
+        done: false,
+      });
+    }
+
+    return new Promise((resolve) => {
+      let resolved = false;
+      exeContext.subsequentPayloads.forEach((promise) => {
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        promise.then((payload) => {
+          if (resolved) {
+            return;
+          }
+
+          resolved = true;
+
+          if (exeContext.subsequentPayloads.length === 0) {
+            // a different call to next has exhausted all payloads
+            resolve({
+              value: undefined,
+              done: true,
+            });
+            return;
+          }
+
+          const index = exeContext.subsequentPayloads.indexOf(promise);
+
+          if (index === -1) {
+            // a different call to next has consumed this payload
+            resolve(this._race(exeContext));
+            return;
+          }
+
+          exeContext.subsequentPayloads.splice(index, 1);
+          const { value, done } = payload;
+
+          if (done && exeContext.subsequentPayloads.length === 0) {
+            // async iterable resolver just finished and no more pending payloads
+            resolve({
+              value: {
+                hasNext: false,
+              },
+              done: false,
+            });
+            return;
+          } else if (done) {
+            // async iterable resolver just finished but there are pending payloads
+            // return the next one
+            resolve(this._race(exeContext));
+            return;
+          }
+
+          const returnValue = {
+            ...value,
+            hasNext: exeContext.subsequentPayloads.length > 0,
+          };
+          resolve({
+            value: returnValue,
+            done: false,
+          });
+        });
+      });
+    });
+  }
+
+  _next(exeContext) {
+    if (!exeContext.hasReturnedInitialResult) {
+      exeContext.hasReturnedInitialResult = true;
+      return Promise.resolve({
+        value: { ...exeContext.initialResult, hasNext: true },
+        done: false,
+      });
+    } else if (exeContext.subsequentPayloads.length === 0) {
+      return Promise.resolve({
+        value: undefined,
+        done: true,
+      });
+    }
+
+    return this._race(exeContext);
+  }
+
+  async _return(exeContext) {
+    await Promise.all(
+      exeContext.iterators.map((iterator) => {
+        var _iterator$return;
+
+        return (_iterator$return = iterator.return) === null ||
+          _iterator$return === void 0
+          ? void 0
+          : _iterator$return.call(iterator);
+      }),
+    ); // no updates will be missed, transitions only happen to `done` state
+    // eslint-disable-next-line require-atomic-updates
+
+    exeContext.isDone = true;
+    return {
+      value: undefined,
+      done: true,
+    };
+  }
+
+  async _throw(exeContext, error) {
+    await Promise.all(
+      exeContext.iterators.map((iterator) => {
+        var _iterator$return2;
+
+        return (_iterator$return2 = iterator.return) === null ||
+          _iterator$return2 === void 0
+          ? void 0
+          : _iterator$return2.call(iterator);
+      }),
+    ); // no updates will be missed, transitions only happen to `done` state
+    // eslint-disable-next-line require-atomic-updates
+
+    exeContext.isDone = true;
+    return Promise.reject(error);
+  }
+
+  get(exeContext, initialResult) {
+    exeContext.initialResult = initialResult;
+    return {
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+
+      next: () => this._next(exeContext),
+      return: () => this._return(exeContext),
+      throw: (error) => this._throw(exeContext, error),
+    };
+  }
+
+  createPatchResult(data, label, path, errors) {
+    const value = {
+      data,
+      path: path ? pathToArray(path) : [],
+    };
+
+    if (label != null) {
+      value.label = label;
+    }
+
+    if (errors && errors.length > 0) {
+      value.errors = errors;
+    }
+
+    return value;
   }
 }
 /**

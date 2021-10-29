@@ -1,4 +1,5 @@
 import { isPromise } from '../jsutils/isPromise.mjs';
+import { isAsyncIterable } from '../jsutils/isAsyncIterable.mjs';
 import { Executor } from './executor.mjs';
 /**
  * Implements the "Executing requests" section of the GraphQL specification.
@@ -24,7 +25,7 @@ export function execute(args) {
 export function executeSync(args) {
   const result = execute(args); // Assert that the execution was synchronous.
 
-  if (isPromise(result)) {
+  if (isPromise(result) || isAsyncIterable(result)) {
     throw new Error('GraphQL execution failed to complete synchronously.');
   }
 

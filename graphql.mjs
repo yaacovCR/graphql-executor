@@ -1,5 +1,6 @@
 import { parse, validate, validateSchema } from 'graphql';
 import { isPromise } from './jsutils/isPromise.mjs';
+import { isAsyncIterable } from './jsutils/isAsyncIterable.mjs';
 import { execute } from './execution/execute.mjs';
 /**
  * This is the primary entry point function for fulfilling GraphQL operations
@@ -55,7 +56,7 @@ export function graphql(args) {
 export function graphqlSync(args) {
   const result = graphqlImpl(args); // Assert that the execution was synchronous.
 
-  if (isPromise(result)) {
+  if (isPromise(result) || isAsyncIterable(result)) {
     throw new Error('GraphQL execution failed to complete synchronously.');
   }
 
