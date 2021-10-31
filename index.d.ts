@@ -6,7 +6,6 @@ export {
   defaultTypeResolver,
   execute,
   executeSync,
-  subscribe,
   createSourceEventStream,
 } from './execution/index';
 /** Directives for defer/stream support */

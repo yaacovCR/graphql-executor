@@ -5,7 +5,6 @@ export {
   defaultTypeResolver,
   execute,
   executeSync,
-  subscribe,
   createSourceEventStream,
 } from './execution/index.mjs';
 /** Directives for defer/stream support */

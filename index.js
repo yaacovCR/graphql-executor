@@ -51,12 +51,6 @@ Object.defineProperty(exports, 'executeSync', {
     return _index.executeSync;
   },
 });
-Object.defineProperty(exports, 'subscribe', {
-  enumerable: true,
-  get: function () {
-    return _index.subscribe;
-  },
-});
 
 var _index = require('./execution/index.js');
 

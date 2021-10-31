@@ -1,38 +1,4 @@
-'use strict';
-
-Object.defineProperty(exports, '__esModule', {
-  value: true,
-});
-exports.createSourceEventStream = createSourceEventStream;
-exports.subscribe = subscribe;
-
-var _executor = require('./executor.js');
-
-/**
- * Implements the "Subscribe" algorithm described in the GraphQL specification.
- *
- * Returns a Promise which resolves to either an AsyncIterator (if successful)
- * or an ExecutionResult (error). The promise will be rejected if the schema or
- * other arguments to this function are invalid, or if the resolved event stream
- * is not an async iterable.
- *
- * If the client-provided arguments to this function do not result in a
- * compliant subscription, a GraphQL Response (ExecutionResult) with
- * descriptive errors and no data will be returned.
- *
- * If the source stream could not be created due to faulty subscription
- * resolver logic or underlying systems, the promise will resolve to a single
- * ExecutionResult containing `errors` and no `data`.
- *
- * If the operation succeeded, the promise resolves to an AsyncIterator, which
- * yields a stream of ExecutionResults representing the response stream.
- *
- * Accepts either an object with named arguments, or individual arguments.
- */
-async function subscribe(args) {
-  const executor = new _executor.Executor();
-  return executor.executeSubscription(args);
-}
+import { Executor } from './executor.mjs';
 /**
  * Implements the "CreateSourceEventStream" algorithm described in the
  * GraphQL specification, resolving the subscription source event stream.
@@ -62,7 +28,7 @@ async function subscribe(args) {
  * "Supporting Subscriptions at Scale" information in the GraphQL specification.
  */
 
-async function createSourceEventStream(
+export async function createSourceEventStream(
   schema,
   document,
   rootValue,
@@ -71,7 +37,7 @@ async function createSourceEventStream(
   operationName,
   subscribeFieldResolver,
 ) {
-  const executor = new _executor.Executor();
+  const executor = new Executor();
   return executor.createSourceEventStream({
     schema,
     document,

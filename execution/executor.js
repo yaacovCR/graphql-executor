@@ -90,9 +90,9 @@ class Executor {
   }
 
   /**
-   * Implements the "Executing requests" section of the spec for queries and mutations.
+   * Implements the "Executing requests" section of the spec.
    */
-  executeQueryOrMutation(args) {
+  execute(args) {
     const exeContext = this.buildExecutionContext(args); // If a valid execution context cannot be created due to incorrect arguments,
     // a "Response" with only errors is returned.
 
@@ -102,20 +102,7 @@ class Executor {
       };
     }
 
-    return this.executeQueryOrMutationImpl(exeContext);
-  }
-
-  async executeSubscription(args) {
-    const exeContext = this.buildExecutionContext(args); // If a valid execution context cannot be created due to incorrect arguments,
-    // a "Response" with only errors is returned.
-
-    if (!('schema' in exeContext)) {
-      return {
-        errors: exeContext,
-      };
-    }
-
-    return this.executeSubscriptionImpl(exeContext);
+    return this.executeImpl(exeContext);
   }
 
   async createSourceEventStream(args) {
@@ -129,6 +116,16 @@ class Executor {
     }
 
     return this.createSourceEventStreamImpl(exeContext);
+  }
+
+  executeImpl(exeContext) {
+    const { operation, forceQueryAlgorithm } = exeContext;
+
+    if (operation.operation === 'subscription' && !forceQueryAlgorithm) {
+      return this.executeSubscriptionImpl(exeContext);
+    }
+
+    return this.executeQueryOrMutationImpl(exeContext);
   }
 
   executeQueryOrMutationImpl(exeContext) {
@@ -221,6 +218,7 @@ class Executor {
       fieldResolver,
       typeResolver,
       subscribeFieldResolver,
+      forceQueryAlgorithm,
       disableIncremental,
     } = args; // If arguments are missing or incorrectly typed, this is an internal
     // developer mistake which should throw an error.
@@ -310,6 +308,10 @@ class Executor {
         subscribeFieldResolver !== null && subscribeFieldResolver !== void 0
           ? subscribeFieldResolver
           : defaultFieldResolver,
+      forceQueryAlgorithm:
+        forceQueryAlgorithm !== null && forceQueryAlgorithm !== void 0
+          ? forceQueryAlgorithm
+          : false,
       disableIncremental:
         disableIncremental !== null && disableIncremental !== void 0
           ? disableIncremental
@@ -327,7 +329,12 @@ class Executor {
    */
 
   buildPerPayloadExecutionContext(exeContext, payload) {
-    return { ...exeContext, rootValue: payload, errors: [] };
+    return {
+      ...exeContext,
+      rootValue: payload,
+      forceQueryAlgorithm: true,
+      errors: [],
+    };
   }
   /**
    * Executes the root fields specified by query or mutation operation.
@@ -1278,6 +1285,27 @@ class Executor {
 
     return parentType.getFields()[fieldName];
   }
+  /**
+   * Implements the "Subscribe" algorithm described in the GraphQL specification.
+   *
+   * Returns a Promise which resolves to either an AsyncIterator (if successful)
+   * or an ExecutionResult (error). The promise will be rejected if the schema or
+   * other arguments to this function are invalid, or if the resolved event stream
+   * is not an async iterable.
+   *
+   * If the client-provided arguments to this function do not result in a
+   * compliant subscription, a GraphQL Response (ExecutionResult) with
+   * descriptive errors and no data will be returned.
+   *
+   * If the source stream could not be created due to faulty subscription
+   * resolver logic or underlying systems, the promise will resolve to a single
+   * ExecutionResult containing `errors` and no `data`.
+   *
+   * If the operation succeeded, the promise resolves to an AsyncIterator, which
+   * yields a stream of ExecutionResults representing the response stream.
+   *
+   * Accepts either an object with named arguments, or individual arguments.
+   */
 
   async executeSubscriptionImpl(exeContext) {
     const resultOrStream = await this.createSourceEventStreamImpl(exeContext);
