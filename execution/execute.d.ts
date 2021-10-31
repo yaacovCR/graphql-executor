@@ -16,7 +16,10 @@ import type {
  */
 export declare function execute(
   args: ExecutionArgs,
-): PromiseOrValue<ExecutionResult | AsyncIterable<AsyncExecutionResult>>;
+): PromiseOrValue<
+  | ExecutionResult
+  | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+>;
 /**
  * Also implements the "Executing requests" section of the GraphQL specification.
  * However, it guarantees to complete synchronously (or throw an error) assuming
