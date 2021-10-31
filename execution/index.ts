@@ -10,4 +10,4 @@ export type {
   AsyncExecutionResult,
 } from './executor.ts';
 export { execute, executeSync } from './execute.ts';
-export { subscribe, createSourceEventStream } from './subscribe.ts';
+export { createSourceEventStream } from './createSourceEventStream.ts';

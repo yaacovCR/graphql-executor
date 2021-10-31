@@ -25,7 +25,7 @@ export function execute(
   | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
 > {
   const executor = new Executor();
-  return executor.executeQueryOrMutation(args);
+  return executor.execute(args);
 }
 /**
  * Also implements the "Executing requests" section of the GraphQL specification.

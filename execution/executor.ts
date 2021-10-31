@@ -95,6 +95,7 @@ interface ExecutionContext {
   fieldResolver: GraphQLFieldResolver<any, any>;
   typeResolver: GraphQLTypeResolver<any, any>;
   subscribeFieldResolver: GraphQLFieldResolver<any, any>;
+  forceQueryAlgorithm: boolean;
   disableIncremental: boolean;
   errors: Array<GraphQLError>;
   subsequentPayloads: Array<Promise<IteratorResult<DispatcherResult, void>>>;
@@ -115,6 +116,7 @@ export interface ExecutionArgs {
   fieldResolver?: Maybe<GraphQLFieldResolver<any, any>>;
   typeResolver?: Maybe<GraphQLTypeResolver<any, any>>;
   subscribeFieldResolver?: Maybe<GraphQLFieldResolver<any, any>>;
+  forceQueryAlgorithm?: Maybe<boolean>;
   disableIncremental?: Maybe<boolean>;
 }
 /**
@@ -208,10 +210,10 @@ export class Executor {
     },
   );
   /**
-   * Implements the "Executing requests" section of the spec for queries and mutations.
+   * Implements the "Executing requests" section of the spec.
    */
 
-  executeQueryOrMutation(
+  execute(
     args: ExecutionArgs,
   ): PromiseOrValue<
     | ExecutionResult
@@ -226,25 +228,7 @@ export class Executor {
       };
     }
 
-    return this.executeQueryOrMutationImpl(exeContext);
-  }
-
-  async executeSubscription(
-    args: ExecutionArgs,
-  ): Promise<
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
-    | ExecutionResult
-  > {
-    const exeContext = this.buildExecutionContext(args); // If a valid execution context cannot be created due to incorrect arguments,
-    // a "Response" with only errors is returned.
-
-    if (!('schema' in exeContext)) {
-      return {
-        errors: exeContext,
-      };
-    }
-
-    return this.executeSubscriptionImpl(exeContext);
+    return this.executeImpl(exeContext);
   }
 
   async createSourceEventStream(
@@ -260,6 +244,21 @@ export class Executor {
     }
 
     return this.createSourceEventStreamImpl(exeContext);
+  }
+
+  executeImpl(
+    exeContext: ExecutionContext,
+  ): PromiseOrValue<
+    | ExecutionResult
+    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+  > {
+    const { operation, forceQueryAlgorithm } = exeContext;
+
+    if (operation.operation === 'subscription' && !forceQueryAlgorithm) {
+      return this.executeSubscriptionImpl(exeContext);
+    }
+
+    return this.executeQueryOrMutationImpl(exeContext);
   }
 
   executeQueryOrMutationImpl(
@@ -369,6 +368,7 @@ export class Executor {
       fieldResolver,
       typeResolver,
       subscribeFieldResolver,
+      forceQueryAlgorithm,
       disableIncremental,
     } = args; // If arguments are missing or incorrectly typed, this is an internal
     // developer mistake which should throw an error.
@@ -436,6 +436,7 @@ export class Executor {
       fieldResolver: fieldResolver ?? defaultFieldResolver,
       typeResolver: typeResolver ?? defaultTypeResolver,
       subscribeFieldResolver: subscribeFieldResolver ?? defaultFieldResolver,
+      forceQueryAlgorithm: forceQueryAlgorithm ?? false,
       disableIncremental: disableIncremental ?? false,
       errors: [],
       subsequentPayloads: [],
@@ -453,7 +454,12 @@ export class Executor {
     exeContext: ExecutionContext,
     payload: unknown,
   ): ExecutionContext {
-    return { ...exeContext, rootValue: payload, errors: [] };
+    return {
+      ...exeContext,
+      rootValue: payload,
+      forceQueryAlgorithm: true,
+      errors: [],
+    };
   }
   /**
    * Executes the root fields specified by query or mutation operation.
@@ -1419,6 +1425,27 @@ export class Executor {
 
     return parentType.getFields()[fieldName];
   }
+  /**
+   * Implements the "Subscribe" algorithm described in the GraphQL specification.
+   *
+   * Returns a Promise which resolves to either an AsyncIterator (if successful)
+   * or an ExecutionResult (error). The promise will be rejected if the schema or
+   * other arguments to this function are invalid, or if the resolved event stream
+   * is not an async iterable.
+   *
+   * If the client-provided arguments to this function do not result in a
+   * compliant subscription, a GraphQL Response (ExecutionResult) with
+   * descriptive errors and no data will be returned.
+   *
+   * If the source stream could not be created due to faulty subscription
+   * resolver logic or underlying systems, the promise will resolve to a single
+   * ExecutionResult containing `errors` and no `data`.
+   *
+   * If the operation succeeded, the promise resolves to an AsyncIterator, which
+   * yields a stream of ExecutionResults representing the response stream.
+   *
+   * Accepts either an object with named arguments, or individual arguments.
+   */
 
   async executeSubscriptionImpl(
     exeContext: ExecutionContext,
