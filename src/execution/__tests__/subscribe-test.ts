@@ -152,9 +152,6 @@ async function expectPromise(promise: Promise<unknown>) {
   }
 
   return {
-    toReject() {
-      expect(caughtError).to.be.an.instanceOf(Error);
-    },
     toRejectWith(message: string) {
       expect(caughtError).to.be.an.instanceOf(Error);
       expect(caughtError).to.have.property('message', message);
