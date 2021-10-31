@@ -763,7 +763,7 @@ export class Executor {
     );
 
     // Get the resolved field value, regardless of if its result is normal or abrupt (error).
-    // Them, complete the field
+    // Then, complete the field
     try {
       const result = exeContext.resolveField(
         exeContext,
