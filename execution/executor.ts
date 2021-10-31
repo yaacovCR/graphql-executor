@@ -260,6 +260,19 @@ export class Executor {
 
     return this.executeQueryOrMutationImpl(exeContext);
   }
+  /**
+   * Return data or a Promise that will eventually resolve to the data described
+   * by the "Response" section of the GraphQL specification.
+   *
+   * If errors are encountered while executing a GraphQL field, only that
+   * field and its descendants will be omitted, and sibling fields will still
+   * be executed. An execution which encounters errors will still result in a
+   * resolved Promise.
+   *
+   * Errors from sub-fields of a NonNull type may propagate to the top level,
+   * at which point we still log the error and null the parent field, which
+   * in this case is the entire response.
+   */
 
   executeQueryOrMutationImpl(
     exeContext: ExecutionContext,
@@ -267,34 +280,26 @@ export class Executor {
     | ExecutionResult
     | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
   > {
-    // Return data or a Promise that will eventually resolve to the data described
-    // by the "Response" section of the GraphQL specification.
-    // If errors are encountered while executing a GraphQL field, only that
-    // field and its descendants will be omitted, and sibling fields will still
-    // be executed. An execution which encounters errors will still result in a
-    // resolved Promise.
-    //
-    // Errors from sub-fields of a NonNull type may propagate to the top level,
-    // at which point we still log the error and null the parent field, which
-    // in this case is the entire response.
+    let data: PromiseOrValue<ObjMap<unknown> | null>;
+
     try {
-      const result = this.executeQueryOrMutationRootFields(exeContext);
-
-      if (isPromise(result)) {
-        return result.then(
-          (data) => this.buildResponse(exeContext, data),
-          (error) => {
-            exeContext.errors.push(error);
-            return this.buildResponse(exeContext, null);
-          },
-        );
-      }
-
-      return this.buildResponse(exeContext, result);
+      data = this.executeQueryOrMutationRootFields(exeContext);
     } catch (error) {
       exeContext.errors.push(error);
       return this.buildResponse(exeContext, null);
     }
+
+    if (isPromise(data)) {
+      return data.then(
+        (resolvedData) => this.buildResponse(exeContext, resolvedData),
+        (error) => {
+          exeContext.errors.push(error);
+          return this.buildResponse(exeContext, null);
+        },
+      );
+    }
+
+    return this.buildResponse(exeContext, data);
   }
   /**
    * Given a completed execution context and data, build the `{ errors, data }`
