@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
 import {
+  executeSync,
   GraphQLBoolean,
   GraphQLInt,
   GraphQLList,
@@ -18,7 +19,8 @@ import { resolveOnNextTick } from '../../__testUtils__/resolveOnNextTick';
 import { invariant } from '../../jsutils/invariant';
 import { isAsyncIterable } from '../../jsutils/isAsyncIterable';
 
-import { createSourceEventStream, subscribe } from '../subscribe';
+import { execute } from '../execute';
+import { createSourceEventStream } from '../createSourceEventStream';
 
 import { SimplePubSub } from './simplePubSub';
 
@@ -130,7 +132,7 @@ function createSubscription(
     }),
   };
 
-  return subscribe({
+  return execute({
     schema: emailSchema,
     document,
     rootValue: data,
@@ -150,9 +152,6 @@ async function expectPromise(promise: Promise<unknown>) {
   }
 
   return {
-    toReject() {
-      expect(caughtError).to.be.an.instanceOf(Error);
-    },
     toRejectWith(message: string) {
       expect(caughtError).to.be.an.instanceOf(Error);
       expect(caughtError).to.have.property('message', message);
@@ -186,7 +185,7 @@ describe('Subscription Initialization Phase', () => {
       yield { foo: 'FooValue' };
     }
 
-    const subscription = await subscribe({
+    const subscription = await execute({
       schema,
       document: parse('subscription { foo }'),
       rootValue: { foo: fooGenerator },
@@ -220,7 +219,7 @@ describe('Subscription Initialization Phase', () => {
       }),
     });
 
-    const subscription = await subscribe({
+    const subscription = await execute({
       schema,
       document: parse('subscription { foo }'),
     });
@@ -256,7 +255,7 @@ describe('Subscription Initialization Phase', () => {
       }),
     });
 
-    const subscription = await subscribe({
+    const subscription = await execute({
       schema,
       document: parse('subscription { foo }'),
     });
@@ -286,7 +285,7 @@ describe('Subscription Initialization Phase', () => {
       yield { foo: 'FooValue' };
     }
 
-    const subscription = await subscribe({
+    const subscription = await execute({
       schema,
       document: parse('subscription { foo }'),
       rootValue: { customFoo: fooGenerator },
@@ -334,7 +333,7 @@ describe('Subscription Initialization Phase', () => {
       }),
     });
 
-    const subscription = await subscribe({
+    const subscription = await execute({
       schema,
       document: parse('subscription { foo bar }'),
     });
@@ -362,31 +361,29 @@ describe('Subscription Initialization Phase', () => {
     });
 
     // @ts-expect-error (schema must not be null)
-    (await expectPromise(subscribe({ schema: null, document }))).toRejectWith(
+    expect(() => executeSync({ schema: null, document })).to.throw(
       'Expected null to be a GraphQL schema.',
     );
 
     // @ts-expect-error
-    (await expectPromise(subscribe({ document }))).toRejectWith(
+    expect(() => executeSync({ document })).to.throw(
       'Expected undefined to be a GraphQL schema.',
     );
 
     // @ts-expect-error (document must not be null)
-    (await expectPromise(subscribe({ schema, document: null }))).toRejectWith(
+    expect(() => executeSync({ schema, document: null })).to.throw(
       'Must provide document.',
     );
 
     // @ts-expect-error
-    (await expectPromise(subscribe({ schema }))).toRejectWith(
-      'Must provide document.',
-    );
+    expect(() => executeSync({ schema })).to.throw('Must provide document.');
   });
 
   it('resolves to an error if schema does not support subscriptions', async () => {
     const schema = new GraphQLSchema({ query: DummyQueryType });
     const document = parse('subscription { unknownField }');
 
-    const result = await subscribe({ schema, document });
+    const result = await execute({ schema, document });
     expectJSON(result).toDeepEqual({
       errors: [
         {
@@ -410,7 +407,7 @@ describe('Subscription Initialization Phase', () => {
     });
     const document = parse('subscription { unknownField }');
 
-    const result = await subscribe({ schema, document });
+    const result = await execute({ schema, document });
     expectJSON(result).toDeepEqual({
       errors: [
         {
@@ -421,7 +418,7 @@ describe('Subscription Initialization Phase', () => {
     });
   });
 
-  it('should pass through unexpected errors thrown in subscribe', async () => {
+  it('should pass through unexpected errors thrown in execute', async () => {
     const schema = new GraphQLSchema({
       query: DummyQueryType,
       subscription: new GraphQLObjectType({
@@ -433,7 +430,7 @@ describe('Subscription Initialization Phase', () => {
     });
 
     // @ts-expect-error
-    (await expectPromise(subscribe({ schema, document: {} }))).toReject();
+    expect(() => executeSync({ schema, document: {} })).to.throw();
   });
 
   it('throws an error if subscribe does not return an iterator', async () => {
@@ -452,7 +449,8 @@ describe('Subscription Initialization Phase', () => {
 
     const document = parse('subscription { foo }');
 
-    (await expectPromise(subscribe({ schema, document }))).toRejectWith(
+    // @ts-expect-error
+    (await expectPromise(execute({ schema, document }))).toRejectWith(
       'Subscription field must return Async Iterable. Received: "test".',
     );
   });
@@ -469,7 +467,7 @@ describe('Subscription Initialization Phase', () => {
         }),
       });
       const document = parse('subscription { foo }');
-      const result = await subscribe({ schema, document });
+      const result = await execute({ schema, document });
 
       expectJSON(await createSourceEventStream(schema, document)).toDeepEqual(
         result,
@@ -531,7 +529,7 @@ describe('Subscription Initialization Phase', () => {
       }
     `);
 
-    // If we receive variables that cannot be coerced correctly, subscribe() will
+    // If we receive variables that cannot be coerced correctly, execute() will
     // resolve to an ExecutionResult that contains an informative error description.
     const expectedResult = {
       errors: [
@@ -543,9 +541,9 @@ describe('Subscription Initialization Phase', () => {
       ],
     };
 
-    expectJSON(
-      await subscribe({ schema, document, variableValues }),
-    ).toDeepEqual(expectedResult);
+    expectJSON(await execute({ schema, document, variableValues })).toDeepEqual(
+      expectedResult,
+    );
 
     expectJSON(
       await createSourceEventStream(
@@ -1088,7 +1086,7 @@ describe('Subscription Publish Phase', () => {
     });
 
     const document = parse('subscription { newMessage }');
-    const subscription = await subscribe({ schema, document });
+    const subscription = await execute({ schema, document });
     invariant(isAsyncIterable(subscription));
 
     expect(await subscription.next()).to.deep.equal({
@@ -1144,7 +1142,7 @@ describe('Subscription Publish Phase', () => {
     });
 
     const document = parse('subscription { newMessage }');
-    const subscription = await subscribe({ schema, document });
+    const subscription = await execute({ schema, document });
     invariant(isAsyncIterable(subscription));
 
     expect(await subscription.next()).to.deep.equal({

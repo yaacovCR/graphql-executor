@@ -8,7 +8,6 @@ export {
   defaultTypeResolver,
   execute,
   executeSync,
-  subscribe,
   createSourceEventStream,
 } from './execution/index';
 

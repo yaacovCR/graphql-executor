@@ -14,4 +14,4 @@ export type {
 
 export { execute, executeSync } from './execute';
 
-export { subscribe, createSourceEventStream } from './subscribe';
+export { createSourceEventStream } from './createSourceEventStream';
