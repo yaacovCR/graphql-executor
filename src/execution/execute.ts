@@ -21,7 +21,10 @@ import { Executor } from './executor';
  */
 export function execute(
   args: ExecutionArgs,
-): PromiseOrValue<ExecutionResult | AsyncIterable<AsyncExecutionResult>> {
+): PromiseOrValue<
+  | ExecutionResult
+  | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+> {
   const executor = new Executor();
   return executor.executeQueryOrMutation(args);
 }
