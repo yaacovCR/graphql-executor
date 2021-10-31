@@ -376,9 +376,7 @@ describe('Subscription Initialization Phase', () => {
     );
 
     // @ts-expect-error
-    expect(() => executeSync({ schema })).to.throw(
-      'Must provide document.',
-    );
+    expect(() => executeSync({ schema })).to.throw('Must provide document.');
   });
 
   it('resolves to an error if schema does not support subscriptions', async () => {
@@ -543,9 +541,9 @@ describe('Subscription Initialization Phase', () => {
       ],
     };
 
-    expectJSON(
-      await execute({ schema, document, variableValues }),
-    ).toDeepEqual(expectedResult);
+    expectJSON(await execute({ schema, document, variableValues })).toDeepEqual(
+      expectedResult,
+    );
 
     expectJSON(
       await createSourceEventStream(
