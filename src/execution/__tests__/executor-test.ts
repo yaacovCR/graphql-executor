@@ -905,7 +905,7 @@ describe('Execute: Handles basic execution tasks', () => {
     const rootValue = { a: 'b', c: 'd' };
     const operationName = 'S';
 
-    const result = executeSync({ schema, document, rootValue, operationName });
+    const result = executeSync({ schema, document, rootValue, operationName, forceQueryAlgorithm: true });
     expect(result).to.deep.equal({ data: { a: 'b' } });
   });
 
@@ -943,7 +943,7 @@ describe('Execute: Handles basic execution tasks', () => {
     });
 
     expectJSON(
-      executeSync({ schema, document, operationName: 'S' }),
+      executeSync({ schema, document, operationName: 'S', forceQueryAlgorithm: true }),
     ).toDeepEqual({
       data: null,
       errors: [
