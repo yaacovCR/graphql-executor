@@ -106,6 +106,7 @@ const schema = buildSchema(`
 
   schema {
     query: DataType
+    mutation: DataType
   }
 `);
 
@@ -490,39 +491,63 @@ describe('Execute: handles non-nullable types', () => {
     });
   });
 
-  describe('nulls the top level if non-nullable field', () => {
-    const query = `
-      {
-        syncNonNull
-      }
-    `;
+  describe('nulls the top level', () => {
+    const nullingDataResult = {
+      data: null,
+      errors: [
+        {
+          message:
+            'Cannot return null for non-nullable field DataType.syncNonNull.',
+          path: ['syncNonNull'],
+          locations: [{ line: 3, column: 11 }],
+        },
+      ],
+    };
 
-    it('that returns null', async () => {
-      const result = await executeSyncAndAsync(query, nullingData);
-      expectJSON(result).toDeepEqual({
-        data: null,
-        errors: [
-          {
-            message:
-              'Cannot return null for non-nullable field DataType.syncNonNull.',
-            path: ['syncNonNull'],
-            locations: [{ line: 3, column: 9 }],
-          },
-        ],
+    const throwingDataResult = {
+      data: null,
+      errors: [
+        {
+          message: syncNonNullError.message,
+          path: ['syncNonNull'],
+          locations: [{ line: 3, column: 11 }],
+        },
+      ],
+    };
+
+    describe('for queries, if non-nullable field', () => {
+      const query = `
+        {
+          syncNonNull
+        }
+      `;
+
+      it('that returns null', async () => {
+        const result = await executeSyncAndAsync(query, nullingData);
+        expectJSON(result).toDeepEqual(nullingDataResult);
+      });
+
+      it('that throws', async () => {
+        const result = await executeSyncAndAsync(query, throwingData);
+        expectJSON(result).toDeepEqual(throwingDataResult);
       });
     });
 
-    it('that throws', async () => {
-      const result = await executeSyncAndAsync(query, throwingData);
-      expectJSON(result).toDeepEqual({
-        data: null,
-        errors: [
-          {
-            message: syncNonNullError.message,
-            path: ['syncNonNull'],
-            locations: [{ line: 3, column: 9 }],
-          },
-        ],
+    describe('for mutations, if non-nullable field', () => {
+      const mutation = `
+        mutation {
+          syncNonNull
+        }
+      `;
+
+      it('that returns null', async () => {
+        const result = await executeSyncAndAsync(mutation, nullingData);
+        expectJSON(result).toDeepEqual(nullingDataResult);
+      });
+
+      it('that throws', async () => {
+        const result = await executeSyncAndAsync(mutation, throwingData);
+        expectJSON(result).toDeepEqual(throwingDataResult);
       });
     });
   });
