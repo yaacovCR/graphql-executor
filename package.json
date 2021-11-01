@@ -54,7 +54,7 @@
     "directory": "npmDist"
   },
   "peerDependencies": {
-    "graphql": "^15.0.0 || ^16.0.0-rc"
+    "graphql": "^15.0.0 || ^16.0.0"
   },
   "devDependencies": {
     "@babel/core": "7.15.8",
