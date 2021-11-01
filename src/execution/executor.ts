@@ -175,6 +175,15 @@ interface DispatcherResult {
 
 export type AsyncExecutionResult = ExecutionResult | ExecutionPatchResult;
 
+export type FieldsExecutor = (
+  exeContext: ExecutionContext,
+  parentType: GraphQLObjectType,
+  sourceValue: unknown,
+  path: Path | undefined,
+  fields: Map<string, ReadonlyArray<FieldNode>>,
+  errors: Array<GraphQLError>,
+) => PromiseOrValue<ObjMap<unknown>>;
+
 /**
  * Executor class responsible for implementing the Execution section of the GraphQL spec.
  *
@@ -302,7 +311,7 @@ export class Executor {
     let data: PromiseOrValue<ObjMap<unknown> | null>;
 
     try {
-      data = this.executeRootFields(exeContext);
+      data = this.executeRootFields(exeContext, this.executeFields.bind(this));
     } catch (error) {
       exeContext.errors.push(error);
       return this.buildResponse(exeContext, null);
@@ -334,7 +343,10 @@ export class Executor {
     let data: PromiseOrValue<ObjMap<unknown> | null>;
 
     try {
-      data = this.executeRootFieldsSerially(exeContext);
+      data = this.executeRootFields(
+        exeContext,
+        this.executeFieldsSerially.bind(this),
+      );
     } catch (error) {
       exeContext.errors.push(error);
       return this.buildResponse(exeContext, null);
@@ -513,6 +525,7 @@ export class Executor {
    */
   executeRootFields(
     exeContext: ExecutionContext,
+    fieldsExecutor: FieldsExecutor,
   ): PromiseOrValue<ObjMap<unknown> | null> {
     const {
       schema,
@@ -536,54 +549,13 @@ export class Executor {
     );
     const path = undefined;
 
-    const result = this.executeFields(
+    const result = fieldsExecutor(
       exeContext,
       rootType,
       rootValue,
       path,
       fields,
       errors,
-    );
-
-    this.executePatches(exeContext, patches, rootType, rootValue, path);
-
-    return result;
-  }
-
-  /**
-   * Executes the root fields specified by the operation serially,
-   * as appropriate for a mutation operation.
-   */
-  executeRootFieldsSerially(
-    exeContext: ExecutionContext,
-  ): PromiseOrValue<ObjMap<unknown> | null> {
-    const {
-      schema,
-      fragments,
-      rootValue,
-      operation,
-      variableValues,
-      disableIncremental,
-    } = exeContext;
-
-    const {
-      rootType,
-      fieldsAndPatches: { fields, patches },
-    } = this.parseOperationRoot(
-      schema,
-      fragments,
-      variableValues,
-      operation,
-      disableIncremental,
-    );
-    const path = undefined;
-
-    const result = this.executeFieldsSerially(
-      exeContext,
-      rootType,
-      rootValue,
-      path,
-      fields,
     );
 
     this.executePatches(exeContext, patches, rootType, rootValue, path);
