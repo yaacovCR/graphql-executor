@@ -19,6 +19,7 @@ import type { Path } from '../jsutils/Path';
 import type { ObjMap } from '../jsutils/ObjMap';
 import type { PromiseOrValue } from '../jsutils/PromiseOrValue';
 import type { Maybe } from '../jsutils/Maybe';
+import type { PatchFields } from './collectFields';
 /**
  * Terminology
  *
@@ -467,6 +468,14 @@ export declare class Executor {
   ): Promise<AsyncIterable<unknown> | ExecutionResult>;
   executeSubscriptionRootField(exeContext: ExecutionContext): Promise<unknown>;
   hasSubsequentPayloads(exeContext: ExecutionContext): boolean;
+  executePatches(
+    exeContext: ExecutionContext,
+    patches: Array<PatchFields>,
+    parentType: GraphQLObjectType,
+    source: unknown,
+    path: Path | undefined,
+    errors?: Maybe<Array<GraphQLError>>,
+  ): void;
   addFields(
     exeContext: ExecutionContext,
     promiseOrData: PromiseOrValue<ObjMap<unknown>>,

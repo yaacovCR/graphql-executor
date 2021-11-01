@@ -353,6 +353,7 @@ class Executor {
       operation,
       variableValues,
       disableIncremental,
+      errors,
     } = exeContext; // TODO: replace getOperationRootType with schema.getRootType
 
     const rootType = (0, _graphql.getOperationRootType)(schema, operation);
@@ -384,7 +385,7 @@ class Executor {
           rootValue,
           path,
           fields,
-          exeContext.errors,
+          errors,
         );
         break;
 
@@ -406,29 +407,11 @@ class Executor {
           rootValue,
           path,
           fields,
-          exeContext.errors,
+          errors,
         );
     }
 
-    for (const patch of patches) {
-      const { label, fields: patchFields } = patch;
-      const errors = [];
-      this.addFields(
-        exeContext,
-        this.executeFields(
-          exeContext,
-          rootType,
-          rootValue,
-          path,
-          patchFields,
-          errors,
-        ),
-        errors,
-        label,
-        path,
-      );
-    }
-
+    this.executePatches(exeContext, patches, rootType, rootValue, path);
     return result;
   }
   /**
@@ -1238,26 +1221,7 @@ class Executor {
       subFieldNodes,
       errors,
     );
-
-    for (const subPatch of subPatches) {
-      const { label, fields: subPatchFieldNodes } = subPatch;
-      const subPatchErrors = [];
-      this.addFields(
-        exeContext,
-        this.executeFields(
-          exeContext,
-          returnType,
-          result,
-          path,
-          subPatchFieldNodes,
-          subPatchErrors,
-        ),
-        subPatchErrors,
-        label,
-        path,
-      );
-    }
-
+    this.executePatches(exeContext, subPatches, returnType, result, path);
     return subFields;
   }
   /**
@@ -1452,6 +1416,27 @@ class Executor {
 
   hasSubsequentPayloads(exeContext) {
     return exeContext.subsequentPayloads.length !== 0;
+  }
+
+  executePatches(exeContext, patches, parentType, source, path, errors) {
+    for (const patch of patches) {
+      const { label, fields: patchFields } = patch;
+      const patchErrors = errors !== null && errors !== void 0 ? errors : [];
+      this.addFields(
+        exeContext,
+        this.executeFields(
+          exeContext,
+          parentType,
+          source,
+          path,
+          patchFields,
+          patchErrors,
+        ),
+        patchErrors,
+        label,
+        path,
+      );
+    }
   }
 
   addFields(exeContext, promiseOrData, errors, label, path) {
