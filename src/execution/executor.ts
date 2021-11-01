@@ -97,7 +97,6 @@ interface ExecutionContext {
   variableValues: { [variable: string]: unknown };
   fieldResolver: GraphQLFieldResolver<any, any>;
   typeResolver: GraphQLTypeResolver<any, any>;
-  subscribeFieldResolver: GraphQLFieldResolver<any, any>;
   forceQueryAlgorithm: boolean;
   disableIncremental: boolean;
   resolveField: (
@@ -531,7 +530,6 @@ export class Executor {
       variableValues: coercedVariableValues.coerced,
       fieldResolver: defaultResolveFieldValueFn,
       typeResolver: typeResolver ?? defaultTypeResolver,
-      subscribeFieldResolver: subscribeFieldResolver ?? defaultFieldResolver,
       forceQueryAlgorithm: forceQueryAlgorithm ?? false,
       disableIncremental: disableIncremental ?? false,
       resolveField:
