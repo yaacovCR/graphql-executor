@@ -132,6 +132,14 @@ interface DispatcherResult {
 export declare type AsyncExecutionResult =
   | ExecutionResult
   | ExecutionPatchResult;
+export declare type FieldsExecutor = (
+  exeContext: ExecutionContext,
+  parentType: GraphQLObjectType,
+  sourceValue: unknown,
+  path: Path | undefined,
+  fields: Map<string, ReadonlyArray<FieldNode>>,
+  errors: Array<GraphQLError>,
+) => PromiseOrValue<ObjMap<unknown>>;
 /**
  * Executor class responsible for implementing the Execution section of the GraphQL spec.
  *
@@ -174,9 +182,16 @@ export declare class Executor {
     | ExecutionResult
     | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
   >;
+  executeQueryImpl(
+    exeContext: ExecutionContext,
+  ): PromiseOrValue<
+    | ExecutionResult
+    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+  >;
   /**
-   * Return data or a Promise that will eventually resolve to the data described
-   * by the "Response" section of the GraphQL specification.
+   * Implements the ExecuteQuery algorithm described in the GraphQL
+   * specification. This algorithm is used to execute query operations
+   * and to implement the ExecuteSubscriptionEvent algorith,
    *
    * If errors are encountered while executing a GraphQL field, only that
    * field and its descendants will be omitted, and sibling fields will still
@@ -187,8 +202,30 @@ export declare class Executor {
    * at which point we still log the error and null the parent field, which
    * in this case is the entire response.
    */
+  executeQueryAlgorithm(
+    exeContext: ExecutionContext,
+  ): PromiseOrValue<
+    | ExecutionResult
+    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+  >;
+  /**
+   * Implements the ExecuteMutation algorithm described in the Graphql
+   * specification.
+   */
+  executeMutationImpl(
+    exeContext: ExecutionContext,
+  ): PromiseOrValue<
+    | ExecutionResult
+    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+  >;
+  /**
+   * Implements the Execute algorithm described in the GraphQL specification
+   * for queries/mutations, using the provided parallel or serial fields
+   * executor.
+   */
   executeQueryOrMutationImpl(
     exeContext: ExecutionContext,
+    fieldsExecutor: FieldsExecutor,
   ): PromiseOrValue<
     | ExecutionResult
     | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
@@ -234,10 +271,11 @@ export declare class Executor {
     payload: unknown,
   ): ExecutionContext;
   /**
-   * Executes the root fields specified by query or mutation operation.
+   * Executes the root fields specified by the operation.
    */
-  executeQueryOrMutationRootFields(
+  executeRootFields(
     exeContext: ExecutionContext,
+    fieldsExecutor: FieldsExecutor,
   ): PromiseOrValue<ObjMap<unknown> | null>;
   parseOperationRoot(
     schema: GraphQLSchema,
@@ -479,6 +517,12 @@ export declare class Executor {
     exeContext: ExecutionContext,
   ): Promise<AsyncIterable<unknown> | ExecutionResult>;
   executeSubscriptionRootField(exeContext: ExecutionContext): Promise<unknown>;
+  executeSubscriptionEvent(
+    exeContext: ExecutionContext,
+  ): PromiseOrValue<
+    | ExecutionResult
+    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+  >;
   hasSubsequentPayloads(exeContext: ExecutionContext): boolean;
   executePatches(
     exeContext: ExecutionContext,

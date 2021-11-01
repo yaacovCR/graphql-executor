@@ -121,15 +121,31 @@ class Executor {
   executeImpl(exeContext) {
     const { operation, forceQueryAlgorithm } = exeContext;
 
-    if (operation.operation === 'subscription' && !forceQueryAlgorithm) {
-      return this.executeSubscriptionImpl(exeContext);
+    if (forceQueryAlgorithm) {
+      return this.executeQueryAlgorithm(exeContext);
     }
 
-    return this.executeQueryOrMutationImpl(exeContext);
+    const operationType = operation.operation;
+
+    switch (operationType) {
+      case 'query':
+        return this.executeQueryImpl(exeContext);
+
+      case 'mutation':
+        return this.executeMutationImpl(exeContext);
+
+      default:
+        return this.executeSubscriptionImpl(exeContext);
+    }
+  }
+
+  executeQueryImpl(exeContext) {
+    return this.executeQueryAlgorithm(exeContext);
   }
   /**
-   * Return data or a Promise that will eventually resolve to the data described
-   * by the "Response" section of the GraphQL specification.
+   * Implements the ExecuteQuery algorithm described in the GraphQL
+   * specification. This algorithm is used to execute query operations
+   * and to implement the ExecuteSubscriptionEvent algorith,
    *
    * If errors are encountered while executing a GraphQL field, only that
    * field and its descendants will be omitted, and sibling fields will still
@@ -141,11 +157,34 @@ class Executor {
    * in this case is the entire response.
    */
 
-  executeQueryOrMutationImpl(exeContext) {
+  executeQueryAlgorithm(exeContext) {
+    return this.executeQueryOrMutationImpl(
+      exeContext,
+      this.executeFields.bind(this),
+    );
+  }
+  /**
+   * Implements the ExecuteMutation algorithm described in the Graphql
+   * specification.
+   */
+
+  executeMutationImpl(exeContext) {
+    return this.executeQueryOrMutationImpl(
+      exeContext,
+      this.executeFieldsSerially.bind(this),
+    );
+  }
+  /**
+   * Implements the Execute algorithm described in the GraphQL specification
+   * for queries/mutations, using the provided parallel or serial fields
+   * executor.
+   */
+
+  executeQueryOrMutationImpl(exeContext, fieldsExecutor) {
     let data;
 
     try {
-      data = this.executeQueryOrMutationRootFields(exeContext);
+      data = this.executeRootFields(exeContext, fieldsExecutor);
     } catch (error) {
       exeContext.errors.push(error);
       return this.buildResponse(exeContext, null);
@@ -342,10 +381,10 @@ class Executor {
     };
   }
   /**
-   * Executes the root fields specified by query or mutation operation.
+   * Executes the root fields specified by the operation.
    */
 
-  executeQueryOrMutationRootFields(exeContext) {
+  executeRootFields(exeContext, fieldsExecutor) {
     const {
       schema,
       fragments,
@@ -366,44 +405,14 @@ class Executor {
       disableIncremental,
     );
     const path = undefined;
-    let result;
-
-    switch (operation.operation) {
-      // TODO: Change 'query', etc. => to OperationTypeNode.QUERY, etc. when upstream
-      // graphql-js properly exports OperationTypeNode as a value.
-      case 'query':
-        result = this.executeFields(
-          exeContext,
-          rootType,
-          rootValue,
-          path,
-          fields,
-          errors,
-        );
-        break;
-
-      case 'mutation':
-        result = this.executeFieldsSerially(
-          exeContext,
-          rootType,
-          rootValue,
-          path,
-          fields,
-        );
-        break;
-
-      default:
-        // Temporary solution until we finish merging execute and subscribe together
-        result = this.executeFields(
-          exeContext,
-          rootType,
-          rootValue,
-          path,
-          fields,
-          errors,
-        );
-    }
-
+    const result = fieldsExecutor(
+      exeContext,
+      rootType,
+      rootValue,
+      path,
+      fields,
+      errors,
+    );
     this.executePatches(exeContext, patches, rootType, rootValue, path);
     return result;
   }
@@ -1310,7 +1319,7 @@ class Executor {
         exeContext,
         payload,
       );
-      return this.executeQueryOrMutationImpl(perPayloadExecutionContext);
+      return this.executeSubscriptionEvent(perPayloadExecutionContext);
     }; // Map every source value to a ExecutionResult value as described above.
 
     return (0, _flattenAsyncIterator.flattenAsyncIterator)(
@@ -1422,6 +1431,10 @@ class Executor {
         (0, _Path.pathToArray)(path),
       );
     }
+  }
+
+  executeSubscriptionEvent(exeContext) {
+    return this.executeQueryAlgorithm(exeContext);
   }
 
   hasSubsequentPayloads(exeContext) {
