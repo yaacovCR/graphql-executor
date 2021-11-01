@@ -302,32 +302,13 @@ export class Executor {
    * at which point we still log the error and null the parent field, which
    * in this case is the entire response.
    */
-  executeQueryAlgorithm(
+   executeQueryAlgorithm(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
     | ExecutionResult
     | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
   > {
-    let data: PromiseOrValue<ObjMap<unknown> | null>;
-
-    try {
-      data = this.executeRootFields(exeContext, this.executeFields.bind(this));
-    } catch (error) {
-      exeContext.errors.push(error);
-      return this.buildResponse(exeContext, null);
-    }
-
-    if (isPromise(data)) {
-      return data.then(
-        (resolvedData) => this.buildResponse(exeContext, resolvedData),
-        (error) => {
-          exeContext.errors.push(error);
-          return this.buildResponse(exeContext, null);
-        },
-      );
-    }
-
-    return this.buildResponse(exeContext, data);
+    return this.executeQueryOrMutationImpl(exeContext, this.executeFields.bind(this));
   }
 
   /**
@@ -340,13 +321,25 @@ export class Executor {
     | ExecutionResult
     | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
   > {
+    return this.executeQueryOrMutationImpl(exeContext, this.executeFieldsSerially.bind(this));
+  }
+
+  /**
+   * Implements the Execute algorithm described in the GraphQL specification
+   * for queries/mutations, using the provided parallel or serial fields
+   * executor.
+   */
+  executeQueryOrMutationImpl(
+    exeContext: ExecutionContext,
+    fieldsExecutor: FieldsExecutor,
+  ): PromiseOrValue<
+    | ExecutionResult
+    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+  > {
     let data: PromiseOrValue<ObjMap<unknown> | null>;
 
     try {
-      data = this.executeRootFields(
-        exeContext,
-        this.executeFieldsSerially.bind(this),
-      );
+      data = this.executeRootFields(exeContext, fieldsExecutor);
     } catch (error) {
       exeContext.errors.push(error);
       return this.buildResponse(exeContext, null);
