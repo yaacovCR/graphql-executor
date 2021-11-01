@@ -354,22 +354,15 @@ class Executor {
       variableValues,
       disableIncremental,
       errors,
-    } = exeContext; // TODO: replace getOperationRootType with schema.getRootType
-
-    const rootType = (0, _graphql.getOperationRootType)(schema, operation);
-    /* if (rootType == null) {
-      throw new GraphQLError(
-        `Schema is not configured to execute ${operation.operation} operation.`,
-        operation,
-      );
-    } */
-
-    const { fields, patches } = (0, _collectFields.collectFields)(
+    } = exeContext;
+    const {
+      rootType,
+      fieldsAndPatches: { fields, patches },
+    } = this.parseOperationRoot(
       schema,
       fragments,
       variableValues,
-      rootType,
-      operation.selectionSet,
+      operation,
       disableIncremental,
     );
     const path = undefined;
@@ -413,6 +406,30 @@ class Executor {
 
     this.executePatches(exeContext, patches, rootType, rootValue, path);
     return result;
+  }
+
+  parseOperationRoot(
+    schema,
+    fragments,
+    variableValues,
+    operation,
+    disableIncremental,
+  ) {
+    // TODO: replace getOperationRootType with schema.getRootType
+    // after pre-v16 is dropped
+    const rootType = (0, _graphql.getOperationRootType)(schema, operation);
+    const fieldsAndPatches = (0, _collectFields.collectFields)(
+      schema,
+      fragments,
+      variableValues,
+      rootType,
+      operation.selectionSet,
+      disableIncremental,
+    );
+    return {
+      rootType,
+      fieldsAndPatches,
+    };
   }
   /**
    * Implements the "Executing selection sets" section of the spec
@@ -1338,21 +1355,14 @@ class Executor {
       variableValues,
       disableIncremental,
     } = exeContext;
-    const rootType = schema.getSubscriptionType();
-
-    if (rootType == null) {
-      throw new _graphql.GraphQLError(
-        'Schema is not configured to execute subscription operation.',
-        operation,
-      );
-    }
-
-    const { fields } = (0, _collectFields.collectFields)(
+    const {
+      rootType,
+      fieldsAndPatches: { fields },
+    } = this.parseOperationRoot(
       schema,
       fragments,
       variableValues,
-      rootType,
-      operation.selectionSet,
+      operation,
       disableIncremental,
     );
     const [responseName, fieldNodes] = [...fields.entries()][0];

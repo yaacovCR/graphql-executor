@@ -19,7 +19,7 @@ import type { Path } from '../jsutils/Path';
 import type { ObjMap } from '../jsutils/ObjMap';
 import type { PromiseOrValue } from '../jsutils/PromiseOrValue';
 import type { Maybe } from '../jsutils/Maybe';
-import type { PatchFields } from './collectFields';
+import type { FieldsAndPatches, PatchFields } from './collectFields';
 /**
  * Terminology
  *
@@ -155,7 +155,7 @@ export declare class Executor {
     a1: ExecutionContext,
     a2: GraphQLObjectType<any, any>,
     a3: readonly FieldNode[],
-  ) => import('./collectFields').FieldsAndPatches;
+  ) => FieldsAndPatches;
   /**
    * Implements the "Executing requests" section of the spec.
    */
@@ -239,6 +239,18 @@ export declare class Executor {
   executeQueryOrMutationRootFields(
     exeContext: ExecutionContext,
   ): PromiseOrValue<ObjMap<unknown> | null>;
+  parseOperationRoot(
+    schema: GraphQLSchema,
+    fragments: ObjMap<FragmentDefinitionNode>,
+    variableValues: {
+      [variable: string]: unknown;
+    },
+    operation: OperationDefinitionNode,
+    disableIncremental: boolean,
+  ): {
+    rootType: GraphQLObjectType;
+    fieldsAndPatches: FieldsAndPatches;
+  };
   /**
    * Implements the "Executing selection sets" section of the spec
    * for fields that must be executed serially.
