@@ -108,6 +108,34 @@ export class Executor {
         );
       }),
     );
+
+    _defineProperty(
+      this,
+      'buildFieldResolver',
+      (resolverKey, defaultResolver) =>
+        (exeContext, fieldDef, source, info, fieldNodes) => {
+          var _fieldDef$resolverKey;
+
+          const resolveFn =
+            (_fieldDef$resolverKey = fieldDef[resolverKey]) !== null &&
+            _fieldDef$resolverKey !== void 0
+              ? _fieldDef$resolverKey
+              : defaultResolver; // Build a JS object of arguments from the field.arguments AST, using the
+          // variables scope to fulfill any variable references.
+          // TODO: find a way to memoize, in case this field is within a List type.
+
+          const args = getArgumentValues(
+            fieldDef,
+            fieldNodes[0],
+            exeContext.variableValues,
+          ); // The resolve function's optional third argument is a context value that
+          // is provided to every resolve function within an execution. It is commonly
+          // used to represent an authenticated user, or request-specific caches.
+
+          const contextValue = exeContext.contextValue;
+          return resolveFn(source, args, contextValue, info);
+        },
+    );
   }
 
   /**
@@ -262,6 +290,7 @@ export class Executor {
         'Variables must be provided as an Object where each property is a variable value. Perhaps look to see if an unparsed JSON string was provided.',
       );
   }
+
   /**
    * Constructs a ExecutionContext object from the arguments passed to
    * execute, which we will pass throughout the other execution methods.
@@ -269,7 +298,6 @@ export class Executor {
    * Returns an array of GraphQLErrors if a valid execution context
    * cannot be created.
    */
-
   buildExecutionContext(args) {
     var _definition$name, _operation$variableDe;
 
@@ -352,6 +380,10 @@ export class Executor {
       return coercedVariableValues.errors;
     }
 
+    const defaultResolveFieldValueFn =
+      fieldResolver !== null && fieldResolver !== void 0
+        ? fieldResolver
+        : defaultFieldResolver;
     return {
       schema,
       fragments,
@@ -359,18 +391,11 @@ export class Executor {
       contextValue,
       operation,
       variableValues: coercedVariableValues.coerced,
-      fieldResolver:
-        fieldResolver !== null && fieldResolver !== void 0
-          ? fieldResolver
-          : defaultFieldResolver,
+      fieldResolver: defaultResolveFieldValueFn,
       typeResolver:
         typeResolver !== null && typeResolver !== void 0
           ? typeResolver
           : defaultTypeResolver,
-      subscribeFieldResolver:
-        subscribeFieldResolver !== null && subscribeFieldResolver !== void 0
-          ? subscribeFieldResolver
-          : defaultFieldResolver,
       forceQueryAlgorithm:
         forceQueryAlgorithm !== null && forceQueryAlgorithm !== void 0
           ? forceQueryAlgorithm
@@ -379,6 +404,16 @@ export class Executor {
         disableIncremental !== null && disableIncremental !== void 0
           ? disableIncremental
           : false,
+      resolveField:
+        operation.operation === 'subscription' && !forceQueryAlgorithm
+          ? this.buildFieldResolver(
+              'subscribe',
+              subscribeFieldResolver !== null &&
+                subscribeFieldResolver !== void 0
+                ? subscribeFieldResolver
+                : defaultFieldResolver,
+            )
+          : this.buildFieldResolver('resolve', defaultResolveFieldValueFn),
       errors: [],
       subsequentPayloads: [],
       iterators: [],
@@ -396,6 +431,10 @@ export class Executor {
       ...exeContext,
       rootValue: payload,
       forceQueryAlgorithm: true,
+      resolveField: this.buildFieldResolver(
+        'resolve',
+        exeContext.fieldResolver,
+      ),
       errors: [],
     };
   }
@@ -543,8 +582,6 @@ export class Executor {
    */
 
   executeField(exeContext, parentType, source, fieldNodes, path, errors) {
-    var _fieldDef$resolve;
-
     const fieldDef = this.getFieldDef(
       exeContext.schema,
       parentType,
@@ -556,33 +593,23 @@ export class Executor {
     }
 
     const returnType = fieldDef.type;
-    const resolveFn =
-      (_fieldDef$resolve = fieldDef.resolve) !== null &&
-      _fieldDef$resolve !== void 0
-        ? _fieldDef$resolve
-        : exeContext.fieldResolver;
     const info = this.buildResolveInfo(
       exeContext,
       fieldDef,
       fieldNodes,
       parentType,
       path,
-    ); // Get the resolve function, regardless of if its result is normal or abrupt (error).
+    ); // Get the resolved field value, regardless of if its result is normal or abrupt (error).
+    // Then, complete the field
 
     try {
-      // Build a JS object of arguments from the field.arguments AST, using the
-      // variables scope to fulfill any variable references.
-      // TODO: find a way to memoize, in case this field is within a List type.
-      const args = getArgumentValues(
+      const result = exeContext.resolveField(
+        exeContext,
         fieldDef,
-        fieldNodes[0],
-        exeContext.variableValues,
-      ); // The resolve function's optional third argument is a context value that
-      // is provided to every resolve function within an execution. It is commonly
-      // used to represent an authenticated user, or request-specific caches.
-
-      const contextValue = exeContext.contextValue;
-      const result = resolveFn(source, args, contextValue, info);
+        source,
+        info,
+        fieldNodes,
+      );
       let completed;
 
       if (isPromise(result)) {
@@ -1390,25 +1417,13 @@ export class Executor {
     );
 
     try {
-      var _fieldDef$subscribe;
-
-      // Implements the "ResolveFieldEventStream" algorithm from GraphQL specification.
-      // It differs from "ResolveFieldValue" due to providing a different `resolveFn`.
-      // Build a JS object of arguments from the field.arguments AST, using the
-      // variables scope to fulfill any variable references.
-      const args = getArgumentValues(fieldDef, fieldNodes[0], variableValues); // The resolve function's optional third argument is a context value that
-      // is provided to every resolve function within an execution. It is commonly
-      // used to represent an authenticated user, or request-specific caches.
-
-      const contextValue = exeContext.contextValue; // Call the `subscribe()` resolver or the default resolver to produce an
-      // AsyncIterable yielding raw payloads.
-
-      const resolveFn =
-        (_fieldDef$subscribe = fieldDef.subscribe) !== null &&
-        _fieldDef$subscribe !== void 0
-          ? _fieldDef$subscribe
-          : exeContext.subscribeFieldResolver;
-      const eventStream = await resolveFn(rootValue, args, contextValue, info);
+      const eventStream = await exeContext.resolveField(
+        exeContext,
+        fieldDef,
+        rootValue,
+        info,
+        fieldNodes,
+      );
 
       if (eventStream instanceof Error) {
         throw eventStream;
