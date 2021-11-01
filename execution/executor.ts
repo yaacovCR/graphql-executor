@@ -50,7 +50,7 @@ import {
   getArgumentValues,
   getDirectiveValues,
 } from './values.ts';
-import type { PatchFields } from './collectFields.ts';
+import type { FieldsAndPatches, PatchFields } from './collectFields.ts';
 import {
   collectFields,
   collectSubfields as _collectSubfields,
@@ -482,22 +482,15 @@ export class Executor {
       variableValues,
       disableIncremental,
       errors,
-    } = exeContext; // TODO: replace getOperationRootType with schema.getRootType
-
-    const rootType = getOperationRootType(schema, operation);
-    /* if (rootType == null) {
-      throw new GraphQLError(
-        `Schema is not configured to execute ${operation.operation} operation.`,
-        operation,
-      );
-    } */
-
-    const { fields, patches } = collectFields(
+    } = exeContext;
+    const {
+      rootType,
+      fieldsAndPatches: { fields, patches },
+    } = this.parseOperationRoot(
       schema,
       fragments,
       variableValues,
-      rootType,
-      operation.selectionSet,
+      operation,
       disableIncremental,
     );
     const path = undefined;
@@ -541,6 +534,35 @@ export class Executor {
 
     this.executePatches(exeContext, patches, rootType, rootValue, path);
     return result;
+  }
+
+  parseOperationRoot(
+    schema: GraphQLSchema,
+    fragments: ObjMap<FragmentDefinitionNode>,
+    variableValues: {
+      [variable: string]: unknown;
+    },
+    operation: OperationDefinitionNode,
+    disableIncremental: boolean,
+  ): {
+    rootType: GraphQLObjectType;
+    fieldsAndPatches: FieldsAndPatches;
+  } {
+    // TODO: replace getOperationRootType with schema.getRootType
+    // after pre-v16 is dropped
+    const rootType = getOperationRootType(schema, operation);
+    const fieldsAndPatches = collectFields(
+      schema,
+      fragments,
+      variableValues,
+      rootType,
+      operation.selectionSet,
+      disableIncremental,
+    );
+    return {
+      rootType,
+      fieldsAndPatches,
+    };
   }
   /**
    * Implements the "Executing selection sets" section of the spec
@@ -1485,21 +1507,14 @@ export class Executor {
       variableValues,
       disableIncremental,
     } = exeContext;
-    const rootType = schema.getSubscriptionType();
-
-    if (rootType == null) {
-      throw new GraphQLError(
-        'Schema is not configured to execute subscription operation.',
-        operation,
-      );
-    }
-
-    const { fields } = collectFields(
+    const {
+      rootType,
+      fieldsAndPatches: { fields },
+    } = this.parseOperationRoot(
       schema,
       fragments,
       variableValues,
-      rootType,
-      operation.selectionSet,
+      operation,
       disableIncremental,
     );
     const [responseName, fieldNodes] = [...fields.entries()][0];
