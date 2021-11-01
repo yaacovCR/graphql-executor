@@ -112,9 +112,7 @@ jobs:
     strategy:
       matrix:
         node_version_to_setup: [12, 14, 16]
-        graphql_version:
-          - 15
-          - rc
+        graphql_version: [15, 16]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
@@ -146,9 +144,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        graphql_version:
-          - 15
-          - rc
+        graphql_version: [15, 16]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
@@ -274,7 +270,7 @@ jobs:
       - name: Deploy to `npm` branch
         run: npm run gitpublish:npm
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN  }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   deploy-to-deno-branch:
     name: Deploy to `deno` branch
@@ -310,4 +306,4 @@ jobs:
       - name: Deploy to `deno` branch
         run: npm run gitpublish:deno
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN  }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
