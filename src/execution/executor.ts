@@ -528,7 +528,7 @@ export class Executor {
         );
     }
 
-    this.addPatches(exeContext, patches, rootType, rootValue, path);
+    this.executePatches(exeContext, patches, rootType, rootValue, path);
 
     return result;
   }
@@ -1356,7 +1356,7 @@ export class Executor {
       errors,
     );
 
-    this.addPatches(exeContext, subPatches, returnType, result, path);
+    this.executePatches(exeContext, subPatches, returnType, result, path);
 
     return subFields;
   }
@@ -1551,16 +1551,17 @@ export class Executor {
     return exeContext.subsequentPayloads.length !== 0;
   }
 
-  addPatches(
+  executePatches(
     exeContext: ExecutionContext,
     patches: Array<PatchFields>,
     parentType: GraphQLObjectType,
     source: unknown,
     path: Path | undefined,
+    errors?: Maybe<Array<GraphQLError>>,
   ): void {
     for (const patch of patches) {
       const { label, fields: patchFields } = patch;
-      const patchErrors: Array<GraphQLError> = [];
+      const patchErrors = errors ?? [];
       this.addFields(
         exeContext,
         this.executeFields(
