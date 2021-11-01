@@ -302,13 +302,16 @@ export class Executor {
    * at which point we still log the error and null the parent field, which
    * in this case is the entire response.
    */
-   executeQueryAlgorithm(
+  executeQueryAlgorithm(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
     | ExecutionResult
     | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
   > {
-    return this.executeQueryOrMutationImpl(exeContext, this.executeFields.bind(this));
+    return this.executeQueryOrMutationImpl(
+      exeContext,
+      this.executeFields.bind(this),
+    );
   }
 
   /**
@@ -321,7 +324,10 @@ export class Executor {
     | ExecutionResult
     | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
   > {
-    return this.executeQueryOrMutationImpl(exeContext, this.executeFieldsSerially.bind(this));
+    return this.executeQueryOrMutationImpl(
+      exeContext,
+      this.executeFieldsSerially.bind(this),
+    );
   }
 
   /**
