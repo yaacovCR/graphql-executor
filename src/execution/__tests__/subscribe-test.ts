@@ -387,8 +387,7 @@ describe('Subscription Initialization Phase', () => {
     expectJSON(result).toDeepEqual({
       errors: [
         {
-          message:
-            'Schema is not configured to execute subscription operation.',
+          message: 'Schema is not configured for subscriptions.',
           locations: [{ line: 1, column: 1 }],
         },
       ],
