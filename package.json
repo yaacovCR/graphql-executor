@@ -5,17 +5,15 @@
   "license": "MIT",
   "main": "index",
   "module": "index.mjs",
-  "types": "NotSupportedTSVersion.d.ts",
   "typesVersions": {
     ">=4.1.0": {
       "*": [
-        "index.d.ts"
-      ],
-      "*/*": [
-        "*/index.d.ts"
-      ],
-      "*/*/*": [
-        "*/*"
+        "*"
+      ]
+    },
+    "*": {
+      "*": [
+        "NotSupportedTSVersion.d.ts"
       ]
     }
   },
@@ -38,6 +36,6 @@
     "node": "^12.22.0 || ^14.16.0 || >=16.0.0"
   },
   "peerDependencies": {
-    "graphql": "^15.0.0 || ^16.0.0-rc"
+    "graphql": "^15.0.0 || ^16.0.0"
   }
 }
