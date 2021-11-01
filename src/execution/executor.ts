@@ -54,6 +54,7 @@ import {
   getArgumentValues,
   getDirectiveValues,
 } from './values';
+import type { PatchFields } from './collectFields';
 import {
   collectFields,
   collectSubfields as _collectSubfields,
@@ -470,6 +471,7 @@ export class Executor {
       operation,
       variableValues,
       disableIncremental,
+      errors,
     } = exeContext;
 
     // TODO: replace getOperationRootType with schema.getRootType
@@ -502,7 +504,7 @@ export class Executor {
           rootValue,
           path,
           fields,
-          exeContext.errors,
+          errors,
         );
         break;
       case 'mutation':
@@ -522,29 +524,11 @@ export class Executor {
           rootValue,
           path,
           fields,
-          exeContext.errors,
+          errors,
         );
     }
 
-    for (const patch of patches) {
-      const { label, fields: patchFields } = patch;
-      const errors: Array<GraphQLError> = [];
-
-      this.addFields(
-        exeContext,
-        this.executeFields(
-          exeContext,
-          rootType,
-          rootValue,
-          path,
-          patchFields,
-          errors,
-        ),
-        errors,
-        label,
-        path,
-      );
-    }
+    this.executePatches(exeContext, patches, rootType, rootValue, path);
 
     return result;
   }
@@ -1372,24 +1356,7 @@ export class Executor {
       errors,
     );
 
-    for (const subPatch of subPatches) {
-      const { label, fields: subPatchFieldNodes } = subPatch;
-      const subPatchErrors: Array<GraphQLError> = [];
-      this.addFields(
-        exeContext,
-        this.executeFields(
-          exeContext,
-          returnType,
-          result,
-          path,
-          subPatchFieldNodes,
-          subPatchErrors,
-        ),
-        subPatchErrors,
-        label,
-        path,
-      );
-    }
+    this.executePatches(exeContext, subPatches, returnType, result, path);
 
     return subFields;
   }
@@ -1582,6 +1549,34 @@ export class Executor {
 
   hasSubsequentPayloads(exeContext: ExecutionContext) {
     return exeContext.subsequentPayloads.length !== 0;
+  }
+
+  executePatches(
+    exeContext: ExecutionContext,
+    patches: Array<PatchFields>,
+    parentType: GraphQLObjectType,
+    source: unknown,
+    path: Path | undefined,
+    errors?: Maybe<Array<GraphQLError>>,
+  ): void {
+    for (const patch of patches) {
+      const { label, fields: patchFields } = patch;
+      const patchErrors = errors ?? [];
+      this.addFields(
+        exeContext,
+        this.executeFields(
+          exeContext,
+          parentType,
+          source,
+          path,
+          patchFields,
+          patchErrors,
+        ),
+        patchErrors,
+        label,
+        path,
+      );
+    }
   }
 
   addFields(
