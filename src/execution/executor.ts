@@ -54,7 +54,7 @@ import {
   getArgumentValues,
   getDirectiveValues,
 } from './values';
-import type { PatchFields } from './collectFields';
+import type { FieldsAndPatches, PatchFields } from './collectFields';
 import {
   collectFields,
   collectSubfields as _collectSubfields,
@@ -474,21 +474,14 @@ export class Executor {
       errors,
     } = exeContext;
 
-    // TODO: replace getOperationRootType with schema.getRootType
-    const rootType = getOperationRootType(schema, operation);
-    /* if (rootType == null) {
-      throw new GraphQLError(
-        `Schema is not configured to execute ${operation.operation} operation.`,
-        operation,
-      );
-    } */
-
-    const { fields, patches } = collectFields(
+    const {
+      rootType,
+      fieldsAndPatches: { fields, patches },
+    } = this.getRootTypeFieldsAndPatches(
       schema,
       fragments,
       variableValues,
-      rootType,
-      operation.selectionSet,
+      operation,
       disableIncremental,
     );
     const path = undefined;
@@ -531,6 +524,35 @@ export class Executor {
     this.executePatches(exeContext, patches, rootType, rootValue, path);
 
     return result;
+  }
+
+  getRootTypeFieldsAndPatches(
+    schema: GraphQLSchema,
+    fragments: ObjMap<FragmentDefinitionNode>,
+    variableValues: { [variable: string]: unknown },
+    operation: OperationDefinitionNode,
+    disableIncremental: boolean,
+  ): {
+    rootType: GraphQLObjectType;
+    fieldsAndPatches: FieldsAndPatches;
+  } {
+    // TODO: replace getOperationRootType with schema.getRootType
+    // after pre-v16 is dropped
+    const rootType = getOperationRootType(schema, operation);
+
+    const fieldsAndPatches = collectFields(
+      schema,
+      fragments,
+      variableValues,
+      rootType,
+      operation.selectionSet,
+      disableIncremental,
+    );
+
+    return {
+      rootType,
+      fieldsAndPatches,
+    };
   }
 
   /**
@@ -1484,22 +1506,17 @@ export class Executor {
       disableIncremental,
     } = exeContext;
 
-    const rootType = schema.getSubscriptionType();
-    if (rootType == null) {
-      throw new GraphQLError(
-        'Schema is not configured to execute subscription operation.',
-        operation,
-      );
-    }
-
-    const { fields } = collectFields(
+    const {
+      rootType,
+      fieldsAndPatches: { fields },
+    } = this.getRootTypeFieldsAndPatches(
       schema,
       fragments,
       variableValues,
-      rootType,
-      operation.selectionSet,
+      operation,
       disableIncremental,
     );
+
     const [responseName, fieldNodes] = [...fields.entries()][0];
     const fieldDef = this.getFieldDef(schema, rootType, fieldNodes[0]);
 
