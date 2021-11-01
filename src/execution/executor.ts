@@ -99,13 +99,7 @@ interface ExecutionContext {
   typeResolver: GraphQLTypeResolver<any, any>;
   forceQueryAlgorithm: boolean;
   disableIncremental: boolean;
-  resolveField: (
-    exeContext: ExecutionContext,
-    fieldDef: GraphQLField<unknown, unknown>,
-    source: unknown,
-    info: GraphQLResolveInfo,
-    fieldNodes: ReadonlyArray<FieldNode>,
-  ) => unknown;
+  resolveField: FieldResolver;
   errors: Array<GraphQLError>;
   subsequentPayloads: Array<Promise<IteratorResult<DispatcherResult, void>>>;
   initialResult?: ExecutionResult;
@@ -189,6 +183,14 @@ export type FieldsExecutor = (
   fields: Map<string, ReadonlyArray<FieldNode>>,
   errors: Array<GraphQLError>,
 ) => PromiseOrValue<ObjMap<unknown>>;
+
+export type FieldResolver = (
+  exeContext: ExecutionContext,
+  fieldDef: GraphQLField<unknown, unknown>,
+  source: unknown,
+  info: GraphQLResolveInfo,
+  fieldNodes: ReadonlyArray<FieldNode>,
+) => unknown;
 
 /**
  * Executor class responsible for implementing the Execution section of the GraphQL spec.
