@@ -477,7 +477,7 @@ export class Executor {
     const {
       rootType,
       fieldsAndPatches: { fields, patches },
-    } = this.getRootTypeFieldsAndPatches(
+    } = this.parseOperationRoot(
       schema,
       fragments,
       variableValues,
@@ -526,7 +526,7 @@ export class Executor {
     return result;
   }
 
-  getRootTypeFieldsAndPatches(
+  parseOperationRoot(
     schema: GraphQLSchema,
     fragments: ObjMap<FragmentDefinitionNode>,
     variableValues: { [variable: string]: unknown },
@@ -1509,7 +1509,7 @@ export class Executor {
     const {
       rootType,
       fieldsAndPatches: { fields },
-    } = this.getRootTypeFieldsAndPatches(
+    } = this.parseOperationRoot(
       schema,
       fragments,
       variableValues,
