@@ -95,9 +95,9 @@ interface ExecutionContext {
   };
   fieldResolver: GraphQLFieldResolver<any, any>;
   typeResolver: GraphQLTypeResolver<any, any>;
-  subscribeFieldResolver: GraphQLFieldResolver<any, any>;
   forceQueryAlgorithm: boolean;
   disableIncremental: boolean;
+  resolveField: FieldResolver;
   errors: Array<GraphQLError>;
   subsequentPayloads: Array<Promise<IteratorResult<DispatcherResult, void>>>;
   initialResult?: ExecutionResult;
@@ -180,6 +180,13 @@ export type FieldsExecutor = (
   fields: Map<string, ReadonlyArray<FieldNode>>,
   errors: Array<GraphQLError>,
 ) => PromiseOrValue<ObjMap<unknown>>;
+export type FieldResolver = (
+  exeContext: ExecutionContext,
+  fieldDef: GraphQLField<unknown, unknown>,
+  source: unknown,
+  info: GraphQLResolveInfo,
+  fieldNodes: ReadonlyArray<FieldNode>,
+) => unknown;
 /**
  * Executor class responsible for implementing the Execution section of the GraphQL spec.
  *
@@ -416,6 +423,34 @@ export class Executor {
         'Variables must be provided as an Object where each property is a variable value. Perhaps look to see if an unparsed JSON string was provided.',
       );
   }
+
+  buildFieldResolver =
+    (
+      resolverKey: 'resolve' | 'subscribe',
+      defaultResolver: GraphQLFieldResolver<unknown, unknown>,
+    ) =>
+    (
+      exeContext: ExecutionContext,
+      fieldDef: GraphQLField<unknown, unknown>,
+      source: unknown,
+      info: GraphQLResolveInfo,
+      fieldNodes: ReadonlyArray<FieldNode>,
+    ) => {
+      const resolveFn = fieldDef[resolverKey] ?? defaultResolver; // Build a JS object of arguments from the field.arguments AST, using the
+      // variables scope to fulfill any variable references.
+      // TODO: find a way to memoize, in case this field is within a List type.
+
+      const args = getArgumentValues(
+        fieldDef,
+        fieldNodes[0],
+        exeContext.variableValues,
+      ); // The resolve function's optional third argument is a context value that
+      // is provided to every resolve function within an execution. It is commonly
+      // used to represent an authenticated user, or request-specific caches.
+
+      const contextValue = exeContext.contextValue;
+      return resolveFn(source, args, contextValue, info);
+    };
   /**
    * Constructs a ExecutionContext object from the arguments passed to
    * execute, which we will pass throughout the other execution methods.
@@ -495,6 +530,7 @@ export class Executor {
       return coercedVariableValues.errors;
     }
 
+    const defaultResolveFieldValueFn = fieldResolver ?? defaultFieldResolver;
     return {
       schema,
       fragments,
@@ -502,11 +538,17 @@ export class Executor {
       contextValue,
       operation,
       variableValues: coercedVariableValues.coerced,
-      fieldResolver: fieldResolver ?? defaultFieldResolver,
+      fieldResolver: defaultResolveFieldValueFn,
       typeResolver: typeResolver ?? defaultTypeResolver,
-      subscribeFieldResolver: subscribeFieldResolver ?? defaultFieldResolver,
       forceQueryAlgorithm: forceQueryAlgorithm ?? false,
       disableIncremental: disableIncremental ?? false,
+      resolveField:
+        operation.operation === 'subscription' && !forceQueryAlgorithm
+          ? this.buildFieldResolver(
+              'subscribe',
+              subscribeFieldResolver ?? defaultFieldResolver,
+            )
+          : this.buildFieldResolver('resolve', defaultResolveFieldValueFn),
       errors: [],
       subsequentPayloads: [],
       iterators: [],
@@ -527,6 +569,10 @@ export class Executor {
       ...exeContext,
       rootValue: payload,
       forceQueryAlgorithm: true,
+      resolveField: this.buildFieldResolver(
+        'resolve',
+        exeContext.fieldResolver,
+      ),
       errors: [],
     };
   }
@@ -713,29 +759,23 @@ export class Executor {
     }
 
     const returnType = fieldDef.type;
-    const resolveFn = fieldDef.resolve ?? exeContext.fieldResolver;
     const info = this.buildResolveInfo(
       exeContext,
       fieldDef,
       fieldNodes,
       parentType,
       path,
-    ); // Get the resolve function, regardless of if its result is normal or abrupt (error).
+    ); // Get the resolved field value, regardless of if its result is normal or abrupt (error).
+    // Then, complete the field
 
     try {
-      // Build a JS object of arguments from the field.arguments AST, using the
-      // variables scope to fulfill any variable references.
-      // TODO: find a way to memoize, in case this field is within a List type.
-      const args = getArgumentValues(
+      const result = exeContext.resolveField(
+        exeContext,
         fieldDef,
-        fieldNodes[0],
-        exeContext.variableValues,
-      ); // The resolve function's optional third argument is a context value that
-      // is provided to every resolve function within an execution. It is commonly
-      // used to represent an authenticated user, or request-specific caches.
-
-      const contextValue = exeContext.contextValue;
-      const result = resolveFn(source, args, contextValue, info);
+        source,
+        info,
+        fieldNodes,
+      );
       let completed;
 
       if (isPromise(result)) {
@@ -1572,19 +1612,13 @@ export class Executor {
     );
 
     try {
-      // Implements the "ResolveFieldEventStream" algorithm from GraphQL specification.
-      // It differs from "ResolveFieldValue" due to providing a different `resolveFn`.
-      // Build a JS object of arguments from the field.arguments AST, using the
-      // variables scope to fulfill any variable references.
-      const args = getArgumentValues(fieldDef, fieldNodes[0], variableValues); // The resolve function's optional third argument is a context value that
-      // is provided to every resolve function within an execution. It is commonly
-      // used to represent an authenticated user, or request-specific caches.
-
-      const contextValue = exeContext.contextValue; // Call the `subscribe()` resolver or the default resolver to produce an
-      // AsyncIterable yielding raw payloads.
-
-      const resolveFn = fieldDef.subscribe ?? exeContext.subscribeFieldResolver;
-      const eventStream = await resolveFn(rootValue, args, contextValue, info);
+      const eventStream = await exeContext.resolveField(
+        exeContext,
+        fieldDef,
+        rootValue,
+        info,
+        fieldNodes,
+      );
 
       if (eventStream instanceof Error) {
         throw eventStream;
