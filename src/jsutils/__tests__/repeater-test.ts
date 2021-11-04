@@ -828,6 +828,7 @@ describe('Repeater', () => {
 
   it('ignored repeater', () => {
     const mock = fn();
+    // istanbul ignore next (Shouldn't be reached)
     // eslint-disable-next-line no-new
     new Repeater(() => mock());
     expectMock(mock).toHaveBeenCalledTimes(0);
@@ -1176,6 +1177,7 @@ describe('Repeater', () => {
 
   it('return method before execution', async () => {
     const mock = fn();
+    // istanbul ignore next (Shouldn't be reached)
     const r = new Repeater<unknown, unknown>(() => mock());
     expect(await r.return(-1)).to.deep.equal({
       value: -1,
@@ -1393,6 +1395,7 @@ describe('Repeater', () => {
   it('throw method before execution', async () => {
     const error = new Error('throw method before execution');
     const mock = fn();
+    // istanbul ignore next (Shouldn't be reached)
     const r = new Repeater(() => mock());
     await expectPromise(r.throw(error)).toRejectWith(error);
     expect(await r.next()).to.deep.equal({ done: true, value: undefined });
