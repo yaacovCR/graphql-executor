@@ -530,11 +530,10 @@ export class Repeater<T, TReturn = any, TNext = unknown> {
     swallow(value);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const r = records.get(this)!;
-    /*
+    
     if (r === undefined) {
       throw new Error('WeakMap error');
     }
-    */
 
     if (r.nexts.length >= MAX_QUEUE_LENGTH) {
       throw new RepeaterOverflowError(
@@ -579,11 +578,10 @@ export class Repeater<T, TReturn = any, TNext = unknown> {
     swallow(value);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const r = records.get(this)!;
-    /*
+
     if (r === undefined) {
       throw new Error('WeakMap error');
     }
-    */
 
     finish(r);
     // We override the execution because return should always return the value passed in.
@@ -594,11 +592,10 @@ export class Repeater<T, TReturn = any, TNext = unknown> {
   throw(err: unknown): Promise<IteratorResult<T, TReturn>> {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const r = records.get(this)!;
-    /*
+
     if (r === undefined) {
       throw new Error('WeakMap error');
     }
-    */
 
     if (
       r.state <= Initial ||

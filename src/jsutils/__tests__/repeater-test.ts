@@ -1815,6 +1815,22 @@ describe('Repeater', () => {
     expect(await r.next()).to.deep.equal({ done: true, value: undefined });
     expect(await r.next()).to.deep.equal({ done: true, value: undefined });
   });
+
+  it('WeakMap errors', () => {
+    const r = new Repeater(() => undefined);
+    const nextFn = r.next;
+    const boundNextFn = r.next.bind(r);
+    const returnFn = r.return;
+    const boundReturnFn = r.return.bind(r);
+    const throwFn = r.throw;
+    const boundThrowFn = r.throw.bind(r);
+    expect(() => nextFn()).to.throw('WeakMap error');
+    expect(() => boundNextFn()).not.to.throw();
+    expect(() => returnFn()).to.throw('WeakMap error');
+    expect(() => boundReturnFn()).not.to.throw();
+    expect(() => throwFn(1)).to.throw('WeakMap error');
+    expect(() => boundThrowFn(1)).not.to.throw();
+  });
 });
 
 describe('RepeaterBuffer', () => {
