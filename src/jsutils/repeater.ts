@@ -530,7 +530,7 @@ export class Repeater<T, TReturn = any, TNext = unknown> {
     swallow(value);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const r = records.get(this)!;
-    
+
     if (r === undefined) {
       throw new Error('WeakMap error');
     }
