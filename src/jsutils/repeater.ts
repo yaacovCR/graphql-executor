@@ -16,6 +16,7 @@ export class RepeaterOverflowError extends Error {
     });
     Object.setPrototypeOf(this, this.constructor.prototype);
 
+    // istanbul ignore next (See: 'https://github.com/graphql/graphql-js/issues/2317')
     if (typeof (Error as any).captureStackTrace === 'function') {
       (Error as any).captureStackTrace(this, this.constructor);
     }
