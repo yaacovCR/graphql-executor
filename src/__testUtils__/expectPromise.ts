@@ -13,8 +13,8 @@ export function expectPromise(promise: Promise<unknown>) {
       }
       expect(resolvedValue).to.deep.equal(value);
     },
-    async toRejectWith(err: Error) {
-      let caughtError: Error;
+    async toRejectWith(err: unknown) {
+      let caughtError: unknown;
 
       try {
         await promise;
@@ -37,7 +37,8 @@ export function expectPromise(promise: Promise<unknown>) {
         caughtError = error;
       }
 
-      expect(caughtError.message).to.deep.equal(message);
+      expect(caughtError instanceof Error).to.equal(true);
+      expect(caughtError.message).to.equal(message);
     },
   };
 }
