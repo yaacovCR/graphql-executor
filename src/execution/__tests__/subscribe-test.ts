@@ -13,7 +13,7 @@ import {
 } from 'graphql';
 
 import { expectJSON } from '../../__testUtils__/expectJSON';
-
+import { expectPromise } from '../../__testUtils__/expectPromise';
 import { resolveOnNextTick } from '../../__testUtils__/resolveOnNextTick';
 
 import { invariant } from '../../jsutils/invariant';
@@ -138,25 +138,6 @@ function createSubscription(
     rootValue: data,
     variableValues,
   });
-}
-
-async function expectPromise(promise: Promise<unknown>) {
-  let caughtError: Error;
-
-  try {
-    await promise;
-    // istanbul ignore next (Shouldn't be reached)
-    expect.fail('promise should have thrown but did not');
-  } catch (error) {
-    caughtError = error;
-  }
-
-  return {
-    toRejectWith(message: string) {
-      expect(caughtError).to.be.an.instanceOf(Error);
-      expect(caughtError).to.have.property('message', message);
-    },
-  };
 }
 
 const DummyQueryType = new GraphQLObjectType({
@@ -449,7 +430,7 @@ describe('Subscription Initialization Phase', () => {
     const document = parse('subscription { foo }');
 
     // @ts-expect-error
-    (await expectPromise(execute({ schema, document }))).toRejectWith(
+    await expectPromise(execute({ schema, document })).toRejectWithMessage(
       'Subscription field must return Async Iterable. Received: "test".',
     );
   });
@@ -1121,9 +1102,11 @@ describe('Subscription Publish Phase', () => {
   });
 
   it('should pass through error thrown in source event stream', async () => {
+    const error = new Error('test error');
+
     async function* generateMessages() {
       yield 'Hello';
-      throw new Error('test error');
+      throw error;
     }
 
     const schema = new GraphQLSchema({
@@ -1151,7 +1134,7 @@ describe('Subscription Publish Phase', () => {
       },
     });
 
-    (await expectPromise(subscription.next())).toRejectWith('test error');
+    await expectPromise(subscription.next()).toRejectWith(error);
 
     expect(await subscription.next()).to.deep.equal({
       done: true,
