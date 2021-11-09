@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
+import { expectPromise } from '../../__testUtils__/expectPromise';
+
 import { mapAsyncIterator } from '../mapAsyncIterator';
 
 /* eslint-disable @typescript-eslint/require-await */
@@ -211,13 +213,7 @@ describe('mapAsyncIterator', () => {
     expect(await doubles.next()).to.deep.equal({ value: 4, done: false });
 
     // Throw error
-    let caughtError;
-    try {
-      await doubles.throw('ouch');
-    } catch (e) {
-      caughtError = e;
-    }
-    expect(caughtError).to.equal('ouch');
+    await expectPromise(doubles.throw('ouch')).toRejectWith('ouch');
   });
 
   it('passes through caught errors through async generators', async () => {
@@ -267,16 +263,7 @@ describe('mapAsyncIterator', () => {
       done: false,
     });
 
-    let caughtError;
-    try {
-      await doubles.next();
-    } catch (e) {
-      caughtError = e;
-    }
-
-    expect(caughtError)
-      .to.be.an.instanceOf(Error)
-      .with.property('message', 'Goodbye');
+    await expectPromise(doubles.next()).toRejectWithMessage('Goodbye');
   });
 
   async function testClosesSourceWithMapper<T>(mapper: (value: number) => T) {
