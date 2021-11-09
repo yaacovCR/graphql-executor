@@ -288,16 +288,9 @@ describe('mapAsyncIterator', () => {
 
     expect(await throwOver1.next()).to.deep.equal({ value: 1, done: false });
 
-    let expectedError;
-    try {
-      await throwOver1.next();
-    } catch (error) {
-      expectedError = error;
-    }
-
-    expect(expectedError)
-      .to.be.an.instanceOf(Error)
-      .with.property('message', 'Cannot count to 2');
+    await expectPromise(throwOver1.next()).toRejectWithMessage(
+      'Cannot count to 2',
+    );
 
     expect(await throwOver1.next()).to.deep.equal({
       value: undefined,
