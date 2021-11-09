@@ -959,7 +959,8 @@ describe('Subscription Publish Phase', () => {
     payload = subscription.next();
 
     // Throw error
-    await expectPromise(subscription.throw('ouch')).toRejectWith('ouch');
+    const error = new Error('should not trigger when subscription is thrown');
+    await expectPromise(subscription.throw(error)).toRejectWith(error);
 
     expect(await payload).to.deep.equal({
       done: true,
