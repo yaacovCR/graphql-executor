@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
+import { expectPromise } from '../../__testUtils__/expectPromise';
+
 import { flattenAsyncIterator } from '../flattenAsyncIterator';
 
 describe('flattenAsyncIterator', () => {
@@ -130,12 +132,6 @@ describe('flattenAsyncIterator', () => {
     expect(await doubles.next()).to.deep.equal({ value: 2.1, done: false });
 
     // Throw error
-    let caughtError;
-    try {
-      await doubles.throw('ouch');
-    } catch (e) {
-      caughtError = e;
-    }
-    expect(caughtError).to.equal('ouch');
+    await expectPromise(doubles.throw('ouch')).toRejectWith('ouch');
   });
 });

@@ -959,13 +959,7 @@ describe('Subscription Publish Phase', () => {
     payload = subscription.next();
 
     // Throw error
-    let caughtError;
-    try {
-      await subscription.throw('ouch');
-    } catch (e) {
-      caughtError = e;
-    }
-    expect(caughtError).to.equal('ouch');
+    await expectPromise(subscription.throw('ouch')).toRejectWith('ouch');
 
     expect(await payload).to.deep.equal({
       done: true,
