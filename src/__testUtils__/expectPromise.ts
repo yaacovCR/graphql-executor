@@ -27,17 +27,17 @@ export function expectPromise(promise: Promise<unknown>) {
       expect(caughtError).to.deep.equal(err);
     },
     async toRejectWithMessage(message: string) {
-        let caughtError: Error;
-  
-        try {
-          await promise;
-          // istanbul ignore next (Shouldn't be reached)
-          expect.fail('promise should have thrown but did not');
-        } catch (error) {
-          caughtError = error;
-        }
-  
-        expect(caughtError.message).to.deep.equal(message);
-      },
-    };
+      let caughtError: Error;
+
+      try {
+        await promise;
+        // istanbul ignore next (Shouldn't be reached)
+        expect.fail('promise should have thrown but did not');
+      } catch (error) {
+        caughtError = error;
+      }
+
+      expect(caughtError.message).to.deep.equal(message);
+    },
+  };
 }
