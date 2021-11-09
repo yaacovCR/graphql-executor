@@ -956,11 +956,23 @@ describe('Subscription Publish Phase', () => {
       },
     });
 
+    // Throw error
+    // See: https://github.com/repeaterjs/repeater/issues/72#issuecomment-963426268
+    const error = new Error('should not trigger when subscription is thrown');
+    const caughtError = subscription.throw(error).catch((e) => e);
     payload = subscription.next();
 
-    // Throw error
-    const error = new Error('should not trigger when subscription is thrown');
-    await expectPromise(subscription.throw(error)).toRejectWith(error);
+    // A new email arrives!
+    expect(
+      pubsub.emit({
+        from: 'yuzhi@graphql.org',
+        subject: 'Alright 2',
+        message: 'Tests are good 2',
+        unread: true,
+      }),
+    ).to.equal(true);
+
+    expect(await caughtError).to.equal(error);
 
     expect(await payload).to.deep.equal({
       done: true,
