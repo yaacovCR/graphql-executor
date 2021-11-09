@@ -132,6 +132,9 @@ describe('flattenAsyncIterator', () => {
     expect(await doubles.next()).to.deep.equal({ value: 2.1, done: false });
 
     // Throw error
-    await expectPromise(doubles.throw('ouch')).toRejectWith('ouch');
+    const error = new Error(
+      'allows throwing errors from a nested async generator',
+    );
+    await expectPromise(doubles.throw(error)).toRejectWith(error);
   });
 });

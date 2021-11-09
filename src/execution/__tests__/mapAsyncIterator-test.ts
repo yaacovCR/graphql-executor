@@ -213,7 +213,8 @@ describe('mapAsyncIterator', () => {
     expect(await doubles.next()).to.deep.equal({ value: 4, done: false });
 
     // Throw error
-    await expectPromise(doubles.throw('ouch')).toRejectWith('ouch');
+    const error = new Error('allows throwing errors through async iterable');
+    await expectPromise(doubles.throw(error)).toRejectWith(error);
   });
 
   it('passes through caught errors through async generators', async () => {
@@ -251,9 +252,10 @@ describe('mapAsyncIterator', () => {
   });
 
   it('does not normally map over thrown errors', async () => {
+    const error = new Error('does not normally map over thrown errors');
     async function* source() {
       yield 'Hello';
-      throw new Error('Goodbye');
+      throw error;
     }
 
     const doubles = mapAsyncIterator(source(), (x) => x + x);
@@ -263,7 +265,7 @@ describe('mapAsyncIterator', () => {
       done: false,
     });
 
-    await expectPromise(doubles.next()).toRejectWithMessage('Goodbye');
+    await expectPromise(doubles.next()).toRejectWith(error);
   });
 
   async function testClosesSourceWithMapper<T>(mapper: (value: number) => T) {
