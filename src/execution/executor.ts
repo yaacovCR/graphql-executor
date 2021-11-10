@@ -59,7 +59,7 @@ import {
   collectFields,
   collectSubfields as _collectSubfields,
 } from './collectFields';
-import { mapAsyncIterator } from './mapAsyncIterator';
+import { mapAsyncIterable } from './mapAsyncIterable';
 import { flattenAsyncIterator } from './flattenAsyncIterator';
 
 /**
@@ -1543,7 +1543,7 @@ export class Executor {
 
     // Map every source value to a ExecutionResult value as described above.
     return flattenAsyncIterator<ExecutionResult, AsyncExecutionResult>(
-      mapAsyncIterator(resultOrStream, mapSourceToResponse),
+      mapAsyncIterable(resultOrStream, mapSourceToResponse),
     );
   }
 
