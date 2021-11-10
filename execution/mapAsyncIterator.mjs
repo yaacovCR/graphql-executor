@@ -1,59 +1,39 @@
+import { isPromise } from '../jsutils/isPromise.mjs';
+import { Repeater } from '../jsutils/repeater.mjs';
 /**
  * Given an AsyncIterable and a callback function, return an AsyncIterator
  * which produces values mapped via calling the callback function.
  */
-export function mapAsyncIterator(iterable, callback) {
-  const iterator = iterable[Symbol.asyncIterator]();
 
-  async function mapResult(result) {
-    if (result.done) {
-      return result;
+export function mapAsyncIterator(iterable, fn) {
+  return new Repeater(async (push, stop) => {
+    const iter = iterable[Symbol.asyncIterator]();
+    let finalIteration; // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
+    stop.then(() => {
+      finalIteration =
+        typeof iter.return === 'function'
+          ? iter.return()
+          : {
+              value: undefined,
+              done: true,
+            };
+    }); // eslint-disable-next-line no-unmodified-loop-condition
+
+    while (!finalIteration) {
+      // eslint-disable-next-line no-await-in-loop
+      const iteration = await iter.next();
+
+      if (iteration.done) {
+        stop();
+        return iteration.value;
+      } // eslint-disable-next-line no-await-in-loop
+
+      await push(fn(iteration.value));
     }
 
-    try {
-      return {
-        value: await callback(result.value),
-        done: false,
-      };
-    } catch (error) {
-      // istanbul ignore else (FIXME: add test case)
-      if (typeof iterator.return === 'function') {
-        try {
-          await iterator.return();
-        } catch (_e) {
-          /* ignore error */
-        }
-      }
-
-      throw error;
+    if (isPromise(finalIteration)) {
+      await finalIteration;
     }
-  }
-
-  return {
-    async next() {
-      return mapResult(await iterator.next());
-    },
-
-    async return() {
-      // If iterator.return() does not exist, then type R must be undefined.
-      return typeof iterator.return === 'function'
-        ? mapResult(await iterator.return())
-        : {
-            value: undefined,
-            done: true,
-          };
-    },
-
-    async throw(error) {
-      if (typeof iterator.throw === 'function') {
-        return mapResult(await iterator.throw(error));
-      }
-
-      throw error;
-    },
-
-    [Symbol.asyncIterator]() {
-      return this;
-    },
-  };
+  });
 }
