@@ -48,7 +48,7 @@ import {
   collectFields,
   collectSubfields as _collectSubfields,
 } from './collectFields.mjs';
-import { mapAsyncIterator } from './mapAsyncIterator.mjs';
+import { mapAsyncIterable } from './mapAsyncIterable.mjs';
 import { flattenAsyncIterator } from './flattenAsyncIterator.mjs';
 /**
  * Terminology
@@ -1348,7 +1348,7 @@ export class Executor {
     }; // Map every source value to a ExecutionResult value as described above.
 
     return flattenAsyncIterator(
-      mapAsyncIterator(resultOrStream, mapSourceToResponse),
+      mapAsyncIterable(resultOrStream, mapSourceToResponse),
     );
   }
 

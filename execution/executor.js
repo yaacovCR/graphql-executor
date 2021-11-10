@@ -38,7 +38,7 @@ var _values = require('./values.js');
 
 var _collectFields = require('./collectFields.js');
 
-var _mapAsyncIterator = require('./mapAsyncIterator.js');
+var _mapAsyncIterable = require('./mapAsyncIterable.js');
 
 var _flattenAsyncIterator = require('./flattenAsyncIterator.js');
 
@@ -1350,7 +1350,7 @@ class Executor {
     }; // Map every source value to a ExecutionResult value as described above.
 
     return (0, _flattenAsyncIterator.flattenAsyncIterator)(
-      (0, _mapAsyncIterator.mapAsyncIterator)(
+      (0, _mapAsyncIterable.mapAsyncIterable)(
         resultOrStream,
         mapSourceToResponse,
       ),

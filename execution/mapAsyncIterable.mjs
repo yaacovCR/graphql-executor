@@ -1,20 +1,12 @@
-'use strict';
-
-Object.defineProperty(exports, '__esModule', {
-  value: true,
-});
-exports.mapAsyncIterator = mapAsyncIterator;
-
-var _isPromise = require('../jsutils/isPromise.js');
-
-var _repeater = require('../jsutils/repeater.js');
-
+import { isPromise } from '../jsutils/isPromise.mjs';
+import { Repeater } from '../jsutils/repeater.mjs';
 /**
- * Given an AsyncIterable and a callback function, return an AsyncIterator
+ * Given an AsyncIterable and a callback function, return an AsyncGenerator
  * which produces values mapped via calling the callback function.
  */
-function mapAsyncIterator(iterable, fn) {
-  return new _repeater.Repeater(async (push, stop) => {
+
+export function mapAsyncIterable(iterable, fn) {
+  return new Repeater(async (push, stop) => {
     const iter = iterable[Symbol.asyncIterator]();
     let finalIteration; // eslint-disable-next-line @typescript-eslint/no-floating-promises
 
@@ -40,7 +32,7 @@ function mapAsyncIterator(iterable, fn) {
       await push(fn(iteration.value));
     }
 
-    if ((0, _isPromise.isPromise)(finalIteration)) {
+    if (isPromise(finalIteration)) {
       await finalIteration;
     }
   });
