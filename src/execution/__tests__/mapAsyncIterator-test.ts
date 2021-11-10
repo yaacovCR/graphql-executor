@@ -109,8 +109,8 @@ describe('mapAsyncIterator', () => {
     expect(await doubles.next()).to.deep.equal({ value: 4, done: false });
 
     // Early return
-    expect(await doubles.return('')).to.deep.equal({
-      value: 'The End',
+    expect(await doubles.return('The Real End')).to.deep.equal({
+      value: 'The Real End',
       done: true,
     });
 
@@ -149,12 +149,13 @@ describe('mapAsyncIterator', () => {
 
     // Early return
     expect(await doubles.return(0)).to.deep.equal({
-      value: undefined,
+      value: 0,
       done: true,
     });
   });
 
   it('passes through early return from async values', async () => {
+    let didVisitFinally = false;
     async function* source() {
       try {
         yield 'a';
@@ -163,8 +164,8 @@ describe('mapAsyncIterator', () => {
         // istanbul ignore next (Shouldn't be reached)
         yield 'c';
       } finally {
-        yield 'Done';
-        yield 'Last';
+        didVisitFinally = true;
+        yield 'The End';
       }
     }
 
@@ -174,23 +175,25 @@ describe('mapAsyncIterator', () => {
     expect(await doubles.next()).to.deep.equal({ value: 'bb', done: false });
 
     // Early return
-    expect(await doubles.return()).to.deep.equal({
-      value: 'DoneDone',
-      done: false,
+    expect(await doubles.return('The Real End')).to.deep.equal({
+      value: 'The Real End',
+      done: true,
     });
 
-    // Subsequent next calls may yield from finally block
+    // Subsequent next calls
     expect(await doubles.next()).to.deep.equal({
-      value: 'LastLast',
-      done: false,
+      value: undefined,
+      done: true,
     });
     expect(await doubles.next()).to.deep.equal({
       value: undefined,
       done: true,
     });
+
+    expect(didVisitFinally).to.equal(true);
   });
 
-  it('allows throwing errors through async iterable', async () => {
+  it('allows throwing errors when mapping async iterable', async () => {
     const items = [1, 2, 3];
 
     const iterable = {
@@ -213,11 +216,13 @@ describe('mapAsyncIterator', () => {
     expect(await doubles.next()).to.deep.equal({ value: 4, done: false });
 
     // Throw error
-    const error = new Error('allows throwing errors through async iterable');
+    const error = new Error('allows throwing when mapping async iterable');
     await expectPromise(doubles.throw(error)).toRejectWith(error);
   });
 
-  it('passes through caught errors through async generators', async () => {
+  it('does not pass errors thrown into outer generators deeper into inner generator', async () => {
+    let didVisitFinally = false;
+
     async function* source() {
       try {
         yield 1;
@@ -225,8 +230,8 @@ describe('mapAsyncIterator', () => {
 
         // istanbul ignore next (Shouldn't be reached)
         yield 3;
-      } catch (e) {
-        yield e;
+      } finally {
+        didVisitFinally = true;
       }
     }
 
@@ -236,10 +241,8 @@ describe('mapAsyncIterator', () => {
     expect(await doubles.next()).to.deep.equal({ value: 4, done: false });
 
     // Throw error
-    expect(await doubles.throw('Ouch')).to.deep.equal({
-      value: 'OuchOuch',
-      done: false,
-    });
+    const error = new Error('does not pass errors through outer generator');
+    await expectPromise(doubles.throw(error)).toRejectWith(error);
 
     expect(await doubles.next()).to.deep.equal({
       value: undefined,
@@ -249,6 +252,8 @@ describe('mapAsyncIterator', () => {
       value: undefined,
       done: true,
     });
+
+    expect(didVisitFinally).to.equal(true);
   });
 
   it('does not normally map over thrown errors', async () => {
