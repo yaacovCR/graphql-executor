@@ -1,66 +1,43 @@
+import { isPromise } from '../jsutils/isPromise.ts';
 import type { PromiseOrValue } from '../jsutils/PromiseOrValue.ts';
+import { Repeater } from '../jsutils/repeater.ts';
 /**
  * Given an AsyncIterable and a callback function, return an AsyncIterator
  * which produces values mapped via calling the callback function.
  */
 
-export function mapAsyncIterator<T, U, R = undefined>(
-  iterable: AsyncGenerator<T, R, void> | AsyncIterable<T>,
-  callback: (value: T) => PromiseOrValue<U>,
-): AsyncGenerator<U, R, void> {
-  const iterator = iterable[Symbol.asyncIterator]();
+export function mapAsyncIterator<T, U>(
+  iterable: AsyncGenerator<T> | AsyncIterable<T>,
+  fn: (value: T) => PromiseOrValue<U>,
+): AsyncGenerator<U> {
+  return new Repeater(async (push, stop) => {
+    const iter = iterable[Symbol.asyncIterator]();
+    let finalIteration: PromiseOrValue<IteratorResult<T>> | undefined; // eslint-disable-next-line @typescript-eslint/no-floating-promises
 
-  async function mapResult(
-    result: IteratorResult<T, R>,
-  ): Promise<IteratorResult<U, R>> {
-    if (result.done) {
-      return result;
+    stop.then(() => {
+      finalIteration =
+        typeof iter.return === 'function'
+          ? iter.return()
+          : {
+              value: undefined,
+              done: true,
+            };
+    }); // eslint-disable-next-line no-unmodified-loop-condition
+
+    while (!finalIteration) {
+      // eslint-disable-next-line no-await-in-loop
+      const iteration = await iter.next();
+
+      if (iteration.done) {
+        stop();
+        return iteration.value;
+      } // eslint-disable-next-line no-await-in-loop
+
+      await push(fn(iteration.value));
     }
 
-    try {
-      return {
-        value: await callback(result.value),
-        done: false,
-      };
-    } catch (error) {
-      // istanbul ignore else (FIXME: add test case)
-      if (typeof iterator.return === 'function') {
-        try {
-          await iterator.return();
-        } catch (_e) {
-          /* ignore error */
-        }
-      }
-
-      throw error;
+    if (isPromise(finalIteration)) {
+      await finalIteration;
     }
-  }
-
-  return {
-    async next() {
-      return mapResult(await iterator.next());
-    },
-
-    async return(): Promise<IteratorResult<U, R>> {
-      // If iterator.return() does not exist, then type R must be undefined.
-      return typeof iterator.return === 'function'
-        ? mapResult(await iterator.return())
-        : {
-            value: undefined as any,
-            done: true,
-          };
-    },
-
-    async throw(error?: unknown) {
-      if (typeof iterator.throw === 'function') {
-        return mapResult(await iterator.throw(error));
-      }
-
-      throw error;
-    },
-
-    [Symbol.asyncIterator]() {
-      return this;
-    },
-  };
+  });
 }
