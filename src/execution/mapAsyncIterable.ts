@@ -3,11 +3,11 @@ import type { PromiseOrValue } from '../jsutils/PromiseOrValue';
 import { Repeater } from '../jsutils/repeater';
 
 /**
- * Given an AsyncIterable and a callback function, return an AsyncIterator
+ * Given an AsyncIterable and a callback function, return an AsyncGenerator
  * which produces values mapped via calling the callback function.
  */
-export function mapAsyncIterator<T, U>(
-  iterable: AsyncGenerator<T> | AsyncIterable<T>,
+export function mapAsyncIterable<T, U>(
+  iterable: AsyncIterable<T>,
   fn: (value: T) => PromiseOrValue<U>,
 ): AsyncGenerator<U> {
   return new Repeater(async (push, stop) => {

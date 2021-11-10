@@ -3,10 +3,10 @@ import { describe, it } from 'mocha';
 
 import { expectPromise } from '../../__testUtils__/expectPromise';
 
-import { mapAsyncIterator } from '../mapAsyncIterator';
+import { mapAsyncIterable } from '../mapAsyncIterable';
 
 /* eslint-disable @typescript-eslint/require-await */
-describe('mapAsyncIterator', () => {
+describe('mapAsyncIterable', () => {
   it('maps over async generator', async () => {
     async function* source() {
       yield 1;
@@ -14,7 +14,7 @@ describe('mapAsyncIterator', () => {
       yield 3;
     }
 
-    const doubles = mapAsyncIterator(source(), (x) => x + x);
+    const doubles = mapAsyncIterable(source(), (x) => x + x);
 
     expect(await doubles.next()).to.deep.equal({ value: 2, done: false });
     expect(await doubles.next()).to.deep.equal({ value: 4, done: false });
@@ -44,7 +44,7 @@ describe('mapAsyncIterator', () => {
       },
     };
 
-    const doubles = mapAsyncIterator(iterable, (x) => x + x);
+    const doubles = mapAsyncIterable(iterable, (x) => x + x);
 
     expect(await doubles.next()).to.deep.equal({ value: 2, done: false });
     expect(await doubles.next()).to.deep.equal({ value: 4, done: false });
@@ -62,7 +62,7 @@ describe('mapAsyncIterator', () => {
       yield 3;
     }
 
-    const doubles = mapAsyncIterator(source(), (x) => x + x);
+    const doubles = mapAsyncIterable(source(), (x) => x + x);
 
     const result = [];
     for await (const x of doubles) {
@@ -78,7 +78,7 @@ describe('mapAsyncIterator', () => {
       yield 3;
     }
 
-    const doubles = mapAsyncIterator(source(), (x) => Promise.resolve(x + x));
+    const doubles = mapAsyncIterable(source(), (x) => Promise.resolve(x + x));
 
     expect(await doubles.next()).to.deep.equal({ value: 2, done: false });
     expect(await doubles.next()).to.deep.equal({ value: 4, done: false });
@@ -103,7 +103,7 @@ describe('mapAsyncIterator', () => {
       }
     }
 
-    const doubles = mapAsyncIterator(source(), (x) => x + x);
+    const doubles = mapAsyncIterable(source(), (x) => x + x);
 
     expect(await doubles.next()).to.deep.equal({ value: 2, done: false });
     expect(await doubles.next()).to.deep.equal({ value: 4, done: false });
@@ -142,7 +142,7 @@ describe('mapAsyncIterator', () => {
       },
     };
 
-    const doubles = mapAsyncIterator(iterable, (x) => x + x);
+    const doubles = mapAsyncIterable(iterable, (x) => x + x);
 
     expect(await doubles.next()).to.deep.equal({ value: 2, done: false });
     expect(await doubles.next()).to.deep.equal({ value: 4, done: false });
@@ -169,7 +169,7 @@ describe('mapAsyncIterator', () => {
       }
     }
 
-    const doubles = mapAsyncIterator(source(), (x) => x + x);
+    const doubles = mapAsyncIterable(source(), (x) => x + x);
 
     expect(await doubles.next()).to.deep.equal({ value: 'aa', done: false });
     expect(await doubles.next()).to.deep.equal({ value: 'bb', done: false });
@@ -210,7 +210,7 @@ describe('mapAsyncIterator', () => {
       },
     };
 
-    const doubles = mapAsyncIterator(iterable, (x) => x + x);
+    const doubles = mapAsyncIterable(iterable, (x) => x + x);
 
     expect(await doubles.next()).to.deep.equal({ value: 2, done: false });
     expect(await doubles.next()).to.deep.equal({ value: 4, done: false });
@@ -235,7 +235,7 @@ describe('mapAsyncIterator', () => {
       }
     }
 
-    const doubles = mapAsyncIterator(source(), (x) => x + x);
+    const doubles = mapAsyncIterable(source(), (x) => x + x);
 
     expect(await doubles.next()).to.deep.equal({ value: 2, done: false });
     expect(await doubles.next()).to.deep.equal({ value: 4, done: false });
@@ -263,7 +263,7 @@ describe('mapAsyncIterator', () => {
       throw error;
     }
 
-    const doubles = mapAsyncIterator(source(), (x) => x + x);
+    const doubles = mapAsyncIterable(source(), (x) => x + x);
 
     expect(await doubles.next()).to.deep.equal({
       value: 'HelloHello',
@@ -289,7 +289,7 @@ describe('mapAsyncIterator', () => {
       }
     }
 
-    const throwOver1 = mapAsyncIterator(source(), mapper);
+    const throwOver1 = mapAsyncIterable(source(), mapper);
 
     expect(await throwOver1.next()).to.deep.equal({ value: 1, done: false });
 

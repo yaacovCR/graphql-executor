@@ -119,7 +119,7 @@ function createSubscription(
 
   const data: any = {
     inbox: { emails },
-    // FIXME: we shouldn't use mapAsyncIterator here since it makes tests way more complex
+    // FIXME: we shouldn't use mapAsyncIterable here since it makes tests way more complex
     importantEmail: pubsub.getSubscriber((newEmail) => {
       emails.push(newEmail);
 
