@@ -446,7 +446,7 @@ describe('Execute: Handles list nullability', () => {
         setTimeout(() => {
           slowSettled = true;
           resolve(new Error('slowError'));
-        }, 500),
+        }, 1),
       );
 
       const listField = [slowItem, fastItem];
