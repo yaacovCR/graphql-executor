@@ -40,7 +40,7 @@ var _collectFields = require('./collectFields.js');
 
 var _mapAsyncIterable = require('./mapAsyncIterable.js');
 
-var _flattenAsyncIterator = require('./flattenAsyncIterator.js');
+var _flattenAsyncIterable = require('./flattenAsyncIterable.js');
 
 function _defineProperty(obj, key, value) {
   if (key in obj) {
@@ -1349,7 +1349,7 @@ class Executor {
       return this.executeSubscriptionEvent(perPayloadExecutionContext);
     }; // Map every source value to a ExecutionResult value as described above.
 
-    return (0, _flattenAsyncIterator.flattenAsyncIterator)(
+    return (0, _flattenAsyncIterable.flattenAsyncIterable)(
       (0, _mapAsyncIterable.mapAsyncIterable)(
         resultOrStream,
         mapSourceToResponse,

@@ -1,22 +1,13 @@
-'use strict';
-
-Object.defineProperty(exports, '__esModule', {
-  value: true,
-});
-exports.flattenAsyncIterator = flattenAsyncIterator;
-
-var _isAsyncIterable = require('../jsutils/isAsyncIterable.js');
-
-var _repeater = require('../jsutils/repeater.js');
-
-var _isPromise = require('../jsutils/isPromise.js');
-
+import { isAsyncIterable } from '../jsutils/isAsyncIterable.mjs';
+import { Repeater } from '../jsutils/repeater.mjs';
+import { isPromise } from '../jsutils/isPromise.mjs';
 /**
  * Given an AsyncIterable that could potentially yield other async iterators,
  * flatten all yielded results into a single AsyncIterable
  */
-function flattenAsyncIterator(iterable) {
-  return new _repeater.Repeater(async (push, stop) => {
+
+export function flattenAsyncIterable(iterable) {
+  return new Repeater(async (push, stop) => {
     const iter = iterable[Symbol.asyncIterator]();
     let childIterator;
     let finalIteration; // eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -28,11 +19,11 @@ function flattenAsyncIterator(iterable) {
         childIterator.return();
       const returned = typeof iter.return === 'function' && iter.return();
 
-      if ((0, _isPromise.isPromise)(childReturned)) {
-        finalIteration = (0, _isPromise.isPromise)(returned)
+      if (isPromise(childReturned)) {
+        finalIteration = isPromise(returned)
           ? Promise.all([childReturned, returned])
           : true;
-      } else if ((0, _isPromise.isPromise)(returned)) {
+      } else if (isPromise(returned)) {
         finalIteration = returned;
       } else {
         finalIteration = true;
@@ -50,7 +41,7 @@ function flattenAsyncIterator(iterable) {
 
       const value = iteration.value;
 
-      if ((0, _isAsyncIterable.isAsyncIterable)(value)) {
+      if (isAsyncIterable(value)) {
         childIterator = value[Symbol.asyncIterator](); // eslint-disable-next-line no-await-in-loop
 
         await pushChildIterations(childIterator, push, finalIteration); // eslint-disable-next-line require-atomic-updates
@@ -62,7 +53,7 @@ function flattenAsyncIterator(iterable) {
       await push(value);
     }
 
-    if ((0, _isPromise.isPromise)(finalIteration)) {
+    if (isPromise(finalIteration)) {
       await finalIteration;
     }
   });

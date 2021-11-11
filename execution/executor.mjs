@@ -49,7 +49,7 @@ import {
   collectSubfields as _collectSubfields,
 } from './collectFields.mjs';
 import { mapAsyncIterable } from './mapAsyncIterable.mjs';
-import { flattenAsyncIterator } from './flattenAsyncIterator.mjs';
+import { flattenAsyncIterable } from './flattenAsyncIterable.mjs';
 /**
  * Terminology
  *
@@ -1347,7 +1347,7 @@ export class Executor {
       return this.executeSubscriptionEvent(perPayloadExecutionContext);
     }; // Map every source value to a ExecutionResult value as described above.
 
-    return flattenAsyncIterator(
+    return flattenAsyncIterable(
       mapAsyncIterable(resultOrStream, mapSourceToResponse),
     );
   }
