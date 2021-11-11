@@ -52,13 +52,13 @@ describe('flattenAsyncIterator', () => {
     async function* source() {
       yield await Promise.resolve(1);
       yield await Promise.resolve(2);
-      yield await Promise.resolve(
-        (async function* nested(): AsyncGenerator<number, void, void> {
-          yield await Promise.resolve(2.1);
-          yield await Promise.resolve(2.2);
-        })(),
-      );
+      yield await Promise.resolve(nested());
       yield await Promise.resolve(3);
+    }
+
+    async function* nested(): AsyncGenerator<number, void, void> {
+      yield await Promise.resolve(2.1);
+      yield await Promise.resolve(2.2);
     }
 
     const doubles = flattenAsyncIterator(source());
@@ -74,15 +74,15 @@ describe('flattenAsyncIterator', () => {
     async function* source() {
       yield await Promise.resolve(1);
       yield await Promise.resolve(2);
-      yield await Promise.resolve(
-        (async function* nested(): AsyncGenerator<number, void, void> {
-          yield await Promise.resolve(2.1);
-          // istanbul ignore next (Shouldn't be reached)
-          yield await Promise.resolve(2.2);
-        })(),
-      );
+      yield await Promise.resolve(nested());
       // istanbul ignore next (Shouldn't be reached)
       yield await Promise.resolve(3);
+    }
+
+    async function* nested(): AsyncGenerator<number, void, void> {
+      yield await Promise.resolve(2.1);
+      // istanbul ignore next (Shouldn't be reached)
+      yield await Promise.resolve(2.2);
     }
 
     const doubles = flattenAsyncIterator(source());
@@ -112,17 +112,16 @@ describe('flattenAsyncIterator', () => {
     async function* source() {
       yield await Promise.resolve(1);
       yield await Promise.resolve(2);
-      yield await Promise.resolve(
-        (async function* nested(): AsyncGenerator<number, void, void> {
-          yield await Promise.resolve(2.1);
-          // istanbul ignore next (Shouldn't be reached)
-          yield await Promise.resolve(2.2);
-        })(),
-      );
+      yield await Promise.resolve(nested());
       // istanbul ignore next (Shouldn't be reached)
       yield await Promise.resolve(3);
     }
 
+    async function* nested(): AsyncGenerator<number, void, void> {
+      yield await Promise.resolve(2.1);
+      // istanbul ignore next (Shouldn't be reached)
+      yield await Promise.resolve(2.2);
+    }
     const doubles = flattenAsyncIterator(source());
 
     expect(await doubles.next()).to.deep.equal({ value: 1, done: false });
