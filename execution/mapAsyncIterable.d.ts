@@ -6,4 +6,4 @@ import type { PromiseOrValue } from '../jsutils/PromiseOrValue';
 export declare function mapAsyncIterable<T, U>(
   iterable: AsyncIterable<T>,
   fn: (value: T) => PromiseOrValue<U>,
-): AsyncGenerator<U>;
+): AsyncGenerator<U, void, void>;
