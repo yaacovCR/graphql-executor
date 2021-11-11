@@ -4,6 +4,7 @@ import { isAsyncIterable } from '../jsutils/isAsyncIterable';
 
 import type { Push } from '../jsutils/repeater';
 import { Repeater } from '../jsutils/repeater';
+import { isPromise } from '../jsutils/isPromise';
 
 /**
  * Given an AsyncIterable that could potentially yield other async iterators,
@@ -20,13 +21,20 @@ export function flattenAsyncIterator<T, AT>(
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     stop.then(() => {
       const childReturned =
-        childIterator && typeof childIterator.return === 'function'
-          ? childIterator.return()
-          : undefined;
-      const returned =
-        typeof iter.return === 'function' ? iter.return() : undefined;
+        childIterator &&
+        typeof childIterator.return === 'function' &&
+        childIterator.return();
+      const returned = typeof iter.return === 'function' && iter.return();
 
-      finalIteration = Promise.all([childReturned, returned]);
+      if (isPromise(childReturned)) {
+        finalIteration = isPromise(returned)
+          ? Promise.all([childReturned, returned])
+          : true;
+      } else if (isPromise(returned)) {
+        finalIteration = returned;
+      } else {
+        finalIteration = true;
+      }
     });
 
     // eslint-disable-next-line no-unmodified-loop-condition
@@ -36,7 +44,7 @@ export function flattenAsyncIterator<T, AT>(
 
       if (iteration.done) {
         stop();
-        return;
+        break;
       }
 
       const value = iteration.value;
@@ -54,7 +62,9 @@ export function flattenAsyncIterator<T, AT>(
       await push(value);
     }
 
-    await finalIteration;
+    if (isPromise(finalIteration)) {
+      await finalIteration;
+    }
   });
 }
 

@@ -109,8 +109,8 @@ describe('mapAsyncIterable', () => {
     expect(await doubles.next()).to.deep.equal({ value: 4, done: false });
 
     // Early return
-    expect(await doubles.return('The Real End')).to.deep.equal({
-      value: 'The Real End',
+    expect(await doubles.return()).to.deep.equal({
+      value: undefined,
       done: true,
     });
 
@@ -148,8 +148,8 @@ describe('mapAsyncIterable', () => {
     expect(await doubles.next()).to.deep.equal({ value: 4, done: false });
 
     // Early return
-    expect(await doubles.return(0)).to.deep.equal({
-      value: 0,
+    expect(await doubles.return()).to.deep.equal({
+      value: undefined,
       done: true,
     });
   });
@@ -175,8 +175,8 @@ describe('mapAsyncIterable', () => {
     expect(await doubles.next()).to.deep.equal({ value: 'bb', done: false });
 
     // Early return
-    expect(await doubles.return('The Real End')).to.deep.equal({
-      value: 'The Real End',
+    expect(await doubles.return()).to.deep.equal({
+      value: undefined,
       done: true,
     });
 

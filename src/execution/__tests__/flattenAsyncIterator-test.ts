@@ -70,19 +70,81 @@ describe('flattenAsyncIterator', () => {
     expect(result).to.deep.equal([1, 2, 2.1, 2.2, 3]);
   });
 
-  it('allows returning early from a nested async generator', async () => {
-    async function* source() {
-      yield await Promise.resolve(1);
-      yield await Promise.resolve(2);
-      yield await Promise.resolve(nested());
-      // istanbul ignore next (Shouldn't be reached)
-      yield await Promise.resolve(3);
-    }
+  it('allows returning early from a nested async generator inside an iterator', async () => {
+    let items = [1, 2, nested()];
 
     async function* nested(): AsyncGenerator<number, void, void> {
       yield await Promise.resolve(2.1);
       // istanbul ignore next (Shouldn't be reached)
       yield await Promise.resolve(2.2);
+    }
+
+    const iterator: any = {
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+      return() {
+        items = [];
+        return { done: true, value: undefined };
+      },
+      next() {
+        return Promise.resolve({
+          done: items.length === 0,
+          value: items.shift(),
+        });
+      },
+    };
+
+    const result = flattenAsyncIterator(iterator);
+
+    expect(await result.next()).to.deep.equal({ value: 1, done: false });
+    expect(await result.next()).to.deep.equal({ value: 2, done: false });
+    expect(await result.next()).to.deep.equal({ value: 2.1, done: false });
+
+    // Early return
+    expect(await result.return()).to.deep.equal({
+      value: undefined,
+      done: true,
+    });
+
+    // Subsequent next calls
+    expect(await result.next()).to.deep.equal({
+      value: undefined,
+      done: true,
+    });
+    expect(await result.next()).to.deep.equal({
+      value: undefined,
+      done: true,
+    });
+  });
+
+  it('allows returning early from a nested async generator', async () => {
+    let didVisitFinally = false;
+
+    async function* source() {
+      try {
+        yield await Promise.resolve(1);
+        yield await Promise.resolve(2);
+        yield await Promise.resolve(nested());
+        // istanbul ignore next (Shouldn't be reached)
+        yield await Promise.resolve(3);
+      } finally {
+        didVisitFinally = true;
+        yield await Promise.resolve(4);
+      }
+    }
+
+    let didVisitNestedFinally = true;
+    async function* nested(): AsyncGenerator<number, void, void> {
+      try {
+        yield await Promise.resolve(2.1);
+        // istanbul ignore next (Shouldn't be reached)
+        yield await Promise.resolve(2.2);
+      } finally {
+        didVisitNestedFinally = true;
+        // istanbul ignore next (Shouldn't be reached)
+        yield await Promise.resolve(2.3);
+      }
     }
 
     const doubles = flattenAsyncIterator(source());
@@ -106,6 +168,9 @@ describe('flattenAsyncIterator', () => {
       value: undefined,
       done: true,
     });
+
+    expect(didVisitFinally).to.equal(true);
+    expect(didVisitNestedFinally).to.equal(true);
   });
 
   it('allows throwing errors from a nested async generator', async () => {
