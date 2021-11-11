@@ -10,7 +10,7 @@ import { isPromise } from '../jsutils/isPromise';
  * Given an AsyncIterable that could potentially yield other async iterators,
  * flatten all yielded results into a single AsyncIterable
  */
-export function flattenAsyncIterator<T, AT>(
+export function flattenAsyncIterable<T, AT>(
   iterable: AsyncIterable<T | AsyncIterable<AT>>,
 ): AsyncGenerator<T | AT, void, void> {
   return new Repeater(async (push, stop) => {

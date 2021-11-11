@@ -3,9 +3,9 @@ import { describe, it } from 'mocha';
 
 import { expectPromise } from '../../__testUtils__/expectPromise';
 
-import { flattenAsyncIterator } from '../flattenAsyncIterator';
+import { flattenAsyncIterable } from '../flattenAsyncIterable';
 
-describe('flattenAsyncIterator', () => {
+describe('flattenAsyncIterable', () => {
   it('does not modify an already flat async generator', async () => {
     async function* source() {
       yield await Promise.resolve(1);
@@ -13,7 +13,7 @@ describe('flattenAsyncIterator', () => {
       yield await Promise.resolve(3);
     }
 
-    const result = flattenAsyncIterator(source());
+    const result = flattenAsyncIterable(source());
 
     expect(await result.next()).to.deep.equal({ value: 1, done: false });
     expect(await result.next()).to.deep.equal({ value: 2, done: false });
@@ -39,7 +39,7 @@ describe('flattenAsyncIterator', () => {
       },
     };
 
-    const result = flattenAsyncIterator(iterator);
+    const result = flattenAsyncIterable(iterator);
 
     expect(await result.next()).to.deep.equal({ value: 1, done: false });
     expect(await result.next()).to.deep.equal({ value: 2, done: false });
@@ -63,7 +63,7 @@ describe('flattenAsyncIterator', () => {
       yield await Promise.resolve(2.2);
     }
 
-    const doubles = flattenAsyncIterator(source());
+    const doubles = flattenAsyncIterable(source());
 
     const result = [];
     for await (const x of doubles) {
@@ -97,7 +97,7 @@ describe('flattenAsyncIterator', () => {
       },
     };
 
-    const result = flattenAsyncIterator(iterator);
+    const result = flattenAsyncIterable(iterator);
 
     expect(await result.next()).to.deep.equal({ value: 1, done: false });
     expect(await result.next()).to.deep.equal({ value: 2, done: false });
@@ -149,7 +149,7 @@ describe('flattenAsyncIterator', () => {
       }
     }
 
-    const doubles = flattenAsyncIterator(source());
+    const doubles = flattenAsyncIterable(source());
 
     expect(await doubles.next()).to.deep.equal({ value: 1, done: false });
     expect(await doubles.next()).to.deep.equal({ value: 2, done: false });
@@ -189,7 +189,7 @@ describe('flattenAsyncIterator', () => {
       // istanbul ignore next (Shouldn't be reached)
       yield await Promise.resolve(2.2);
     }
-    const doubles = flattenAsyncIterator(source());
+    const doubles = flattenAsyncIterable(source());
 
     expect(await doubles.next()).to.deep.equal({ value: 1, done: false });
     expect(await doubles.next()).to.deep.equal({ value: 2, done: false });
