@@ -1,60 +1,71 @@
+import type { PromiseOrValue } from '../jsutils/PromiseOrValue.ts';
 import { isAsyncIterable } from '../jsutils/isAsyncIterable.ts';
-type AsyncIterableOrGenerator<T> =
-  | AsyncGenerator<T, void, void>
-  | AsyncIterable<T>;
+import type { Push } from '../jsutils/repeater.ts';
+import { Repeater } from '../jsutils/repeater.ts';
 /**
  * Given an AsyncIterable that could potentially yield other async iterators,
  * flatten all yielded results into a single AsyncIterable
  */
 
 export function flattenAsyncIterator<T, AT>(
-  iterable: AsyncIterableOrGenerator<T | AsyncIterableOrGenerator<AT>>,
+  iterable: AsyncIterable<T | AsyncIterable<AT>>,
 ): AsyncGenerator<T | AT, void, void> {
-  const iteratorMethod = iterable[Symbol.asyncIterator];
-  const iterator: any = iteratorMethod.call(iterable);
-  let iteratorStack: Array<AsyncIterator<T>> = [iterator];
+  return new Repeater(async (push, stop) => {
+    const iter = iterable[Symbol.asyncIterator]();
+    let childIterator: AsyncIterator<AT> | undefined;
+    let finalIteration: PromiseOrValue<unknown> | undefined; // eslint-disable-next-line @typescript-eslint/no-floating-promises
 
-  async function next(): Promise<IteratorResult<T | AT, void>> {
-    const currentIterator = iteratorStack[0];
+    stop.then(() => {
+      const childReturned =
+        childIterator && typeof childIterator.return === 'function'
+          ? childIterator.return()
+          : undefined;
+      const returned =
+        typeof iter.return === 'function' ? iter.return() : undefined;
+      finalIteration = Promise.all([childReturned, returned]);
+    }); // eslint-disable-next-line no-unmodified-loop-condition
 
-    if (!currentIterator) {
-      return {
-        value: undefined,
-        done: true,
-      };
+    while (!finalIteration) {
+      // eslint-disable-next-line no-await-in-loop
+      const iteration = await iter.next();
+
+      if (iteration.done) {
+        stop();
+        return;
+      }
+
+      const value = iteration.value;
+
+      if (isAsyncIterable(value)) {
+        childIterator = value[Symbol.asyncIterator](); // eslint-disable-next-line no-await-in-loop
+
+        await pushChildIterations(childIterator, push, finalIteration); // eslint-disable-next-line require-atomic-updates
+
+        childIterator = undefined;
+        continue;
+      } // eslint-disable-next-line no-await-in-loop
+
+      await push(value);
     }
 
-    const result = await currentIterator.next();
+    await finalIteration;
+  });
+}
 
-    if (result.done) {
-      iteratorStack.shift();
-      return next();
-    } else if (isAsyncIterable(result.value)) {
-      const childIterator = result.value[
-        Symbol.asyncIterator
-      ]() as AsyncIterator<T>;
-      iteratorStack.unshift(childIterator);
-      return next();
-    }
+async function pushChildIterations<AT>(
+  iter: AsyncIterator<AT>,
+  push: Push<AT>,
+  finalIteration: unknown,
+): Promise<void> {
+  // eslint-disable-next-line no-unmodified-loop-condition
+  while (!finalIteration) {
+    // eslint-disable-next-line no-await-in-loop
+    const iteration = await iter.next();
 
-    return result;
+    if (iteration.done) {
+      return;
+    } // eslint-disable-next-line no-await-in-loop
+
+    await push(iteration.value);
   }
-
-  return {
-    next,
-
-    return() {
-      iteratorStack = [];
-      return iterator.return();
-    },
-
-    throw(error?: unknown): Promise<IteratorResult<T | AT>> {
-      iteratorStack = [];
-      return iterator.throw(error);
-    },
-
-    [Symbol.asyncIterator]() {
-      return this;
-    },
-  };
 }
