@@ -9,19 +9,13 @@ import { Repeater } from '../jsutils/repeater.ts';
 export function mapAsyncIterable<T, U>(
   iterable: AsyncIterable<T>,
   fn: (value: T) => PromiseOrValue<U>,
-): AsyncGenerator<U> {
+): AsyncGenerator<U, void, void> {
   return new Repeater(async (push, stop) => {
     const iter = iterable[Symbol.asyncIterator]();
-    let finalIteration: PromiseOrValue<IteratorResult<T>> | undefined; // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    let finalIteration: PromiseOrValue<unknown> | undefined; // eslint-disable-next-line @typescript-eslint/no-floating-promises
 
     stop.then(() => {
-      finalIteration =
-        typeof iter.return === 'function'
-          ? iter.return()
-          : {
-              value: undefined,
-              done: true,
-            };
+      finalIteration = typeof iter.return === 'function' ? iter.return() : true;
     }); // eslint-disable-next-line no-unmodified-loop-condition
 
     while (!finalIteration) {
@@ -30,7 +24,7 @@ export function mapAsyncIterable<T, U>(
 
       if (iteration.done) {
         stop();
-        return iteration.value;
+        break;
       } // eslint-disable-next-line no-await-in-loop
 
       await push(fn(iteration.value));
