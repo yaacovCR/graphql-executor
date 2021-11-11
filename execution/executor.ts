@@ -56,7 +56,7 @@ import {
   collectSubfields as _collectSubfields,
 } from './collectFields.ts';
 import { mapAsyncIterable } from './mapAsyncIterable.ts';
-import { flattenAsyncIterator } from './flattenAsyncIterator.ts';
+import { flattenAsyncIterable } from './flattenAsyncIterable.ts';
 /**
  * Terminology
  *
@@ -1538,7 +1538,7 @@ export class Executor {
       return this.executeSubscriptionEvent(perPayloadExecutionContext);
     }; // Map every source value to a ExecutionResult value as described above.
 
-    return flattenAsyncIterator<ExecutionResult, AsyncExecutionResult>(
+    return flattenAsyncIterable<ExecutionResult, AsyncExecutionResult>(
       mapAsyncIterable(resultOrStream, mapSourceToResponse),
     );
   }
