@@ -569,7 +569,7 @@ describe('Execute: handles non-nullable types', () => {
               setTimeout(() => {
                 slowSettled = true;
                 resolve(new Error('slowError'));
-              }, 500),
+              }, 10),
             ),
         },
       });
