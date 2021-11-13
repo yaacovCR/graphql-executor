@@ -1649,11 +1649,10 @@ export class Executor {
     parentType: GraphQLObjectType,
     source: unknown,
     path: Path | undefined,
-    errors?: Maybe<Array<GraphQLError>>,
   ): void {
     for (const patch of patches) {
       const { label, fields: patchFields } = patch;
-      const patchErrors = errors ?? [];
+      const patchErrors: Array<GraphQLError> = [];
       this.addFields(
         exeContext,
         this.executeFields(
