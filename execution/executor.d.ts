@@ -547,7 +547,6 @@ export declare class Executor {
     parentType: GraphQLObjectType,
     source: unknown,
     path: Path | undefined,
-    errors?: Maybe<Array<GraphQLError>>,
   ): void;
   addFields(
     exeContext: ExecutionContext,

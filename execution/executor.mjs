@@ -1443,10 +1443,10 @@ export class Executor {
     return exeContext.subsequentPayloads.length !== 0;
   }
 
-  executePatches(exeContext, patches, parentType, source, path, errors) {
+  executePatches(exeContext, patches, parentType, source, path) {
     for (const patch of patches) {
       const { label, fields: patchFields } = patch;
-      const patchErrors = errors !== null && errors !== void 0 ? errors : [];
+      const patchErrors = [];
       this.addFields(
         exeContext,
         this.executeFields(
