@@ -1057,7 +1057,7 @@ export class Executor {
     };
   }
   /**
-   * Complete a iterator value by completing each result.
+   * Complete an iterator value by completing each result.
    */
 
   completeIteratorValue(
@@ -1122,8 +1122,7 @@ export class Executor {
       : completedResults;
   }
   /**
-   * Complete a async iterator value by completing the result and calling
-   * recursively until all the results are completed.
+   * Complete an async iterator value by completing each result.
    */
 
   async completeAsyncIteratorValue(
@@ -1162,20 +1161,18 @@ export class Executor {
       }
 
       const itemPath = addPath(path, index, undefined);
-      let iteratorResult: IteratorResult<unknown>;
+      let iteration: IteratorResult<unknown>;
 
       try {
         // eslint-disable-next-line no-await-in-loop
-        iteratorResult = await iterator.next();
+        iteration = await iterator.next();
       } catch (rawError) {
         const error = locatedError(rawError, fieldNodes, pathToArray(itemPath));
         completedResults.push(this.handleFieldError(error, itemType, errors));
         break;
       }
 
-      const { value: item, done } = iteratorResult;
-
-      if (done) {
+      if (iteration.done) {
         break;
       }
 
@@ -1183,7 +1180,7 @@ export class Executor {
         completedResults,
         index,
         promises,
-        item,
+        iteration.value,
         exeContext,
         itemType,
         fieldNodes,
@@ -1718,7 +1715,7 @@ export class Executor {
     fieldNodes: ReadonlyArray<FieldNode>,
     info: GraphQLResolveInfo,
     itemType: GraphQLOutputType,
-    path?: Path,
+    path: Path,
     label?: string,
   ): void {
     let index = initialIndex;
@@ -1766,15 +1763,15 @@ export class Executor {
     fieldNodes: ReadonlyArray<FieldNode>,
     info: GraphQLResolveInfo,
     itemType: GraphQLOutputType,
-    path?: Path,
+    path: Path,
     label?: string,
   ): void {
     const { subsequentPayloads, iterators } = exeContext;
     iterators.push(iterator);
 
     const next = (index: number) => {
-      const fieldPath = addPath(path, index, undefined);
-      const patchErrors: Array<GraphQLError> = [];
+      const itemPath = addPath(path, index, undefined);
+      const errors: Array<GraphQLError> = [];
       subsequentPayloads.push(
         iterator.next().then(
           ({ value: data, done }) => {
@@ -1794,9 +1791,9 @@ export class Executor {
                 itemType,
                 fieldNodes,
                 info,
-                fieldPath,
+                itemPath,
                 data,
-                patchErrors,
+                errors,
               );
 
               if (isPromise(completedItem)) {
@@ -1804,8 +1801,8 @@ export class Executor {
                   value: this.createPatchResult(
                     resolveItem,
                     label,
-                    fieldPath,
-                    patchErrors,
+                    itemPath,
+                    errors,
                   ),
                   done: false,
                 }));
@@ -1815,8 +1812,8 @@ export class Executor {
                 value: this.createPatchResult(
                   completedItem,
                   label,
-                  fieldPath,
-                  patchErrors,
+                  itemPath,
+                  errors,
                 ),
                 done: false,
               };
@@ -1824,16 +1821,11 @@ export class Executor {
               const error = locatedError(
                 rawError,
                 fieldNodes,
-                pathToArray(fieldPath),
+                pathToArray(itemPath),
               );
-              this.handleFieldError(error, itemType, patchErrors);
+              this.handleFieldError(error, itemType, errors);
               return {
-                value: this.createPatchResult(
-                  null,
-                  label,
-                  fieldPath,
-                  patchErrors,
-                ),
+                value: this.createPatchResult(null, label, itemPath, errors),
                 done: false,
               };
             }
@@ -1842,16 +1834,11 @@ export class Executor {
             const error = locatedError(
               rawError,
               fieldNodes,
-              pathToArray(fieldPath),
+              pathToArray(itemPath),
             );
-            this.handleFieldError(error, itemType, patchErrors);
+            this.handleFieldError(error, itemType, errors);
             return {
-              value: this.createPatchResult(
-                null,
-                label,
-                fieldPath,
-                patchErrors,
-              ),
+              value: this.createPatchResult(null, label, itemPath, errors),
               done: false,
             };
           },
