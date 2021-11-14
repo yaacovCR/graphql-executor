@@ -177,8 +177,7 @@ export declare class Executor {
   execute(
     args: ExecutionArgs,
   ): PromiseOrValue<
-    | ExecutionResult
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   >;
   createSourceEventStream(
     args: ExecutionArgs,
@@ -186,14 +185,12 @@ export declare class Executor {
   executeImpl(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
-    | ExecutionResult
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   >;
   executeQueryImpl(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
-    | ExecutionResult
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   >;
   /**
    * Implements the ExecuteQuery algorithm described in the GraphQL
@@ -212,8 +209,7 @@ export declare class Executor {
   executeQueryAlgorithm(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
-    | ExecutionResult
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   >;
   /**
    * Implements the ExecuteMutation algorithm described in the Graphql
@@ -222,8 +218,7 @@ export declare class Executor {
   executeMutationImpl(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
-    | ExecutionResult
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   >;
   /**
    * Implements the Execute algorithm described in the GraphQL specification
@@ -234,8 +229,7 @@ export declare class Executor {
     exeContext: ExecutionContext,
     fieldsExecutor: FieldsExecutor,
   ): PromiseOrValue<
-    | ExecutionResult
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   >;
   /**
    * Given a completed execution context and data, build the `{ errors, data }`
@@ -245,8 +239,7 @@ export declare class Executor {
     exeContext: ExecutionContext,
     data: ObjMap<unknown> | null,
   ): PromiseOrValue<
-    | ExecutionResult
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   >;
   /**
    * Essential assertions before executing to provide developer feedback for
@@ -538,8 +531,7 @@ export declare class Executor {
   executeSubscriptionImpl(
     exeContext: ExecutionContext,
   ): Promise<
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
-    | ExecutionResult
+    AsyncGenerator<AsyncExecutionResult, void, void> | ExecutionResult
   >;
   createSourceEventStreamImpl(
     exeContext: ExecutionContext,
@@ -548,8 +540,7 @@ export declare class Executor {
   executeSubscriptionEvent(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
-    | ExecutionResult
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   >;
   hasSubsequentPayloads(exeContext: ExecutionContext): boolean;
   executePatches(
