@@ -866,7 +866,7 @@ class Executor {
     };
   }
   /**
-   * Complete a iterator value by completing each result.
+   * Complete an iterator value by completing each result.
    */
 
   completeIteratorValue(
@@ -931,8 +931,7 @@ class Executor {
       : completedResults;
   }
   /**
-   * Complete a async iterator value by completing the result and calling
-   * recursively until all the results are completed.
+   * Complete an async iterator value by completing each result.
    */
 
   async completeAsyncIteratorValue(
@@ -971,11 +970,11 @@ class Executor {
       }
 
       const itemPath = (0, _Path.addPath)(path, index, undefined);
-      let iteratorResult;
+      let iteration;
 
       try {
         // eslint-disable-next-line no-await-in-loop
-        iteratorResult = await iterator.next();
+        iteration = await iterator.next();
       } catch (rawError) {
         const error = (0, _graphql.locatedError)(
           rawError,
@@ -986,9 +985,7 @@ class Executor {
         break;
       }
 
-      const { value: item, done } = iteratorResult;
-
-      if (done) {
+      if (iteration.done) {
         break;
       }
 
@@ -996,7 +993,7 @@ class Executor {
         completedResults,
         index,
         promises,
-        item,
+        iteration.value,
         exeContext,
         itemType,
         fieldNodes,
@@ -1570,8 +1567,8 @@ class Executor {
     iterators.push(iterator);
 
     const next = (index) => {
-      const fieldPath = (0, _Path.addPath)(path, index, undefined);
-      const patchErrors = [];
+      const itemPath = (0, _Path.addPath)(path, index, undefined);
+      const errors = [];
       subsequentPayloads.push(
         iterator.next().then(
           ({ value: data, done }) => {
@@ -1591,9 +1588,9 @@ class Executor {
                 itemType,
                 fieldNodes,
                 info,
-                fieldPath,
+                itemPath,
                 data,
-                patchErrors,
+                errors,
               );
 
               if ((0, _isPromise.isPromise)(completedItem)) {
@@ -1601,8 +1598,8 @@ class Executor {
                   value: this.createPatchResult(
                     resolveItem,
                     label,
-                    fieldPath,
-                    patchErrors,
+                    itemPath,
+                    errors,
                   ),
                   done: false,
                 }));
@@ -1612,8 +1609,8 @@ class Executor {
                 value: this.createPatchResult(
                   completedItem,
                   label,
-                  fieldPath,
-                  patchErrors,
+                  itemPath,
+                  errors,
                 ),
                 done: false,
               };
@@ -1621,16 +1618,11 @@ class Executor {
               const error = (0, _graphql.locatedError)(
                 rawError,
                 fieldNodes,
-                (0, _Path.pathToArray)(fieldPath),
+                (0, _Path.pathToArray)(itemPath),
               );
-              this.handleFieldError(error, itemType, patchErrors);
+              this.handleFieldError(error, itemType, errors);
               return {
-                value: this.createPatchResult(
-                  null,
-                  label,
-                  fieldPath,
-                  patchErrors,
-                ),
+                value: this.createPatchResult(null, label, itemPath, errors),
                 done: false,
               };
             }
@@ -1639,16 +1631,11 @@ class Executor {
             const error = (0, _graphql.locatedError)(
               rawError,
               fieldNodes,
-              (0, _Path.pathToArray)(fieldPath),
+              (0, _Path.pathToArray)(itemPath),
             );
-            this.handleFieldError(error, itemType, patchErrors);
+            this.handleFieldError(error, itemType, errors);
             return {
-              value: this.createPatchResult(
-                null,
-                label,
-                fieldPath,
-                patchErrors,
-              ),
+              value: this.createPatchResult(null, label, itemPath, errors),
               done: false,
             };
           },
