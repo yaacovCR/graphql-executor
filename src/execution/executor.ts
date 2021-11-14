@@ -236,8 +236,7 @@ export class Executor {
   execute(
     args: ExecutionArgs,
   ): PromiseOrValue<
-    | ExecutionResult
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   > {
     const exeContext = this.buildExecutionContext(args);
 
@@ -267,8 +266,7 @@ export class Executor {
   executeImpl(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
-    | ExecutionResult
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   > {
     const { operation, forceQueryAlgorithm } = exeContext;
 
@@ -290,8 +288,7 @@ export class Executor {
   executeQueryImpl(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
-    | ExecutionResult
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   > {
     return this.executeQueryAlgorithm(exeContext);
   }
@@ -313,8 +310,7 @@ export class Executor {
   executeQueryAlgorithm(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
-    | ExecutionResult
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   > {
     return this.executeQueryOrMutationImpl(
       exeContext,
@@ -329,8 +325,7 @@ export class Executor {
   executeMutationImpl(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
-    | ExecutionResult
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   > {
     return this.executeQueryOrMutationImpl(
       exeContext,
@@ -347,8 +342,7 @@ export class Executor {
     exeContext: ExecutionContext,
     fieldsExecutor: FieldsExecutor,
   ): PromiseOrValue<
-    | ExecutionResult
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   > {
     let data: PromiseOrValue<ObjMap<unknown> | null>;
 
@@ -380,8 +374,7 @@ export class Executor {
     exeContext: ExecutionContext,
     data: ObjMap<unknown> | null,
   ): PromiseOrValue<
-    | ExecutionResult
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   > {
     const initialResult =
       exeContext.errors.length === 0
@@ -1544,8 +1537,7 @@ export class Executor {
   async executeSubscriptionImpl(
     exeContext: ExecutionContext,
   ): Promise<
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
-    | ExecutionResult
+    AsyncGenerator<AsyncExecutionResult, void, void> | ExecutionResult
   > {
     const resultOrStream = await this.createSourceEventStreamImpl(exeContext);
 
@@ -1662,8 +1654,7 @@ export class Executor {
   executeSubscriptionEvent(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
-    | ExecutionResult
-    | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   > {
     return this.executeQueryAlgorithm(exeContext);
   }

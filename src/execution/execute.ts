@@ -22,8 +22,7 @@ import { Executor } from './executor';
 export function execute(
   args: ExecutionArgs,
 ): PromiseOrValue<
-  | ExecutionResult
-  | AsyncGenerator<ExecutionResult | AsyncExecutionResult, void, void>
+  ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
 > {
   const executor = new Executor();
   return executor.execute(args);
