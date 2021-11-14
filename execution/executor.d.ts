@@ -543,19 +543,12 @@ export declare class Executor {
     ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   >;
   hasSubsequentPayloads(exeContext: ExecutionContext): boolean;
-  executePatches(
+  addPatches(
     exeContext: ExecutionContext,
     patches: Array<PatchFields>,
     parentType: GraphQLObjectType,
     source: unknown,
     path: Path | undefined,
-  ): void;
-  addFields(
-    exeContext: ExecutionContext,
-    promiseOrData: PromiseOrValue<ObjMap<unknown>>,
-    errors: Array<GraphQLError>,
-    label?: string,
-    path?: Path,
   ): void;
   addIteratorValue(
     initialIndex: number,
