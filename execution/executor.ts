@@ -605,7 +605,7 @@ export class Executor {
       fields,
       errors,
     );
-    this.executePatches(exeContext, patches, rootType, rootValue, path);
+    this.addPatches(exeContext, patches, rootType, rootValue, path);
     return result;
   }
 
@@ -1470,7 +1470,7 @@ export class Executor {
       subFieldNodes,
       errors,
     );
-    this.executePatches(exeContext, subPatches, returnType, result, path);
+    this.addPatches(exeContext, subPatches, returnType, result, path);
     return subFields;
   }
   /**
@@ -1657,7 +1657,7 @@ export class Executor {
     return exeContext.subsequentPayloads.length !== 0;
   }
 
-  executePatches(
+  addPatches(
     exeContext: ExecutionContext,
     patches: Array<PatchFields>,
     parentType: GraphQLObjectType,
@@ -1666,37 +1666,23 @@ export class Executor {
   ): void {
     for (const patch of patches) {
       const { label, fields: patchFields } = patch;
-      const patchErrors: Array<GraphQLError> = [];
-      this.addFields(
-        exeContext,
-        this.executeFields(
-          exeContext,
-          parentType,
-          source,
-          path,
-          patchFields,
-          patchErrors,
-        ),
-        patchErrors,
-        label,
-        path,
+      const errors: Array<GraphQLError> = [];
+      exeContext.subsequentPayloads.push(
+        Promise.resolve(
+          this.executeFields(
+            exeContext,
+            parentType,
+            source,
+            path,
+            patchFields,
+            errors,
+          ),
+        ).then((data) => ({
+          value: this.createPatchResult(data, label, path, errors),
+          done: false,
+        })),
       );
     }
-  }
-
-  addFields(
-    exeContext: ExecutionContext,
-    promiseOrData: PromiseOrValue<ObjMap<unknown>>,
-    errors: Array<GraphQLError>,
-    label?: string,
-    path?: Path,
-  ): void {
-    exeContext.subsequentPayloads.push(
-      Promise.resolve(promiseOrData).then((data) => ({
-        value: this.createPatchResult(data, label, path, errors),
-        done: false,
-      })),
-    );
   }
 
   addIteratorValue(
