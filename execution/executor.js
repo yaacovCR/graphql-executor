@@ -819,55 +819,16 @@ class Executor {
       );
     }
 
-    const stream = this.getStreamValues(exeContext, fieldNodes); // This is specified as a simple map, however we're optimizing the path
-    // where the list contains no Promises by avoiding creating another Promise.
-
-    const promises = [];
-    const completedResults = [];
-    let index = 0;
-
-    for (const item of result) {
-      // No need to modify the info object containing the path,
-      // since from here on it is not ever accessed by resolver functions.
-      const itemPath = (0, _Path.addPath)(path, index, undefined);
-
-      if (
-        stream &&
-        typeof stream.initialCount === 'number' &&
-        index >= stream.initialCount
-      ) {
-        this.addValue(
-          itemPath,
-          item,
-          exeContext,
-          fieldNodes,
-          info,
-          itemType,
-          stream.label,
-        );
-        index++;
-        continue;
-      }
-
-      this.completeListItemValue(
-        completedResults,
-        index++,
-        promises,
-        item,
-        exeContext,
-        itemType,
-        fieldNodes,
-        info,
-        itemPath,
-        errors,
-      );
-    }
-
-    if (!promises.length) {
-      return completedResults;
-    }
-
-    return (0, _resolveAfterAll.resolveAfterAll)(completedResults, promises);
+    const iterator = result[Symbol.iterator]();
+    return this.completeIteratorValue(
+      exeContext,
+      itemType,
+      fieldNodes,
+      info,
+      path,
+      iterator,
+      errors,
+    );
   }
   /**
    * Returns an object containing the `@stream` arguments if a field should be
@@ -903,6 +864,71 @@ class Executor {
           : undefined,
       label: typeof stream.label === 'string' ? stream.label : undefined,
     };
+  }
+  /**
+   * Complete a iterator value by completing each result.
+   */
+
+  completeIteratorValue(
+    exeContext,
+    itemType,
+    fieldNodes,
+    info,
+    path,
+    iterator,
+    errors,
+  ) {
+    const stream = this.getStreamValues(exeContext, fieldNodes); // This is specified as a simple map, however we're optimizing the path
+    // where the list contains no Promises by avoiding creating another Promise.
+
+    const promises = [];
+    const completedResults = [];
+    let index = 0; // eslint-disable-next-line no-constant-condition
+
+    while (true) {
+      if (
+        stream &&
+        typeof stream.initialCount === 'number' &&
+        index >= stream.initialCount
+      ) {
+        this.addIteratorValue(
+          index,
+          iterator,
+          exeContext,
+          fieldNodes,
+          info,
+          itemType,
+          path,
+          stream.label,
+        );
+        break;
+      }
+
+      const itemPath = (0, _Path.addPath)(path, index, undefined);
+      const iteration = iterator.next();
+
+      if (iteration.done) {
+        break;
+      }
+
+      this.completeListItemValue(
+        completedResults,
+        index,
+        promises,
+        iteration.value,
+        exeContext,
+        itemType,
+        fieldNodes,
+        info,
+        itemPath,
+        errors,
+      );
+      index++;
+    }
+
+    return promises.length
+      ? (0, _resolveAfterAll.resolveAfterAll)(completedResults, promises)
+      : completedResults;
   }
   /**
    * Complete a async iterator value by completing the result and calling
@@ -1482,35 +1508,52 @@ class Executor {
     );
   }
 
-  addValue(path, promiseOrData, exeContext, fieldNodes, info, itemType, label) {
-    const errors = [];
-    exeContext.subsequentPayloads.push(
-      Promise.resolve(promiseOrData)
-        .then((resolved) =>
-          this.completeValue(
-            exeContext,
-            itemType,
-            fieldNodes,
-            info,
-            path,
-            resolved,
-            errors,
-          ),
-        ) // Note: we don't rely on a `catch` method, but we do expect "thenable"
-        // to take a second callback for the error case.
-        .then(undefined, (rawError) => {
-          const error = (0, _graphql.locatedError)(
-            rawError,
-            fieldNodes,
-            (0, _Path.pathToArray)(path),
-          );
-          return this.handleFieldError(error, itemType, errors);
-        })
-        .then((data) => ({
-          value: this.createPatchResult(data, label, path, errors),
-          done: false,
-        })),
-    );
+  addIteratorValue(
+    initialIndex,
+    iterator,
+    exeContext,
+    fieldNodes,
+    info,
+    itemType,
+    path,
+    label,
+  ) {
+    let index = initialIndex;
+    let iteration = iterator.next();
+
+    while (!iteration.done) {
+      const itemPath = (0, _Path.addPath)(path, index, undefined);
+      const errors = [];
+      exeContext.subsequentPayloads.push(
+        Promise.resolve(iteration.value)
+          .then((resolved) =>
+            this.completeValue(
+              exeContext,
+              itemType,
+              fieldNodes,
+              info,
+              itemPath,
+              resolved,
+              errors,
+            ),
+          ) // Note: we don't rely on a `catch` method, but we do expect "thenable"
+          // to take a second callback for the error case.
+          .then(undefined, (rawError) => {
+            const error = (0, _graphql.locatedError)(
+              rawError,
+              fieldNodes,
+              (0, _Path.pathToArray)(itemPath),
+            );
+            return this.handleFieldError(error, itemType, errors);
+          })
+          .then((data) => ({
+            value: this.createPatchResult(data, label, itemPath, errors),
+            done: false,
+          })),
+      );
+      index++;
+      iteration = iterator.next();
+    }
   }
 
   addAsyncIteratorValue(

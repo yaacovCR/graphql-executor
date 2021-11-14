@@ -413,6 +413,18 @@ export declare class Executor {
         label?: string;
       };
   /**
+   * Complete a iterator value by completing each result.
+   */
+  completeIteratorValue(
+    exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
+    fieldNodes: ReadonlyArray<FieldNode>,
+    info: GraphQLResolveInfo,
+    path: Path,
+    iterator: Iterator<unknown>,
+    errors: Array<GraphQLError>,
+  ): PromiseOrValue<ReadonlyArray<unknown>>;
+  /**
    * Complete a async iterator value by completing the result and calling
    * recursively until all the results are completed.
    */
@@ -555,13 +567,14 @@ export declare class Executor {
     label?: string,
     path?: Path,
   ): void;
-  addValue(
-    path: Path,
-    promiseOrData: PromiseOrValue<unknown>,
+  addIteratorValue(
+    initialIndex: number,
+    iterator: Iterator<unknown>,
     exeContext: ExecutionContext,
     fieldNodes: ReadonlyArray<FieldNode>,
     info: GraphQLResolveInfo,
     itemType: GraphQLOutputType,
+    path?: Path,
     label?: string,
   ): void;
   addAsyncIteratorValue(
