@@ -1002,55 +1002,16 @@ export class Executor {
       );
     }
 
-    const stream = this.getStreamValues(exeContext, fieldNodes);
-
-    // This is specified as a simple map, however we're optimizing the path
-    // where the list contains no Promises by avoiding creating another Promise.
-    const promises: Array<Promise<void>> = [];
-    const completedResults: Array<PromiseOrValue<unknown>> = [];
-    let index = 0;
-    for (const item of result) {
-      // No need to modify the info object containing the path,
-      // since from here on it is not ever accessed by resolver functions.
-      const itemPath = addPath(path, index, undefined);
-
-      if (
-        stream &&
-        typeof stream.initialCount === 'number' &&
-        index >= stream.initialCount
-      ) {
-        this.addValue(
-          itemPath,
-          item,
-          exeContext,
-          fieldNodes,
-          info,
-          itemType,
-          stream.label,
-        );
-        index++;
-        continue;
-      }
-
-      this.completeListItemValue(
-        completedResults,
-        index++,
-        promises,
-        item,
-        exeContext,
-        itemType,
-        fieldNodes,
-        info,
-        itemPath,
-        errors,
-      );
-    }
-
-    if (!promises.length) {
-      return completedResults;
-    }
-
-    return resolveAfterAll(completedResults, promises);
+    const iterator = result[Symbol.iterator]();
+    return this.completeIteratorValue(
+      exeContext,
+      itemType,
+      fieldNodes,
+      info,
+      path,
+      iterator,
+      errors,
+    );
   }
 
   /**
@@ -1095,6 +1056,73 @@ export class Executor {
           : undefined,
       label: typeof stream.label === 'string' ? stream.label : undefined,
     };
+  }
+
+  /**
+   * Complete a iterator value by completing each result.
+   */
+  completeIteratorValue(
+    exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
+    fieldNodes: ReadonlyArray<FieldNode>,
+    info: GraphQLResolveInfo,
+    path: Path,
+    iterator: Iterator<unknown>,
+    errors: Array<GraphQLError>,
+  ): PromiseOrValue<ReadonlyArray<unknown>> {
+    const stream = this.getStreamValues(exeContext, fieldNodes);
+
+    // This is specified as a simple map, however we're optimizing the path
+    // where the list contains no Promises by avoiding creating another Promise.
+    const promises: Array<Promise<void>> = [];
+    const completedResults: Array<unknown> = [];
+    let index = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      if (
+        stream &&
+        typeof stream.initialCount === 'number' &&
+        index >= stream.initialCount
+      ) {
+        this.addIteratorValue(
+          index,
+          iterator,
+          exeContext,
+          fieldNodes,
+          info,
+          itemType,
+          path,
+          stream.label,
+        );
+        break;
+      }
+
+      const itemPath = addPath(path, index, undefined);
+
+      const iteration = iterator.next();
+      if (iteration.done) {
+        break;
+      }
+
+      this.completeListItemValue(
+        completedResults,
+        index,
+        promises,
+        iteration.value,
+        exeContext,
+        itemType,
+        fieldNodes,
+        info,
+        itemPath,
+        errors,
+      );
+
+      index++;
+    }
+
+    return promises.length
+      ? resolveAfterAll(completedResults, promises)
+      : completedResults;
   }
 
   /**
@@ -1688,40 +1716,54 @@ export class Executor {
     );
   }
 
-  addValue(
-    path: Path,
-    promiseOrData: PromiseOrValue<unknown>,
+  addIteratorValue(
+    initialIndex: number,
+    iterator: Iterator<unknown>,
     exeContext: ExecutionContext,
     fieldNodes: ReadonlyArray<FieldNode>,
     info: GraphQLResolveInfo,
     itemType: GraphQLOutputType,
+    path?: Path,
     label?: string,
   ): void {
-    const errors: Array<GraphQLError> = [];
-    exeContext.subsequentPayloads.push(
-      Promise.resolve(promiseOrData)
-        .then((resolved) =>
-          this.completeValue(
-            exeContext,
-            itemType,
-            fieldNodes,
-            info,
-            path,
-            resolved,
-            errors,
-          ),
-        )
-        // Note: we don't rely on a `catch` method, but we do expect "thenable"
-        // to take a second callback for the error case.
-        .then(undefined, (rawError) => {
-          const error = locatedError(rawError, fieldNodes, pathToArray(path));
-          return this.handleFieldError(error, itemType, errors);
-        })
-        .then((data) => ({
-          value: this.createPatchResult(data, label, path, errors),
-          done: false,
-        })),
-    );
+    let index = initialIndex;
+    let iteration = iterator.next();
+    while (!iteration.done) {
+      const itemPath = addPath(path, index, undefined);
+
+      const errors: Array<GraphQLError> = [];
+      exeContext.subsequentPayloads.push(
+        Promise.resolve(iteration.value)
+          .then((resolved) =>
+            this.completeValue(
+              exeContext,
+              itemType,
+              fieldNodes,
+              info,
+              itemPath,
+              resolved,
+              errors,
+            ),
+          )
+          // Note: we don't rely on a `catch` method, but we do expect "thenable"
+          // to take a second callback for the error case.
+          .then(undefined, (rawError) => {
+            const error = locatedError(
+              rawError,
+              fieldNodes,
+              pathToArray(itemPath),
+            );
+            return this.handleFieldError(error, itemType, errors);
+          })
+          .then((data) => ({
+            value: this.createPatchResult(data, label, itemPath, errors),
+            done: false,
+          })),
+      );
+
+      index++;
+      iteration = iterator.next();
+    }
   }
 
   addAsyncIteratorValue(
