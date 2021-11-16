@@ -328,15 +328,14 @@ export class Executor {
             errors,
           ),
         ).then((deferredData) => {
-          exeContext.pendingPushes--;
-          this.pushResult(
+          this.pushPatchResult(
             exeContext,
             push,
             stop,
             deferredData,
-            label,
-            path,
             errors,
+            path,
+            label,
           );
         });
       }
@@ -384,15 +383,14 @@ export class Executor {
             return this.handleFieldError(error, itemType, errors);
           })
           .then((completed) => {
-            exeContext.pendingPushes--;
-            this.pushResult(
+            this.pushPatchResult(
               exeContext,
               push,
               stop,
               completed,
-              label,
-              itemPath,
               errors,
+              itemPath,
+              label,
             );
           });
         index++;
@@ -462,15 +460,14 @@ export class Executor {
                 pathToArray(itemPath),
               );
               this.handleFieldError(error, itemType, errors);
-              exeContext.pendingPushes--;
-              this.pushResult(
+              this.pushPatchResult(
                 exeContext,
                 push,
                 stop,
                 null,
-                label,
-                itemPath,
                 errors,
+                itemPath,
+                label,
               );
               return;
             }
@@ -478,15 +475,14 @@ export class Executor {
             if (isPromise(completedItem)) {
               completedItem.then(
                 (resolved) => {
-                  exeContext.pendingPushes--;
-                  this.pushResult(
+                  this.pushPatchResult(
                     exeContext,
                     push,
                     stop,
                     resolved,
-                    label,
-                    itemPath,
                     errors,
+                    itemPath,
+                    label,
                   );
                 },
                 (rawError) => {
@@ -496,30 +492,28 @@ export class Executor {
                     pathToArray(itemPath),
                   );
                   this.handleFieldError(error, itemType, errors);
-                  exeContext.pendingPushes--;
-                  this.pushResult(
+                  this.pushPatchResult(
                     exeContext,
                     push,
                     stop,
                     null,
-                    label,
-                    itemPath,
                     errors,
+                    itemPath,
+                    label,
                   );
                 },
               );
               return;
             }
 
-            exeContext.pendingPushes--;
-            this.pushResult(
+            this.pushPatchResult(
               exeContext,
               push,
               stop,
               completedItem,
-              label,
-              itemPath,
               errors,
+              itemPath,
+              label,
             );
           },
           (rawError) => {
@@ -530,15 +524,14 @@ export class Executor {
               pathToArray(itemPath),
             );
             this.handleFieldError(error, itemType, errors);
-            exeContext.pendingPushes--;
-            this.pushResult(
+            this.pushPatchResult(
               exeContext,
               push,
               stop,
               null,
-              label,
-              itemPath,
               errors,
+              itemPath,
+              label,
             );
           },
         );
@@ -1801,7 +1794,8 @@ export class Executor {
     );
   }
 
-  pushResult(exeContext, push, stop, data, label, path, errors) {
+  pushPatchResult(exeContext, push, stop, data, errors, path, label) {
+    exeContext.pendingPushes--;
     const hasNext = this.hasNext(exeContext);
 
     if (!hasNext) {

@@ -582,14 +582,14 @@ export declare class Executor {
   hasPendingInstructions(exeContext: ExecutionContext): boolean;
   hasPendingValues(exeContext: ExecutionContext): boolean;
   hasNext(exeContext: ExecutionContext): boolean;
-  pushResult(
+  pushPatchResult(
     exeContext: ExecutionContext,
     push: Push<ExecutionResult | AsyncExecutionResult>,
     stop: Stop,
     data: ObjMap<unknown> | unknown | null,
-    label?: string,
+    errors: ReadonlyArray<GraphQLError>,
     path?: Path,
-    errors?: ReadonlyArray<GraphQLError>,
+    label?: string,
   ): void;
 }
 /**
