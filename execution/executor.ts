@@ -418,20 +418,41 @@ export class Executor {
     stop: Stop,
   ): void {
     while (this.hasPendingInstructions(exeContext)) {
-      this.pushPatchInstructionSets(exeContext, push, stop);
-      this.pushIteratorInstructions(exeContext, push, stop);
-      this.pushAsyncIteratorInstructions(exeContext, push, stop);
+      const {
+        patchInstructionSets,
+        iteratorInstructions,
+        asyncIteratorInstructions,
+      } = exeContext;
+      exeContext.patchInstructionSets = [];
+      exeContext.iteratorInstructions = [];
+      exeContext.asyncIteratorInstructions = [];
+      this.pushPatchInstructionSets(
+        exeContext,
+        patchInstructionSets,
+        push,
+        stop,
+      );
+      this.pushIteratorInstructions(
+        exeContext,
+        iteratorInstructions,
+        push,
+        stop,
+      );
+      this.pushAsyncIteratorInstructions(
+        exeContext,
+        asyncIteratorInstructions,
+        push,
+        stop,
+      );
     }
   }
 
   pushPatchInstructionSets(
     exeContext: ExecutionContext,
+    patchInstructionSets: Array<PatchInstructionSet>,
     push: Push<AsyncExecutionResult>,
     stop: Stop,
   ): void {
-    const { patchInstructionSets } = exeContext;
-    exeContext.patchInstructionSets = [];
-
     for (const patchInstructionSet of patchInstructionSets) {
       const { patches, parentType, source, path } = patchInstructionSet;
 
@@ -466,12 +487,10 @@ export class Executor {
 
   pushIteratorInstructions(
     exeContext: ExecutionContext,
+    iteratorInstructions: Array<IteratorInstruction>,
     push: Push<AsyncExecutionResult>,
     stop: Stop,
   ): void {
-    const { iteratorInstructions } = exeContext;
-    exeContext.iteratorInstructions = [];
-
     for (const iteratorInstruction of iteratorInstructions) {
       const {
         iterator,
@@ -531,11 +550,11 @@ export class Executor {
 
   pushAsyncIteratorInstructions(
     exeContext: ExecutionContext,
+    asyncIteratorInstructions: Array<AsyncIteratorInstruction>,
     push: Push<AsyncExecutionResult>,
     stop: Stop,
   ): void {
-    const { asyncIteratorInstructions, unfinishedIterators } = exeContext;
-    exeContext.asyncIteratorInstructions = [];
+    const { unfinishedIterators } = exeContext;
 
     for (const asyncIteratorInstruction of asyncIteratorInstructions) {
       const {
