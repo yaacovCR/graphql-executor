@@ -1127,66 +1127,71 @@ export class Executor {
     iterator: AsyncIterator<unknown>,
     errors: Array<GraphQLError>,
   ): Promise<ReadonlyArray<unknown>> {
-    const stream = this.getStreamValues(exeContext, fieldNodes); // This is specified as a simple map, however we're optimizing the path
-    // where the list contains no Promises by avoiding creating another Promise.
-
-    const promises: Array<Promise<void>> = [];
+    const stream = this.getStreamValues(exeContext, fieldNodes);
     const completedResults: Array<unknown> = [];
-    let index = 0; // eslint-disable-next-line no-constant-condition
+    const promises: Array<Promise<void>> = [];
+    return new Promise<void>((resolve) => {
+      const next = (index: number) => {
+        if (
+          stream &&
+          typeof stream.initialCount === 'number' &&
+          index >= stream.initialCount
+        ) {
+          this.addAsyncIteratorValue(
+            index,
+            iterator,
+            exeContext,
+            fieldNodes,
+            info,
+            itemType,
+            path,
+            stream.label,
+          );
+          resolve();
+          return;
+        }
 
-    while (true) {
-      if (
-        stream &&
-        typeof stream.initialCount === 'number' &&
-        index >= stream.initialCount
-      ) {
-        this.addAsyncIteratorValue(
-          index,
-          iterator,
-          exeContext,
-          fieldNodes,
-          info,
-          itemType,
-          path,
-          stream.label,
+        const itemPath = addPath(path, index, undefined);
+        iterator.next().then(
+          ({ value, done }) => {
+            if (done) {
+              resolve();
+              return;
+            }
+
+            this.completeListItemValue(
+              completedResults,
+              index,
+              promises,
+              value,
+              exeContext,
+              itemType,
+              fieldNodes,
+              info,
+              itemPath,
+              errors,
+            );
+            next(index + 1);
+          },
+          (rawError) => {
+            completedResults.push(null);
+            const error = locatedError(
+              rawError,
+              fieldNodes,
+              pathToArray(itemPath),
+            );
+            this.handleFieldError(error, itemType, errors);
+            resolve();
+          },
         );
-        break;
-      }
+      };
 
-      const itemPath = addPath(path, index, undefined);
-      let iteration: IteratorResult<unknown>;
-
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        iteration = await iterator.next();
-      } catch (rawError) {
-        const error = locatedError(rawError, fieldNodes, pathToArray(itemPath));
-        completedResults.push(this.handleFieldError(error, itemType, errors));
-        break;
-      }
-
-      if (iteration.done) {
-        break;
-      }
-
-      this.completeListItemValue(
-        completedResults,
-        index,
-        promises,
-        iteration.value,
-        exeContext,
-        itemType,
-        fieldNodes,
-        info,
-        itemPath,
-        errors,
-      );
-      index++;
-    }
-
-    return promises.length
-      ? resolveAfterAll(completedResults, promises)
-      : completedResults;
+      next(0);
+    }).then(() =>
+      promises.length
+        ? resolveAfterAll(completedResults, promises)
+        : completedResults,
+    );
   }
 
   completeListItemValue(
