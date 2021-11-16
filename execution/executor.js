@@ -402,43 +402,16 @@ class Executor {
             exeContext.pendingPushes++; // eslint-disable-next-line node/callback-return
 
             next(index + 1);
+            let completedItem;
 
             try {
-              const completedItem = this.completeValue(
+              completedItem = this.completeValue(
                 exeContext,
                 itemType,
                 fieldNodes,
                 info,
                 itemPath,
                 value,
-                errors,
-              );
-
-              if ((0, _isPromise.isPromise)(completedItem)) {
-                // eslint-disable-next-line @typescript-eslint/no-floating-promises
-                completedItem.then((resolved) => {
-                  exeContext.pendingPushes--;
-                  this.pushResult(
-                    exeContext,
-                    push,
-                    stop,
-                    resolved,
-                    label,
-                    itemPath,
-                    errors,
-                  );
-                });
-                return;
-              }
-
-              exeContext.pendingPushes--;
-              this.pushResult(
-                exeContext,
-                push,
-                stop,
-                completedItem,
-                label,
-                itemPath,
                 errors,
               );
             } catch (rawError) {
@@ -458,7 +431,55 @@ class Executor {
                 itemPath,
                 errors,
               );
+              return;
             }
+
+            if ((0, _isPromise.isPromise)(completedItem)) {
+              completedItem.then(
+                (resolved) => {
+                  exeContext.pendingPushes--;
+                  this.pushResult(
+                    exeContext,
+                    push,
+                    stop,
+                    resolved,
+                    label,
+                    itemPath,
+                    errors,
+                  );
+                },
+                (rawError) => {
+                  const error = (0, _graphql.locatedError)(
+                    rawError,
+                    fieldNodes,
+                    (0, _Path.pathToArray)(itemPath),
+                  );
+                  this.handleFieldError(error, itemType, errors);
+                  exeContext.pendingPushes--;
+                  this.pushResult(
+                    exeContext,
+                    push,
+                    stop,
+                    null,
+                    label,
+                    itemPath,
+                    errors,
+                  );
+                },
+              );
+              return;
+            }
+
+            exeContext.pendingPushes--;
+            this.pushResult(
+              exeContext,
+              push,
+              stop,
+              completedItem,
+              label,
+              itemPath,
+              errors,
+            );
           },
           (rawError) => {
             unfinishedIterators.delete(asyncIterator);
