@@ -414,7 +414,7 @@ export class Executor {
 
   processInstructions(
     exeContext: ExecutionContext,
-    push: Push<AsyncExecutionResult>,
+    push: Push<ExecutionPatchResult>,
     stop: Stop,
   ): void {
     const {
@@ -438,7 +438,7 @@ export class Executor {
   pushPatchInstructionSets(
     exeContext: ExecutionContext,
     patchInstructionSets: Array<PatchInstructionSet>,
-    push: Push<AsyncExecutionResult>,
+    push: Push<ExecutionPatchResult>,
     stop: Stop,
   ): void {
     for (const patchInstructionSet of patchInstructionSets) {
@@ -474,7 +474,7 @@ export class Executor {
   pushIteratorInstructions(
     exeContext: ExecutionContext,
     iteratorInstructions: Array<IteratorInstruction>,
-    push: Push<AsyncExecutionResult>,
+    push: Push<ExecutionPatchResult>,
     stop: Stop,
   ): void {
     for (const iteratorInstruction of iteratorInstructions) {
@@ -538,7 +538,7 @@ export class Executor {
   pushAsyncIteratorInstructions(
     exeContext: ExecutionContext,
     asyncIteratorInstructions: Array<AsyncIteratorInstruction>,
-    push: Push<AsyncExecutionResult>,
+    push: Push<ExecutionPatchResult>,
     stop: Stop,
   ): void {
     const { unfinishedIterators } = exeContext;
@@ -2006,7 +2006,7 @@ export class Executor {
 
   pushPatchResult(
     exeContext: ExecutionContext,
-    push: Push<ExecutionResult | AsyncExecutionResult>,
+    push: Push<ExecutionPatchResult>,
     stop: Stop,
     data: ObjMap<unknown> | unknown | null,
     errors: ReadonlyArray<GraphQLError>,
