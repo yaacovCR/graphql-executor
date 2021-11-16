@@ -262,16 +262,19 @@ export declare class Executor {
   ): void;
   pushPatchInstructionSets(
     exeContext: ExecutionContext,
+    patchInstructionSets: Array<PatchInstructionSet>,
     push: Push<AsyncExecutionResult>,
     stop: Stop,
   ): void;
   pushIteratorInstructions(
     exeContext: ExecutionContext,
+    iteratorInstructions: Array<IteratorInstruction>,
     push: Push<AsyncExecutionResult>,
     stop: Stop,
   ): void;
   pushAsyncIteratorInstructions(
     exeContext: ExecutionContext,
+    asyncIteratorInstructions: Array<AsyncIteratorInstruction>,
     push: Push<AsyncExecutionResult>,
     stop: Stop,
   ): void;

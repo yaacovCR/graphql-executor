@@ -281,16 +281,36 @@ export class Executor {
 
   processInstructions(exeContext, push, stop) {
     while (this.hasPendingInstructions(exeContext)) {
-      this.pushPatchInstructionSets(exeContext, push, stop);
-      this.pushIteratorInstructions(exeContext, push, stop);
-      this.pushAsyncIteratorInstructions(exeContext, push, stop);
+      const {
+        patchInstructionSets,
+        iteratorInstructions,
+        asyncIteratorInstructions,
+      } = exeContext;
+      exeContext.patchInstructionSets = [];
+      exeContext.iteratorInstructions = [];
+      exeContext.asyncIteratorInstructions = [];
+      this.pushPatchInstructionSets(
+        exeContext,
+        patchInstructionSets,
+        push,
+        stop,
+      );
+      this.pushIteratorInstructions(
+        exeContext,
+        iteratorInstructions,
+        push,
+        stop,
+      );
+      this.pushAsyncIteratorInstructions(
+        exeContext,
+        asyncIteratorInstructions,
+        push,
+        stop,
+      );
     }
   }
 
-  pushPatchInstructionSets(exeContext, push, stop) {
-    const { patchInstructionSets } = exeContext;
-    exeContext.patchInstructionSets = [];
-
+  pushPatchInstructionSets(exeContext, patchInstructionSets, push, stop) {
     for (const patchInstructionSet of patchInstructionSets) {
       const { patches, parentType, source, path } = patchInstructionSet;
 
@@ -323,10 +343,7 @@ export class Executor {
     }
   }
 
-  pushIteratorInstructions(exeContext, push, stop) {
-    const { iteratorInstructions } = exeContext;
-    exeContext.iteratorInstructions = [];
-
+  pushIteratorInstructions(exeContext, iteratorInstructions, push, stop) {
     for (const iteratorInstruction of iteratorInstructions) {
       const {
         iterator,
@@ -384,9 +401,13 @@ export class Executor {
     }
   }
 
-  pushAsyncIteratorInstructions(exeContext, push, stop) {
-    const { asyncIteratorInstructions, unfinishedIterators } = exeContext;
-    exeContext.asyncIteratorInstructions = [];
+  pushAsyncIteratorInstructions(
+    exeContext,
+    asyncIteratorInstructions,
+    push,
+    stop,
+  ) {
+    const { unfinishedIterators } = exeContext;
 
     for (const asyncIteratorInstruction of asyncIteratorInstructions) {
       const {
