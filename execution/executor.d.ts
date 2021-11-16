@@ -257,25 +257,25 @@ export declare class Executor {
   ): ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>;
   processInstructions(
     exeContext: ExecutionContext,
-    push: Push<AsyncExecutionResult>,
+    push: Push<ExecutionPatchResult>,
     stop: Stop,
   ): void;
   pushPatchInstructionSets(
     exeContext: ExecutionContext,
     patchInstructionSets: Array<PatchInstructionSet>,
-    push: Push<AsyncExecutionResult>,
+    push: Push<ExecutionPatchResult>,
     stop: Stop,
   ): void;
   pushIteratorInstructions(
     exeContext: ExecutionContext,
     iteratorInstructions: Array<IteratorInstruction>,
-    push: Push<AsyncExecutionResult>,
+    push: Push<ExecutionPatchResult>,
     stop: Stop,
   ): void;
   pushAsyncIteratorInstructions(
     exeContext: ExecutionContext,
     asyncIteratorInstructions: Array<AsyncIteratorInstruction>,
-    push: Push<AsyncExecutionResult>,
+    push: Push<ExecutionPatchResult>,
     stop: Stop,
   ): void;
   /**
@@ -584,7 +584,7 @@ export declare class Executor {
   hasNext(exeContext: ExecutionContext): boolean;
   pushPatchResult(
     exeContext: ExecutionContext,
-    push: Push<ExecutionResult | AsyncExecutionResult>,
+    push: Push<ExecutionPatchResult>,
     stop: Stop,
     data: ObjMap<unknown> | unknown | null,
     errors: ReadonlyArray<GraphQLError>,
