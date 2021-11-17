@@ -776,18 +776,18 @@ describe('Execute: stream directive', () => {
       },
       {
         data: {
-          id: '3',
-        },
-        path: ['asyncIterableList', 2],
-        label: 'stream-label',
-        hasNext: true,
-      },
-      {
-        data: {
           name: 'Han',
         },
         path: ['asyncIterableList', 1],
         label: 'DeferName',
+        hasNext: true,
+      },
+      {
+        data: {
+          id: '3',
+        },
+        path: ['asyncIterableList', 2],
+        label: 'stream-label',
         hasNext: true,
       },
       {
@@ -842,18 +842,18 @@ describe('Execute: stream directive', () => {
       },
       {
         data: {
-          id: '3',
-        },
-        path: ['asyncIterableListDelayedClose', 2],
-        label: 'stream-label',
-        hasNext: true,
-      },
-      {
-        data: {
           name: 'Han',
         },
         path: ['asyncIterableListDelayedClose', 1],
         label: 'DeferName',
+        hasNext: true,
+      },
+      {
+        data: {
+          id: '3',
+        },
+        path: ['asyncIterableListDelayedClose', 2],
+        label: 'stream-label',
         hasNext: true,
       },
       {
