@@ -107,11 +107,28 @@ interface ExecutionContext {
   iteratorInstructions: Array<IteratorInstruction>;
   asyncIteratorInstructions: Array<AsyncIteratorInstruction>;
   pendingPushes: number;
+  pushedPayloads: Map<PayloadKey, true>;
+  pendingPayloads: Map<
+    PayloadKey,
+    [{ payloadKey: PayloadKey; patchResult: PatchResult }]
+  >;
   closed: boolean;
   unfinishedIterators: Set<AsyncIterator<unknown>>;
 }
 
+type PayloadKey =
+  | Map<string, ReadonlyArray<FieldNode>>
+  | [ReadonlyArray<FieldNode>, number];
+
+interface PatchResult {
+  data: ObjMap<unknown> | unknown | null;
+  errors: ReadonlyArray<GraphQLError>;
+  path?: Path;
+  label?: string;
+}
+
 interface PatchInstructionSet {
+  parentPayloadKey: PayloadKey;
   patches: Array<PatchFields>;
   parentType: GraphQLObjectType;
   source: unknown;
@@ -119,6 +136,7 @@ interface PatchInstructionSet {
 }
 
 interface IteratorInstruction {
+  parentPayloadKey: PayloadKey;
   iterator: Iterator<unknown>;
   itemType: GraphQLOutputType;
   fieldNodes: ReadonlyArray<FieldNode>;
@@ -129,6 +147,7 @@ interface IteratorInstruction {
 }
 
 interface AsyncIteratorInstruction {
+  parentPayloadKey: PayloadKey;
   asyncIterator: AsyncIterator<unknown>;
   itemType: GraphQLOutputType;
   fieldNodes: ReadonlyArray<FieldNode>;
@@ -201,6 +220,7 @@ export type FieldsExecutor = (
   path: Path | undefined,
   fields: Map<string, ReadonlyArray<FieldNode>>,
   errors: Array<GraphQLError>,
+  payloadKey: PayloadKey,
 ) => PromiseOrValue<ObjMap<unknown>>;
 
 export type FieldResolver = (
@@ -442,7 +462,8 @@ export class Executor {
     stop: Stop,
   ): void {
     for (const patchInstructionSet of patchInstructionSets) {
-      const { patches, parentType, source, path } = patchInstructionSet;
+      const { parentPayloadKey, patches, parentType, source, path } =
+        patchInstructionSet;
       for (const { fields, label } of patches) {
         const errors: Array<GraphQLError> = [];
         exeContext.pendingPushes++;
@@ -455,13 +476,16 @@ export class Executor {
             path,
             fields,
             errors,
+            fields,
           ),
         ).then((deferredData) => {
           this.processInstructions(exeContext, push, stop);
-          this.pushPatchResult(
+          this.push(
             exeContext,
             push,
             stop,
+            fields,
+            parentPayloadKey,
             deferredData,
             errors,
             path,
@@ -480,6 +504,7 @@ export class Executor {
   ): void {
     for (const iteratorInstruction of iteratorInstructions) {
       const {
+        parentPayloadKey,
         iterator,
         itemType,
         fieldNodes,
@@ -490,7 +515,16 @@ export class Executor {
       } = iteratorInstruction;
       let index = initialIndex;
       let iteration = iterator.next();
+      let prevPayloadKey = parentPayloadKey; 
       while (!iteration.done) {
+        const payloadKey: [ReadonlyArray<FieldNode>, number] = [
+          fieldNodes,
+          index,
+        ];
+        
+        // save the correct previous payload key within this scope
+        // see https://eslint.org/docs/rules/no-loop-func#options 
+        const _prevPayloadKey = prevPayloadKey; 
         const itemPath = addPath(path, index, undefined);
 
         const errors: Array<GraphQLError> = [];
@@ -506,6 +540,7 @@ export class Executor {
               itemPath,
               resolved,
               errors,
+              payloadKey,
             ),
           )
           // Note: we don't rely on a `catch` method, but we do expect "thenable"
@@ -513,10 +548,12 @@ export class Executor {
           .then(
             (completed) => {
               this.processInstructions(exeContext, push, stop);
-              this.pushPatchResult(
+              this.push(
                 exeContext,
                 push,
                 stop,
+                payloadKey,
+                _prevPayloadKey,
                 completed,
                 errors,
                 itemPath,
@@ -530,10 +567,12 @@ export class Executor {
                 pathToArray(itemPath),
               );
               this.handleFieldError(error, itemType, errors);
-              this.pushPatchResult(
+              this.push(
                 exeContext,
                 push,
                 stop,
+                payloadKey,
+                parentPayloadKey,
                 null,
                 errors,
                 itemPath,
@@ -545,6 +584,7 @@ export class Executor {
 
         index++;
         iteration = iterator.next();
+        prevPayloadKey = payloadKey;
       }
     }
   }
@@ -558,6 +598,7 @@ export class Executor {
     const { unfinishedIterators } = exeContext;
     for (const asyncIteratorInstruction of asyncIteratorInstructions) {
       const {
+        parentPayloadKey,
         asyncIterator,
         itemType,
         fieldNodes,
@@ -567,7 +608,11 @@ export class Executor {
         label,
       } = asyncIteratorInstruction;
       unfinishedIterators.add(asyncIterator);
-      const next = (index: number) => {
+      const next = (index: number, prevPayloadKey: PayloadKey) => {
+        const payloadKey: [ReadonlyArray<FieldNode>, number] = [
+          fieldNodes,
+          index,
+        ];
         const itemPath = addPath(path, index, undefined);
         const errors: Array<GraphQLError> = [];
         asyncIterator.next().then(
@@ -586,7 +631,7 @@ export class Executor {
 
             exeContext.pendingPushes++;
             // eslint-disable-next-line node/callback-return
-            next(index + 1);
+            next(index + 1, payloadKey);
 
             let completedItem;
             try {
@@ -598,6 +643,7 @@ export class Executor {
                 itemPath,
                 value,
                 errors,
+                payloadKey,
               );
             } catch (rawError) {
               const error = locatedError(
@@ -606,10 +652,12 @@ export class Executor {
                 pathToArray(itemPath),
               );
               this.handleFieldError(error, itemType, errors);
-              this.pushPatchResult(
+              this.push(
                 exeContext,
                 push,
                 stop,
+                payloadKey,
+                prevPayloadKey,
                 null,
                 errors,
                 itemPath,
@@ -622,10 +670,12 @@ export class Executor {
               completedItem.then(
                 (resolved) => {
                   this.processInstructions(exeContext, push, stop);
-                  this.pushPatchResult(
+                  this.push(
                     exeContext,
                     push,
                     stop,
+                    payloadKey,
+                    parentPayloadKey,
                     resolved,
                     errors,
                     itemPath,
@@ -639,10 +689,12 @@ export class Executor {
                     pathToArray(itemPath),
                   );
                   this.handleFieldError(error, itemType, errors);
-                  this.pushPatchResult(
+                  this.push(
                     exeContext,
                     push,
                     stop,
+                    payloadKey,
+                    parentPayloadKey,
                     null,
                     errors,
                     itemPath,
@@ -654,10 +706,12 @@ export class Executor {
             }
 
             this.processInstructions(exeContext, push, stop);
-            this.pushPatchResult(
+            this.push(
               exeContext,
               push,
               stop,
+              payloadKey,
+              parentPayloadKey,
               completedItem,
               errors,
               itemPath,
@@ -672,10 +726,12 @@ export class Executor {
               pathToArray(itemPath),
             );
             this.handleFieldError(error, itemType, errors);
-            this.pushPatchResult(
+            this.push(
               exeContext,
               push,
               stop,
+              payloadKey,
+              parentPayloadKey,
               null,
               errors,
               itemPath,
@@ -685,7 +741,7 @@ export class Executor {
         );
       };
       // eslint-disable-next-line node/callback-return
-      next(initialIndex);
+      next(initialIndex, parentPayloadKey);
     }
   }
 
@@ -840,6 +896,8 @@ export class Executor {
       iteratorInstructions: [],
       asyncIteratorInstructions: [],
       pendingPushes: 0,
+      pushedPayloads: new Map(),
+      pendingPayloads: new Map(),
       closed: false,
       unfinishedIterators: new Set(),
     };
@@ -907,10 +965,14 @@ export class Executor {
       path,
       fields,
       errors,
+      fields,
     );
+
+    exeContext.pushedPayloads.set(fields, true);
 
     if (patches.length) {
       exeContext.patchInstructionSets.push({
+        parentPayloadKey: fields,
         patches,
         parentType: rootType,
         source: rootValue,
@@ -960,6 +1022,8 @@ export class Executor {
     sourceValue: unknown,
     path: Path | undefined,
     fields: Map<string, ReadonlyArray<FieldNode>>,
+    errors: Array<GraphQLError>,
+    payloadKey: PayloadKey,
   ): PromiseOrValue<ObjMap<unknown>> {
     return promiseReduce(
       fields.entries(),
@@ -971,7 +1035,8 @@ export class Executor {
           sourceValue,
           fieldNodes,
           fieldPath,
-          exeContext.errors,
+          errors,
+          payloadKey,
         );
         if (result === undefined) {
           return results;
@@ -1000,6 +1065,7 @@ export class Executor {
     path: Path | undefined,
     fields: Map<string, ReadonlyArray<FieldNode>>,
     errors: Array<GraphQLError>,
+    payloadKey: PayloadKey,
   ): PromiseOrValue<ObjMap<unknown>> {
     const results = Object.create(null);
     const promises: Array<Promise<void>> = [];
@@ -1013,6 +1079,7 @@ export class Executor {
         fieldNodes,
         fieldPath,
         errors,
+        payloadKey,
       );
 
       if (result !== undefined) {
@@ -1051,6 +1118,7 @@ export class Executor {
     fieldNodes: ReadonlyArray<FieldNode>,
     path: Path,
     errors: Array<GraphQLError>,
+    payloadKey: PayloadKey,
   ): PromiseOrValue<unknown> {
     const fieldDef = this.getFieldDef(
       exeContext.schema,
@@ -1093,6 +1161,7 @@ export class Executor {
             path,
             resolved,
             errors,
+            payloadKey,
           ),
         );
       } else {
@@ -1104,6 +1173,7 @@ export class Executor {
           path,
           result,
           errors,
+          payloadKey,
         );
       }
 
@@ -1191,6 +1261,7 @@ export class Executor {
     path: Path,
     result: unknown,
     errors: Array<GraphQLError>,
+    payloadKey: PayloadKey,
   ): PromiseOrValue<unknown> {
     // If result is an Error, throw a located error.
     if (result instanceof Error) {
@@ -1208,6 +1279,7 @@ export class Executor {
         path,
         result,
         errors,
+        payloadKey,
       );
       if (completed === null) {
         throw new Error(
@@ -1232,6 +1304,7 @@ export class Executor {
         path,
         result,
         errors,
+        payloadKey,
       );
     }
 
@@ -1252,6 +1325,7 @@ export class Executor {
         path,
         result,
         errors,
+        payloadKey,
       );
     }
 
@@ -1266,6 +1340,7 @@ export class Executor {
         path,
         result,
         errors,
+        payloadKey,
       );
     }
 
@@ -1288,6 +1363,7 @@ export class Executor {
     path: Path,
     result: unknown,
     errors: Array<GraphQLError>,
+    payloadKey: PayloadKey,
   ): PromiseOrValue<ReadonlyArray<unknown>> {
     const itemType = returnType.ofType;
 
@@ -1302,6 +1378,7 @@ export class Executor {
         path,
         iterator,
         errors,
+        payloadKey,
       );
     }
 
@@ -1320,6 +1397,7 @@ export class Executor {
       path,
       iterator,
       errors,
+      payloadKey,
     );
   }
 
@@ -1378,6 +1456,7 @@ export class Executor {
     path: Path,
     iterator: Iterator<unknown>,
     errors: Array<GraphQLError>,
+    payloadKey: PayloadKey,
   ): PromiseOrValue<ReadonlyArray<unknown>> {
     const stream = this.getStreamValues(exeContext, fieldNodes);
 
@@ -1394,6 +1473,7 @@ export class Executor {
         index >= stream.initialCount
       ) {
         exeContext.iteratorInstructions.push({
+          parentPayloadKey: payloadKey,
           iterator,
           itemType,
           fieldNodes,
@@ -1423,6 +1503,7 @@ export class Executor {
         info,
         itemPath,
         errors,
+        payloadKey,
       );
 
       index++;
@@ -1444,6 +1525,7 @@ export class Executor {
     path: Path,
     iterator: AsyncIterator<unknown>,
     errors: Array<GraphQLError>,
+    payloadKey: PayloadKey,
   ): Promise<ReadonlyArray<unknown>> {
     const stream = this.getStreamValues(exeContext, fieldNodes);
 
@@ -1457,6 +1539,7 @@ export class Executor {
           index >= stream.initialCount
         ) {
           exeContext.asyncIteratorInstructions.push({
+            parentPayloadKey: payloadKey,
             asyncIterator: iterator,
             itemType,
             fieldNodes,
@@ -1488,6 +1571,7 @@ export class Executor {
               info,
               itemPath,
               errors,
+              payloadKey,
             );
 
             next(index + 1);
@@ -1523,6 +1607,7 @@ export class Executor {
     info: GraphQLResolveInfo,
     itemPath: Path,
     errors: Array<GraphQLError>,
+    payloadKey: PayloadKey,
   ): void {
     try {
       let completedItem;
@@ -1536,6 +1621,7 @@ export class Executor {
             itemPath,
             resolved,
             errors,
+            payloadKey,
           ),
         );
       } else {
@@ -1547,6 +1633,7 @@ export class Executor {
           itemPath,
           item,
           errors,
+          payloadKey,
         );
       }
 
@@ -1607,6 +1694,7 @@ export class Executor {
     path: Path,
     result: unknown,
     errors: Array<GraphQLError>,
+    payloadKey: PayloadKey,
   ): PromiseOrValue<ObjMap<unknown>> {
     const resolveTypeFn = returnType.resolveType ?? exeContext.typeResolver;
     const contextValue = exeContext.contextValue;
@@ -1629,6 +1717,7 @@ export class Executor {
           path,
           result,
           errors,
+          payloadKey,
         ),
       );
     }
@@ -1648,6 +1737,7 @@ export class Executor {
       path,
       result,
       errors,
+      payloadKey,
     );
   }
 
@@ -1717,6 +1807,7 @@ export class Executor {
     path: Path,
     result: unknown,
     errors: Array<GraphQLError>,
+    payloadKey: PayloadKey,
   ): PromiseOrValue<ObjMap<unknown>> {
     // If there is an isTypeOf predicate function, call it with the
     // current result. If isTypeOf returns false, then raise an error rather
@@ -1740,6 +1831,7 @@ export class Executor {
             path,
             result,
             errors,
+            payloadKey,
           );
         });
       }
@@ -1756,6 +1848,7 @@ export class Executor {
       path,
       result,
       errors,
+      payloadKey,
     );
   }
 
@@ -1779,6 +1872,7 @@ export class Executor {
     path: Path,
     result: unknown,
     errors: Array<GraphQLError>,
+    payloadKey: PayloadKey,
   ): PromiseOrValue<ObjMap<unknown>> {
     // Collect sub-fields to execute to complete this value.
     const { fields: subFieldNodes, patches: subPatches } =
@@ -1791,10 +1885,12 @@ export class Executor {
       path,
       subFieldNodes,
       errors,
+      payloadKey,
     );
 
     if (subPatches.length) {
       exeContext.patchInstructionSets.push({
+        parentPayloadKey: payloadKey,
         patches: subPatches,
         parentType: returnType,
         source: result,
@@ -2020,6 +2116,54 @@ export class Executor {
     );
   }
 
+  push(
+    exeContext: ExecutionContext,
+    push: Push<ExecutionPatchResult>,
+    stop: Stop,
+    payloadKey: PayloadKey,
+    parentPayloadKey: PayloadKey,
+    data: ObjMap<unknown> | unknown | null,
+    errors: ReadonlyArray<GraphQLError>,
+    path?: Path,
+    label?: string,
+  ): void {
+    exeContext.pendingPushes--;
+
+    const pushedPayloads = exeContext.pushedPayloads;
+    if (pushedPayloads.get(parentPayloadKey)) {
+      pushedPayloads.set(payloadKey, true);
+      this.pushPatchResult(exeContext, push, stop, data, errors, path, label);
+      this.pushPendingPatchResults(exeContext, push, stop, payloadKey);
+      return;
+    }
+
+    const pendingPayloads = exeContext.pendingPayloads;
+    const parentPendingPayloads = pendingPayloads.get(parentPayloadKey);
+    const patchResult = { data, errors, path, label };
+    if (parentPendingPayloads) {
+      parentPendingPayloads.push({ payloadKey, patchResult });
+    } else {
+      pendingPayloads.set(parentPayloadKey, [{ payloadKey, patchResult }]);
+    }
+  }
+
+  pushPendingPatchResults(
+    exeContext: ExecutionContext,
+    push: Push<ExecutionPatchResult>,
+    stop: Stop,
+    parentPayloadKey: PayloadKey,
+  ): void {
+    const parentPendingPayloads =
+      exeContext.pendingPayloads.get(parentPayloadKey);
+    if (parentPendingPayloads) {
+      for (const { payloadKey, patchResult } of parentPendingPayloads) {
+        const { data, errors, path, label } = patchResult;
+        this.pushPatchResult(exeContext, push, stop, data, errors, path, label);
+        this.pushPendingPatchResults(exeContext, push, stop, payloadKey);
+      }
+    }
+  }
+
   pushPatchResult(
     exeContext: ExecutionContext,
     push: Push<ExecutionPatchResult>,
@@ -2029,8 +2173,6 @@ export class Executor {
     path?: Path,
     label?: string,
   ): void {
-    exeContext.pendingPushes--;
-
     const hasNext = this.hasNext(exeContext);
 
     if (!hasNext) {
