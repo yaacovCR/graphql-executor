@@ -296,6 +296,7 @@ class Executor {
             errors,
           ),
         ).then((deferredData) => {
+          this.processInstructions(exeContext, push, stop);
           this.pushPatchResult(
             exeContext,
             push,
@@ -351,6 +352,7 @@ class Executor {
             return this.handleFieldError(error, itemType, errors);
           })
           .then((completed) => {
+            this.processInstructions(exeContext, push, stop);
             this.pushPatchResult(
               exeContext,
               push,
@@ -422,6 +424,7 @@ class Executor {
                 errors,
               );
             } catch (rawError) {
+              this.processInstructions(exeContext, push, stop);
               const error = (0, _graphql.locatedError)(
                 rawError,
                 fieldNodes,
@@ -443,6 +446,7 @@ class Executor {
             if ((0, _isPromise.isPromise)(completedItem)) {
               completedItem.then(
                 (resolved) => {
+                  this.processInstructions(exeContext, push, stop);
                   this.pushPatchResult(
                     exeContext,
                     push,
@@ -454,6 +458,7 @@ class Executor {
                   );
                 },
                 (rawError) => {
+                  this.processInstructions(exeContext, push, stop);
                   const error = (0, _graphql.locatedError)(
                     rawError,
                     fieldNodes,
@@ -474,6 +479,7 @@ class Executor {
               return;
             }
 
+            this.processInstructions(exeContext, push, stop);
             this.pushPatchResult(
               exeContext,
               push,
@@ -485,6 +491,7 @@ class Executor {
             );
           },
           (rawError) => {
+            this.processInstructions(exeContext, push, stop);
             unfinishedIterators.delete(asyncIterator);
             const error = (0, _graphql.locatedError)(
               rawError,
@@ -1820,10 +1827,7 @@ class Executor {
         }
 
         stop();
-        return;
       }
-
-      this.processInstructions(exeContext, push, stop);
     });
   }
 }
