@@ -343,26 +343,38 @@ class Executor {
             ),
           ) // Note: we don't rely on a `catch` method, but we do expect "thenable"
           // to take a second callback for the error case.
-          .then(undefined, (rawError) => {
-            const error = (0, _graphql.locatedError)(
-              rawError,
-              fieldNodes,
-              (0, _Path.pathToArray)(itemPath),
-            );
-            return this.handleFieldError(error, itemType, errors);
-          })
-          .then((completed) => {
-            this.processInstructions(exeContext, push, stop);
-            this.pushPatchResult(
-              exeContext,
-              push,
-              stop,
-              completed,
-              errors,
-              itemPath,
-              label,
-            );
-          });
+          .then(
+            (completed) => {
+              this.processInstructions(exeContext, push, stop);
+              this.pushPatchResult(
+                exeContext,
+                push,
+                stop,
+                completed,
+                errors,
+                itemPath,
+                label,
+              );
+            },
+            (rawError) => {
+              const error = (0, _graphql.locatedError)(
+                rawError,
+                fieldNodes,
+                (0, _Path.pathToArray)(itemPath),
+              );
+              this.handleFieldError(error, itemType, errors);
+              this.pushPatchResult(
+                exeContext,
+                push,
+                stop,
+                null,
+                errors,
+                itemPath,
+                label,
+              );
+            },
+          )
+          .then();
         index++;
         iteration = iterator.next();
       }
@@ -424,7 +436,6 @@ class Executor {
                 errors,
               );
             } catch (rawError) {
-              this.processInstructions(exeContext, push, stop);
               const error = (0, _graphql.locatedError)(
                 rawError,
                 fieldNodes,
@@ -458,7 +469,6 @@ class Executor {
                   );
                 },
                 (rawError) => {
-                  this.processInstructions(exeContext, push, stop);
                   const error = (0, _graphql.locatedError)(
                     rawError,
                     fieldNodes,
@@ -491,7 +501,6 @@ class Executor {
             );
           },
           (rawError) => {
-            this.processInstructions(exeContext, push, stop);
             unfinishedIterators.delete(asyncIterator);
             const error = (0, _graphql.locatedError)(
               rawError,
