@@ -510,26 +510,38 @@ export class Executor {
             ),
           ) // Note: we don't rely on a `catch` method, but we do expect "thenable"
           // to take a second callback for the error case.
-          .then(undefined, (rawError) => {
-            const error = locatedError(
-              rawError,
-              fieldNodes,
-              pathToArray(itemPath),
-            );
-            return this.handleFieldError(error, itemType, errors);
-          })
-          .then((completed) => {
-            this.processInstructions(exeContext, push, stop);
-            this.pushPatchResult(
-              exeContext,
-              push,
-              stop,
-              completed,
-              errors,
-              itemPath,
-              label,
-            );
-          });
+          .then(
+            (completed) => {
+              this.processInstructions(exeContext, push, stop);
+              this.pushPatchResult(
+                exeContext,
+                push,
+                stop,
+                completed,
+                errors,
+                itemPath,
+                label,
+              );
+            },
+            (rawError) => {
+              const error = locatedError(
+                rawError,
+                fieldNodes,
+                pathToArray(itemPath),
+              );
+              this.handleFieldError(error, itemType, errors);
+              this.pushPatchResult(
+                exeContext,
+                push,
+                stop,
+                null,
+                errors,
+                itemPath,
+                label,
+              );
+            },
+          )
+          .then();
         index++;
         iteration = iterator.next();
       }
@@ -591,7 +603,6 @@ export class Executor {
                 errors,
               );
             } catch (rawError) {
-              this.processInstructions(exeContext, push, stop);
               const error = locatedError(
                 rawError,
                 fieldNodes,
@@ -625,7 +636,6 @@ export class Executor {
                   );
                 },
                 (rawError) => {
-                  this.processInstructions(exeContext, push, stop);
                   const error = locatedError(
                     rawError,
                     fieldNodes,
@@ -658,7 +668,6 @@ export class Executor {
             );
           },
           (rawError) => {
-            this.processInstructions(exeContext, push, stop);
             unfinishedIterators.delete(asyncIterator);
             const error = locatedError(
               rawError,
