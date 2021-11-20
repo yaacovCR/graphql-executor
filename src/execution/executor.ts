@@ -675,7 +675,7 @@ export class Executor {
                     push,
                     stop,
                     payloadKey,
-                    parentPayloadKey,
+                    prevPayloadKey,
                     resolved,
                     errors,
                     itemPath,
@@ -694,7 +694,7 @@ export class Executor {
                     push,
                     stop,
                     payloadKey,
-                    parentPayloadKey,
+                    prevPayloadKey,
                     null,
                     errors,
                     itemPath,
@@ -711,7 +711,7 @@ export class Executor {
               push,
               stop,
               payloadKey,
-              parentPayloadKey,
+              prevPayloadKey,
               completedItem,
               errors,
               itemPath,
@@ -731,7 +731,7 @@ export class Executor {
               push,
               stop,
               payloadKey,
-              parentPayloadKey,
+              prevPayloadKey,
               null,
               errors,
               itemPath,
@@ -2127,8 +2127,6 @@ export class Executor {
     path?: Path,
     label?: string,
   ): void {
-    exeContext.pendingPushes--;
-
     const pushedPayloads = exeContext.pushedPayloads;
     if (pushedPayloads.get(parentPayloadKey)) {
       pushedPayloads.set(payloadKey, true);
@@ -2173,6 +2171,8 @@ export class Executor {
     path?: Path,
     label?: string,
   ): void {
+    exeContext.pendingPushes--;
+
     const hasNext = this.hasNext(exeContext);
 
     if (!hasNext) {

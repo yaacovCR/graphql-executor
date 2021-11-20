@@ -314,10 +314,14 @@ describe('Execute: defer directive', () => {
       fragment HeroFragment on Hero {
         delayedName
         friends {
-          ...FriendFragment @defer(label: "DeferFriend")
+          ...FriendIDFragment @defer(label: "DeferFriendID")
+          ...FriendNameFragment @defer(label: "DeferFriendName")
         }
       }
-      fragment FriendFragment on Friend {
+      fragment FriendIDFragment on Friend {
+        id
+      }
+      fragment FriendNameFragment on Friend {
         name
       }
     `);
@@ -341,10 +345,26 @@ describe('Execute: defer directive', () => {
       },
       {
         data: {
+          id: '2',
+        },
+        path: ['hero', 'friends', 0],
+        label: 'DeferFriendID',
+        hasNext: true,
+      },
+      {
+        data: {
           name: 'Han',
         },
         path: ['hero', 'friends', 0],
-        label: 'DeferFriend',
+        label: 'DeferFriendName',
+        hasNext: true,
+      },
+      {
+        data: {
+          id: '3',
+        },
+        path: ['hero', 'friends', 1],
+        label: 'DeferFriendID',
         hasNext: true,
       },
       {
@@ -352,7 +372,15 @@ describe('Execute: defer directive', () => {
           name: 'Leia',
         },
         path: ['hero', 'friends', 1],
-        label: 'DeferFriend',
+        label: 'DeferFriendName',
+        hasNext: true,
+      },
+      {
+        data: {
+          id: '4',
+        },
+        path: ['hero', 'friends', 2],
+        label: 'DeferFriendID',
         hasNext: true,
       },
       {
@@ -360,7 +388,7 @@ describe('Execute: defer directive', () => {
           name: 'C-3PO',
         },
         path: ['hero', 'friends', 2],
-        label: 'DeferFriend',
+        label: 'DeferFriendName',
         hasNext: false,
       },
     ]);

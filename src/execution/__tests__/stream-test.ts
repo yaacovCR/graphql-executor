@@ -651,9 +651,6 @@ describe('Execute: stream directive', () => {
           id: '3',
         },
         path: ['asyncIterableList', 2],
-        hasNext: true,
-      },
-      {
         hasNext: false,
       },
     ]);
@@ -886,14 +883,6 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          id: '3',
-          name: 'Leia',
-        },
-        path: ['asyncIterableListNestedError', 2],
-        hasNext: true,
-      },
-      {
         errors: [
           {
             message: 'bad',
@@ -908,6 +897,14 @@ describe('Execute: stream directive', () => {
         ],
         data: null,
         path: ['asyncIterableListNestedError', 1],
+        hasNext: true,
+      },
+      {
+        data: {
+          id: '3',
+          name: 'Leia',
+        },
+        path: ['asyncIterableListNestedError', 2],
         hasNext: false,
       },
     ]);
