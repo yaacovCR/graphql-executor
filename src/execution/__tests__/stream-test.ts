@@ -5,7 +5,6 @@ import type { DocumentNode } from 'graphql';
 import {
   GraphQLID,
   GraphQLList,
-  GraphQLNonNull,
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
@@ -20,7 +19,7 @@ import { expectJSON } from '../../__testUtils__/expectJSON';
 
 const friendType = new GraphQLObjectType({
   fields: {
-    id: { type: new GraphQLNonNull(GraphQLID) },
+    id: { type: GraphQLID },
     name: { type: GraphQLString },
     asyncName: {
       type: GraphQLString,
@@ -78,14 +77,6 @@ const query = new GraphQLObjectType({
       async *resolve() {
         yield await Promise.resolve(friends[0].name);
         yield await Promise.resolve({});
-      },
-    },
-    asyncIterableListNestedError: {
-      type: new GraphQLList(friendType),
-      async *resolve() {
-        yield await Promise.resolve(friends[0]);
-        yield await Promise.resolve({ id: Promise.reject(new Error('bad')) });
-        yield await Promise.resolve(friends[2]);
       },
     },
     asyncIterableListDelayed: {
@@ -679,56 +670,6 @@ describe('Execute: stream directive', () => {
           asyncName: 'Leia',
         },
         path: ['asyncIterableList', 2],
-        hasNext: false,
-      },
-    ]);
-  });
-
-  it('Handles rejected promises returned by completeValue after initialCount is reached', async () => {
-    const document = parse(`
-      query { 
-        asyncIterableListNestedError @stream(initialCount: 1) {
-          id
-          name
-        }
-      }
-    `);
-    const result = await complete(document);
-    expectJSON(result).toDeepEqual([
-      {
-        data: {
-          asyncIterableListNestedError: [
-            {
-              id: '1',
-              name: 'Luke',
-            },
-          ],
-        },
-        hasNext: true,
-      },
-      {
-        data: {
-          id: '3',
-          name: 'Leia',
-        },
-        path: ['asyncIterableListNestedError', 2],
-        hasNext: true,
-      },
-      {
-        errors: [
-          {
-            message: 'bad',
-            locations: [
-              {
-                line: 4,
-                column: 11,
-              },
-            ],
-            path: ['asyncIterableListNestedError', 1, 'id'],
-          },
-        ],
-        data: null,
-        path: ['asyncIterableListNestedError', 1],
         hasNext: false,
       },
     ]);
