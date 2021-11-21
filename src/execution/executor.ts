@@ -469,14 +469,15 @@ export class Executor {
             errors,
           ),
         ).then((deferredData) => {
-          this.pushPatchResult(
+          exeContext.pendingPushes--;
+          this.pushResult(
             exeContext,
             push,
             stop,
             deferredData,
-            errors,
-            path,
             label,
+            path,
+            errors,
           );
         });
       }
@@ -530,14 +531,15 @@ export class Executor {
             return this.handleFieldError(error, itemType, errors);
           })
           .then((completed) => {
-            this.pushPatchResult(
+            exeContext.pendingPushes--;
+            this.pushResult(
               exeContext,
               push,
               stop,
               completed,
-              errors,
-              itemPath,
               label,
+              itemPath,
+              errors,
             );
           });
 
@@ -604,14 +606,15 @@ export class Executor {
                 pathToArray(itemPath),
               );
               this.handleFieldError(error, itemType, errors);
-              this.pushPatchResult(
+              exeContext.pendingPushes--;
+              this.pushResult(
                 exeContext,
                 push,
                 stop,
                 null,
-                errors,
-                itemPath,
                 label,
+                itemPath,
+                errors,
               );
               return;
             }
@@ -619,14 +622,15 @@ export class Executor {
             if (isPromise(completedItem)) {
               completedItem.then(
                 (resolved) => {
-                  this.pushPatchResult(
+                  exeContext.pendingPushes--;
+                  this.pushResult(
                     exeContext,
                     push,
                     stop,
                     resolved,
-                    errors,
-                    itemPath,
                     label,
+                    itemPath,
+                    errors,
                   );
                 },
                 (rawError) => {
@@ -636,28 +640,30 @@ export class Executor {
                     pathToArray(itemPath),
                   );
                   this.handleFieldError(error, itemType, errors);
-                  this.pushPatchResult(
+                  exeContext.pendingPushes--;
+                  this.pushResult(
                     exeContext,
                     push,
                     stop,
                     null,
-                    errors,
-                    itemPath,
                     label,
+                    itemPath,
+                    errors,
                   );
                 },
               );
               return;
             }
 
-            this.pushPatchResult(
+            exeContext.pendingPushes--;
+            this.pushResult(
               exeContext,
               push,
               stop,
               completedItem,
-              errors,
-              itemPath,
               label,
+              itemPath,
+              errors,
             );
           },
           (rawError) => {
@@ -668,14 +674,15 @@ export class Executor {
               pathToArray(itemPath),
             );
             this.handleFieldError(error, itemType, errors);
-            this.pushPatchResult(
+            exeContext.pendingPushes--;
+            this.pushResult(
               exeContext,
               push,
               stop,
               null,
-              errors,
-              itemPath,
               label,
+              itemPath,
+              errors,
             );
           },
         );
@@ -2016,17 +2023,15 @@ export class Executor {
     );
   }
 
-  pushPatchResult(
+  pushResult(
     exeContext: ExecutionContext,
     push: Push<ExecutionResult | AsyncExecutionResult>,
     stop: Stop,
     data: ObjMap<unknown> | unknown | null,
-    errors: ReadonlyArray<GraphQLError>,
-    path?: Path,
     label?: string,
+    path?: Path,
+    errors?: ReadonlyArray<GraphQLError>,
   ): void {
-    exeContext.pendingPushes--;
-
     const hasNext = this.hasNext(exeContext);
 
     if (!hasNext) {
