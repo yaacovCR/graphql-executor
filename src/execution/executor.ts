@@ -417,22 +417,34 @@ export class Executor {
     push: Push<AsyncExecutionResult>,
     stop: Stop,
   ): void {
-    const {
-      patchInstructionSets,
-      iteratorInstructions,
-      asyncIteratorInstructions,
-    } = exeContext;
-    exeContext.patchInstructionSets = [];
-    exeContext.iteratorInstructions = [];
-    exeContext.asyncIteratorInstructions = [];
-    this.pushPatchInstructionSets(exeContext, patchInstructionSets, push, stop);
-    this.pushIteratorInstructions(exeContext, iteratorInstructions, push, stop);
-    this.pushAsyncIteratorInstructions(
-      exeContext,
-      asyncIteratorInstructions,
-      push,
-      stop,
-    );
+    while (this.hasPendingInstructions(exeContext)) {
+      const {
+        patchInstructionSets,
+        iteratorInstructions,
+        asyncIteratorInstructions,
+      } = exeContext;
+      exeContext.patchInstructionSets = [];
+      exeContext.iteratorInstructions = [];
+      exeContext.asyncIteratorInstructions = [];
+      this.pushPatchInstructionSets(
+        exeContext,
+        patchInstructionSets,
+        push,
+        stop,
+      );
+      this.pushIteratorInstructions(
+        exeContext,
+        iteratorInstructions,
+        push,
+        stop,
+      );
+      this.pushAsyncIteratorInstructions(
+        exeContext,
+        asyncIteratorInstructions,
+        push,
+        stop,
+      );
+    }
   }
 
   pushPatchInstructionSets(
