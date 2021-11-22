@@ -463,9 +463,6 @@ describe('Execute: stream directive', () => {
           id: '3',
         },
         path: ['asyncIterableList', 2],
-        hasNext: true,
-      },
-      {
         hasNext: false,
       },
     ]);
@@ -507,14 +504,12 @@ describe('Execute: stream directive', () => {
             id: '3',
           },
           path: ['asyncIterableList', 2],
-          hasNext: true,
+          hasNext: false,
         },
       },
       {
-        done: false,
-        value: {
-          hasNext: false,
-        },
+        done: true,
+        value: undefined,
       },
       {
         done: true,
@@ -626,9 +621,6 @@ describe('Execute: stream directive', () => {
             path: ['asyncIterableInvalid', 1],
           },
         ],
-        hasNext: true,
-      },
-      {
         hasNext: false,
       },
     ]);
@@ -670,9 +662,6 @@ describe('Execute: stream directive', () => {
           asyncName: 'Leia',
         },
         path: ['asyncIterableList', 2],
-        hasNext: true,
-      },
-      {
         hasNext: false,
       },
     ]);
@@ -720,18 +709,18 @@ describe('Execute: stream directive', () => {
       },
       {
         data: {
-          id: '3',
-        },
-        path: ['asyncIterableList', 2],
-        label: 'stream-label',
-        hasNext: true,
-      },
-      {
-        data: {
           name: 'Han',
         },
         path: ['asyncIterableList', 1],
         label: 'DeferName',
+        hasNext: true,
+      },
+      {
+        data: {
+          id: '3',
+        },
+        path: ['asyncIterableList', 2],
+        label: 'stream-label',
         hasNext: true,
       },
       {
@@ -786,18 +775,18 @@ describe('Execute: stream directive', () => {
       },
       {
         data: {
-          id: '3',
-        },
-        path: ['asyncIterableListDelayedClose', 2],
-        label: 'stream-label',
-        hasNext: true,
-      },
-      {
-        data: {
           name: 'Han',
         },
         path: ['asyncIterableListDelayedClose', 1],
         label: 'DeferName',
+        hasNext: true,
+      },
+      {
+        data: {
+          id: '3',
+        },
+        path: ['asyncIterableListDelayedClose', 2],
+        label: 'stream-label',
         hasNext: true,
       },
       {
@@ -846,27 +835,11 @@ describe('Execute: stream directive', () => {
 
     iterator.return?.();
 
-    // this result had started processing before return was called
+    // all calls to return and next settle in call order
     const result2 = await iterator.next();
     expect(result2).to.deep.equal({
-      done: false,
-      value: {
-        data: {
-          id: '2',
-          name: 'Han',
-        },
-        hasNext: true,
-        path: ['asyncIterableListDelayed', 1],
-      },
-    });
-
-    // third result is not returned because async iterator has returned
-    const result3 = await iterator.next();
-    expect(result3).to.deep.equal({
-      done: false,
-      value: {
-        hasNext: false,
-      },
+      done: true,
+      value: undefined,
     });
   });
   it('Can return async iterable when underlying iterable does not have a return method', async () => {
@@ -902,27 +875,11 @@ describe('Execute: stream directive', () => {
 
     iterator.return?.();
 
-    // this result had started processing before return was called
+    // all calls to return and next settle in call order
     const result2 = await iterator.next();
     expect(result2).to.deep.equal({
-      done: false,
-      value: {
-        data: {
-          id: '2',
-          name: 'Han',
-        },
-        hasNext: true,
-        path: ['asyncIterableListNoReturn', 1],
-      },
-    });
-
-    // third result is not returned because async iterator has returned
-    const result3 = await iterator.next();
-    expect(result3).to.deep.equal({
-      done: false,
-      value: {
-        hasNext: false,
-      },
+      done: true,
+      value: undefined,
     });
   });
   it('Returns underlying async iterables when dispatcher is thrown', async () => {
@@ -958,27 +915,11 @@ describe('Execute: stream directive', () => {
 
     iterator.throw?.(new Error('bad'));
 
-    // this result had started processing before return was called
+    // all calls to throw and next settle in call order
     const result2 = await iterator.next();
     expect(result2).to.deep.equal({
-      done: false,
-      value: {
-        data: {
-          id: '2',
-          name: 'Han',
-        },
-        hasNext: true,
-        path: ['asyncIterableListDelayed', 1],
-      },
-    });
-
-    // third result is not returned because async iterator has returned
-    const result3 = await iterator.next();
-    expect(result3).to.deep.equal({
-      done: false,
-      value: {
-        hasNext: false,
-      },
+      done: true,
+      value: undefined,
     });
   });
 });
