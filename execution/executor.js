@@ -34,8 +34,6 @@ var _isIterableObject = require('../jsutils/isIterableObject.js');
 
 var _resolveAfterAll = require('../jsutils/resolveAfterAll.js');
 
-var _repeater = require('../jsutils/repeater.js');
-
 var _values = require('./values.js');
 
 var _collectFields = require('./collectFields.js');
@@ -248,281 +246,11 @@ class Executor {
             data,
           };
 
-    if (this.hasPendingInstructions(exeContext)) {
-      return new _repeater.Repeater((push, stop) => {
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        push({ ...initialResult, hasNext: true });
-        this.processInstructions(exeContext, push, stop);
-      });
+    if (this.hasSubsequentPayloads(exeContext)) {
+      return this.get(exeContext, initialResult);
     }
 
     return initialResult;
-  }
-
-  processInstructions(exeContext, push, stop) {
-    const {
-      patchInstructionSets,
-      iteratorInstructions,
-      asyncIteratorInstructions,
-    } = exeContext;
-    exeContext.patchInstructionSets = [];
-    exeContext.iteratorInstructions = [];
-    exeContext.asyncIteratorInstructions = [];
-    this.pushPatchInstructionSets(exeContext, patchInstructionSets, push, stop);
-    this.pushIteratorInstructions(exeContext, iteratorInstructions, push, stop);
-    this.pushAsyncIteratorInstructions(
-      exeContext,
-      asyncIteratorInstructions,
-      push,
-      stop,
-    );
-  }
-
-  pushPatchInstructionSets(exeContext, patchInstructionSets, push, stop) {
-    for (const patchInstructionSet of patchInstructionSets) {
-      const { patches, parentType, source, path } = patchInstructionSet;
-
-      for (const { fields, label } of patches) {
-        const errors = [];
-        exeContext.pendingPushes++; // eslint-disable-next-line @typescript-eslint/no-floating-promises
-
-        Promise.resolve(
-          this.executeFields(
-            exeContext,
-            parentType,
-            source,
-            path,
-            fields,
-            errors,
-          ),
-        ).then((deferredData) => {
-          this.processInstructions(exeContext, push, stop);
-          this.pushPatchResult(
-            exeContext,
-            push,
-            stop,
-            deferredData,
-            errors,
-            path,
-            label,
-          );
-        });
-      }
-    }
-  }
-
-  pushIteratorInstructions(exeContext, iteratorInstructions, push, stop) {
-    for (const iteratorInstruction of iteratorInstructions) {
-      const {
-        iterator,
-        itemType,
-        fieldNodes,
-        info,
-        initialIndex,
-        path,
-        label,
-      } = iteratorInstruction;
-      let index = initialIndex;
-      let iteration = iterator.next();
-
-      while (!iteration.done) {
-        const itemPath = (0, _Path.addPath)(path, index, undefined);
-        const errors = [];
-        exeContext.pendingPushes++; // eslint-disable-next-line @typescript-eslint/no-floating-promises
-
-        Promise.resolve(iteration.value)
-          .then((resolved) =>
-            this.completeValue(
-              exeContext,
-              itemType,
-              fieldNodes,
-              info,
-              itemPath,
-              resolved,
-              errors,
-            ),
-          ) // Note: we don't rely on a `catch` method, but we do expect "thenable"
-          // to take a second callback for the error case.
-          .then(
-            (completed) => {
-              this.processInstructions(exeContext, push, stop);
-              this.pushPatchResult(
-                exeContext,
-                push,
-                stop,
-                completed,
-                errors,
-                itemPath,
-                label,
-              );
-            },
-            (rawError) => {
-              const error = (0, _graphql.locatedError)(
-                rawError,
-                fieldNodes,
-                (0, _Path.pathToArray)(itemPath),
-              );
-              this.handleFieldError(error, itemType, errors);
-              this.pushPatchResult(
-                exeContext,
-                push,
-                stop,
-                null,
-                errors,
-                itemPath,
-                label,
-              );
-            },
-          )
-          .then();
-        index++;
-        iteration = iterator.next();
-      }
-    }
-  }
-
-  pushAsyncIteratorInstructions(
-    exeContext,
-    asyncIteratorInstructions,
-    push,
-    stop,
-  ) {
-    const { unfinishedIterators } = exeContext;
-
-    for (const asyncIteratorInstruction of asyncIteratorInstructions) {
-      const {
-        asyncIterator,
-        itemType,
-        fieldNodes,
-        info,
-        initialIndex,
-        path,
-        label,
-      } = asyncIteratorInstruction;
-      unfinishedIterators.add(asyncIterator);
-
-      const next = (index) => {
-        const itemPath = (0, _Path.addPath)(path, index, undefined);
-        const errors = [];
-        asyncIterator.next().then(
-          ({ value, done }) => {
-            if (done) {
-              unfinishedIterators.delete(asyncIterator);
-
-              if (!this.hasNext(exeContext)) {
-                // eslint-disable-next-line @typescript-eslint/no-floating-promises
-                push({
-                  hasNext: false,
-                });
-                stop();
-              }
-
-              return;
-            }
-
-            exeContext.pendingPushes++; // eslint-disable-next-line node/callback-return
-
-            next(index + 1);
-            let completedItem;
-
-            try {
-              completedItem = this.completeValue(
-                exeContext,
-                itemType,
-                fieldNodes,
-                info,
-                itemPath,
-                value,
-                errors,
-              );
-            } catch (rawError) {
-              const error = (0, _graphql.locatedError)(
-                rawError,
-                fieldNodes,
-                (0, _Path.pathToArray)(itemPath),
-              );
-              this.handleFieldError(error, itemType, errors);
-              this.pushPatchResult(
-                exeContext,
-                push,
-                stop,
-                null,
-                errors,
-                itemPath,
-                label,
-              );
-              return;
-            }
-
-            if ((0, _isPromise.isPromise)(completedItem)) {
-              completedItem.then(
-                (resolved) => {
-                  this.processInstructions(exeContext, push, stop);
-                  this.pushPatchResult(
-                    exeContext,
-                    push,
-                    stop,
-                    resolved,
-                    errors,
-                    itemPath,
-                    label,
-                  );
-                },
-                (rawError) => {
-                  const error = (0, _graphql.locatedError)(
-                    rawError,
-                    fieldNodes,
-                    (0, _Path.pathToArray)(itemPath),
-                  );
-                  this.handleFieldError(error, itemType, errors);
-                  this.pushPatchResult(
-                    exeContext,
-                    push,
-                    stop,
-                    null,
-                    errors,
-                    itemPath,
-                    label,
-                  );
-                },
-              );
-              return;
-            }
-
-            this.processInstructions(exeContext, push, stop);
-            this.pushPatchResult(
-              exeContext,
-              push,
-              stop,
-              completedItem,
-              errors,
-              itemPath,
-              label,
-            );
-          },
-          (rawError) => {
-            unfinishedIterators.delete(asyncIterator);
-            const error = (0, _graphql.locatedError)(
-              rawError,
-              fieldNodes,
-              (0, _Path.pathToArray)(itemPath),
-            );
-            this.handleFieldError(error, itemType, errors);
-            this.pushPatchResult(
-              exeContext,
-              push,
-              stop,
-              null,
-              errors,
-              itemPath,
-              label,
-            );
-          },
-        );
-      }; // eslint-disable-next-line node/callback-return
-
-      next(initialIndex);
-    }
   }
   /**
    * Essential assertions before executing to provide developer feedback for
@@ -668,12 +396,10 @@ class Executor {
             )
           : this.buildFieldResolver('resolve', defaultResolveFieldValueFn),
       errors: [],
-      patchInstructionSets: [],
-      iteratorInstructions: [],
-      asyncIteratorInstructions: [],
-      pendingPushes: 0,
-      closed: false,
-      unfinishedIterators: new Set(),
+      subsequentPayloads: [],
+      iterators: [],
+      isDone: false,
+      hasReturnedInitialResult: false,
     };
   }
   /**
@@ -691,12 +417,6 @@ class Executor {
         exeContext.fieldResolver,
       ),
       errors: [],
-      patchInstructionSets: [],
-      iteratorInstructions: [],
-      asyncIteratorInstructions: [],
-      pendingPushes: 0,
-      closed: false,
-      unfinishedIterators: new Set(),
     };
   }
   /**
@@ -732,16 +452,7 @@ class Executor {
       fields,
       errors,
     );
-
-    if (patches.length) {
-      exeContext.patchInstructionSets.push({
-        patches,
-        parentType: rootType,
-        source: rootValue,
-        path,
-      });
-    }
-
+    this.addPatches(exeContext, patches, rootType, rootValue, path);
     return result;
   }
 
@@ -1180,15 +891,16 @@ class Executor {
         typeof stream.initialCount === 'number' &&
         index >= stream.initialCount
       ) {
-        exeContext.iteratorInstructions.push({
+        this.addIteratorValue(
+          index,
           iterator,
-          itemType,
+          exeContext,
           fieldNodes,
           info,
-          initialIndex: index,
+          itemType,
           path,
-          label: stream.label,
-        });
+          stream.label,
+        );
         break;
       }
 
@@ -1231,70 +943,70 @@ class Executor {
     iterator,
     errors,
   ) {
-    const stream = this.getStreamValues(exeContext, fieldNodes);
-    const completedResults = [];
+    const stream = this.getStreamValues(exeContext, fieldNodes); // This is specified as a simple map, however we're optimizing the path
+    // where the list contains no Promises by avoiding creating another Promise.
+
     const promises = [];
-    return new Promise((resolve) => {
-      const next = (index) => {
-        if (
-          stream &&
-          typeof stream.initialCount === 'number' &&
-          index >= stream.initialCount
-        ) {
-          exeContext.asyncIteratorInstructions.push({
-            asyncIterator: iterator,
-            itemType,
-            fieldNodes,
-            info,
-            initialIndex: index,
-            path,
-            label: stream.label,
-          });
-          resolve();
-          return;
-        }
+    const completedResults = [];
+    let index = 0; // eslint-disable-next-line no-constant-condition
 
-        const itemPath = (0, _Path.addPath)(path, index, undefined);
-        iterator.next().then(
-          ({ value, done }) => {
-            if (done) {
-              resolve();
-              return;
-            }
-
-            this.completeListItemValue(
-              completedResults,
-              index,
-              promises,
-              value,
-              exeContext,
-              itemType,
-              fieldNodes,
-              info,
-              itemPath,
-              errors,
-            );
-            next(index + 1);
-          },
-          (rawError) => {
-            completedResults.push(null);
-            const error = (0, _graphql.locatedError)(
-              rawError,
-              fieldNodes,
-              (0, _Path.pathToArray)(itemPath),
-            );
-            this.handleFieldError(error, itemType, errors);
-            resolve();
-          },
+    while (true) {
+      if (
+        stream &&
+        typeof stream.initialCount === 'number' &&
+        index >= stream.initialCount
+      ) {
+        this.addAsyncIteratorValue(
+          index,
+          iterator,
+          exeContext,
+          fieldNodes,
+          info,
+          itemType,
+          path,
+          stream.label,
         );
-      };
+        break;
+      }
 
-      next(0);
-    }).then(() =>
-      promises.length
-        ? (0, _resolveAfterAll.resolveAfterAll)(completedResults, promises)
-        : completedResults,
-    );
+      const itemPath = (0, _Path.addPath)(path, index, undefined);
+      let iteration;
+
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        iteration = await iterator.next();
+      } catch (rawError) {
+        const error = (0, _graphql.locatedError)(
+          rawError,
+          fieldNodes,
+          (0, _Path.pathToArray)(itemPath),
+        );
+        completedResults.push(this.handleFieldError(error, itemType, errors));
+        break;
+      }
+
+      if (iteration.done) {
+        break;
+      }
+
+      this.completeListItemValue(
+        completedResults,
+        index,
+        promises,
+        iteration.value,
+        exeContext,
+        itemType,
+        fieldNodes,
+        info,
+        itemPath,
+        errors,
+      );
+      index++;
+    }
+
+    return promises.length
+      ? (0, _resolveAfterAll.resolveAfterAll)(completedResults, promises)
+      : completedResults;
   }
 
   completeListItemValue(
@@ -1585,16 +1297,7 @@ class Executor {
       subFieldNodes,
       errors,
     );
-
-    if (subPatches.length) {
-      exeContext.patchInstructionSets.push({
-        patches: subPatches,
-        parentType: returnType,
-        source: result,
-        path,
-      });
-    }
-
+    this.addPatches(exeContext, subPatches, returnType, result, path);
     return subFields;
   }
   /**
@@ -1768,76 +1471,325 @@ class Executor {
     return this.executeQueryAlgorithm(exeContext);
   }
 
-  hasPendingInstructions(exeContext) {
-    const {
-      patchInstructionSets,
-      iteratorInstructions,
-      asyncIteratorInstructions,
-    } = exeContext;
-    return (
-      patchInstructionSets.length !== 0 ||
-      iteratorInstructions.length !== 0 ||
-      asyncIteratorInstructions.length !== 0
-    );
+  hasSubsequentPayloads(exeContext) {
+    return exeContext.subsequentPayloads.length !== 0;
   }
 
-  hasPendingValues(exeContext) {
-    const {
-      patchInstructionSets,
-      iteratorInstructions,
-      asyncIteratorInstructions,
-      unfinishedIterators,
-    } = exeContext;
-    return (
-      patchInstructionSets.length !== 0 ||
-      iteratorInstructions.length !== 0 ||
-      asyncIteratorInstructions.length !== 0 ||
-      unfinishedIterators.size !== 0
-    );
+  addPatches(exeContext, patches, parentType, source, path) {
+    for (const patch of patches) {
+      const { label, fields: patchFields } = patch;
+      const errors = [];
+      exeContext.subsequentPayloads.push(
+        Promise.resolve(
+          this.executeFields(
+            exeContext,
+            parentType,
+            source,
+            path,
+            patchFields,
+            errors,
+          ),
+        ).then((data) => ({
+          value: this.createPatchResult(data, label, path, errors),
+          done: false,
+        })),
+      );
+    }
   }
 
-  hasNext(exeContext) {
-    return (
-      this.hasPendingValues(exeContext) ||
-      exeContext.pendingPushes > 0 ||
-      exeContext.unfinishedIterators.size > 0
-    );
+  addIteratorValue(
+    initialIndex,
+    iterator,
+    exeContext,
+    fieldNodes,
+    info,
+    itemType,
+    path,
+    label,
+  ) {
+    let index = initialIndex;
+    let iteration = iterator.next();
+
+    while (!iteration.done) {
+      const itemPath = (0, _Path.addPath)(path, index, undefined);
+      const errors = [];
+      exeContext.subsequentPayloads.push(
+        Promise.resolve(iteration.value)
+          .then((resolved) =>
+            this.completeValue(
+              exeContext,
+              itemType,
+              fieldNodes,
+              info,
+              itemPath,
+              resolved,
+              errors,
+            ),
+          ) // Note: we don't rely on a `catch` method, but we do expect "thenable"
+          // to take a second callback for the error case.
+          .then(undefined, (rawError) => {
+            const error = (0, _graphql.locatedError)(
+              rawError,
+              fieldNodes,
+              (0, _Path.pathToArray)(itemPath),
+            );
+            return this.handleFieldError(error, itemType, errors);
+          })
+          .then((data) => ({
+            value: this.createPatchResult(data, label, itemPath, errors),
+            done: false,
+          })),
+      );
+      index++;
+      iteration = iterator.next();
+    }
   }
 
-  pushPatchResult(exeContext, push, stop, data, errors, path, label) {
-    exeContext.pendingPushes--;
-    const hasNext = this.hasNext(exeContext);
+  addAsyncIteratorValue(
+    initialIndex,
+    iterator,
+    exeContext,
+    fieldNodes,
+    info,
+    itemType,
+    path,
+    label,
+  ) {
+    const { subsequentPayloads, iterators } = exeContext;
+    iterators.push(iterator);
 
-    if (!hasNext) {
-      exeContext.closed = true;
+    const next = (index) => {
+      const itemPath = (0, _Path.addPath)(path, index, undefined);
+      const errors = [];
+      subsequentPayloads.push(
+        iterator.next().then(
+          ({ value: data, done }) => {
+            if (done) {
+              iterators.splice(iterators.indexOf(iterator), 1);
+              return {
+                value: undefined,
+                done: true,
+              };
+            } // eslint-disable-next-line node/callback-return
+
+            next(index + 1);
+
+            try {
+              const completedItem = this.completeValue(
+                exeContext,
+                itemType,
+                fieldNodes,
+                info,
+                itemPath,
+                data,
+                errors,
+              );
+
+              if ((0, _isPromise.isPromise)(completedItem)) {
+                return completedItem.then((resolveItem) => ({
+                  value: this.createPatchResult(
+                    resolveItem,
+                    label,
+                    itemPath,
+                    errors,
+                  ),
+                  done: false,
+                }));
+              }
+
+              return {
+                value: this.createPatchResult(
+                  completedItem,
+                  label,
+                  itemPath,
+                  errors,
+                ),
+                done: false,
+              };
+            } catch (rawError) {
+              const error = (0, _graphql.locatedError)(
+                rawError,
+                fieldNodes,
+                (0, _Path.pathToArray)(itemPath),
+              );
+              this.handleFieldError(error, itemType, errors);
+              return {
+                value: this.createPatchResult(null, label, itemPath, errors),
+                done: false,
+              };
+            }
+          },
+          (rawError) => {
+            const error = (0, _graphql.locatedError)(
+              rawError,
+              fieldNodes,
+              (0, _Path.pathToArray)(itemPath),
+            );
+            this.handleFieldError(error, itemType, errors);
+            return {
+              value: this.createPatchResult(null, label, itemPath, errors),
+              done: false,
+            };
+          },
+        ),
+      );
+    };
+
+    next(initialIndex);
+  }
+
+  _race(exeContext) {
+    if (exeContext.isDone) {
+      return Promise.resolve({
+        value: {
+          hasNext: false,
+        },
+        done: false,
+      });
     }
 
-    const result = {
+    return new Promise((resolve) => {
+      let resolved = false;
+      exeContext.subsequentPayloads.forEach((promise) => {
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        promise.then((payload) => {
+          if (resolved) {
+            return;
+          }
+
+          resolved = true;
+
+          if (exeContext.subsequentPayloads.length === 0) {
+            // a different call to next has exhausted all payloads
+            resolve({
+              value: undefined,
+              done: true,
+            });
+            return;
+          }
+
+          const index = exeContext.subsequentPayloads.indexOf(promise);
+
+          if (index === -1) {
+            // a different call to next has consumed this payload
+            resolve(this._race(exeContext));
+            return;
+          }
+
+          exeContext.subsequentPayloads.splice(index, 1);
+          const { value, done } = payload;
+
+          if (done && exeContext.subsequentPayloads.length === 0) {
+            // async iterable resolver just finished and no more pending payloads
+            resolve({
+              value: {
+                hasNext: false,
+              },
+              done: false,
+            });
+            return;
+          } else if (done) {
+            // async iterable resolver just finished but there are pending payloads
+            // return the next one
+            resolve(this._race(exeContext));
+            return;
+          }
+
+          const returnValue = {
+            ...value,
+            hasNext: exeContext.subsequentPayloads.length > 0,
+          };
+          resolve({
+            value: returnValue,
+            done: false,
+          });
+        });
+      });
+    });
+  }
+
+  _next(exeContext) {
+    if (!exeContext.hasReturnedInitialResult) {
+      exeContext.hasReturnedInitialResult = true;
+      return Promise.resolve({
+        value: { ...exeContext.initialResult, hasNext: true },
+        done: false,
+      });
+    } else if (exeContext.subsequentPayloads.length === 0) {
+      return Promise.resolve({
+        value: undefined,
+        done: true,
+      });
+    }
+
+    return this._race(exeContext);
+  }
+
+  async _return(exeContext) {
+    await Promise.all(
+      exeContext.iterators.map((iterator) => {
+        var _iterator$return;
+
+        return (_iterator$return = iterator.return) === null ||
+          _iterator$return === void 0
+          ? void 0
+          : _iterator$return.call(iterator);
+      }),
+    ); // no updates will be missed, transitions only happen to `done` state
+    // eslint-disable-next-line require-atomic-updates
+
+    exeContext.isDone = true;
+    return {
+      value: undefined,
+      done: true,
+    };
+  }
+
+  async _throw(exeContext, error) {
+    await Promise.all(
+      exeContext.iterators.map((iterator) => {
+        var _iterator$return2;
+
+        return (_iterator$return2 = iterator.return) === null ||
+          _iterator$return2 === void 0
+          ? void 0
+          : _iterator$return2.call(iterator);
+      }),
+    ); // no updates will be missed, transitions only happen to `done` state
+    // eslint-disable-next-line require-atomic-updates
+
+    exeContext.isDone = true;
+    return Promise.reject(error);
+  }
+
+  get(exeContext, initialResult) {
+    exeContext.initialResult = initialResult;
+    return {
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+
+      next: () => this._next(exeContext),
+      return: () => this._return(exeContext),
+      throw: (error) => this._throw(exeContext, error),
+    };
+  }
+
+  createPatchResult(data, label, path, errors) {
+    const value = {
       data,
       path: path ? (0, _Path.pathToArray)(path) : [],
-      hasNext: this.hasNext(exeContext),
     };
 
     if (label != null) {
-      result.label = label;
+      value.label = label;
     }
 
     if (errors && errors.length > 0) {
-      result.errors = errors;
-    } // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      value.errors = errors;
+    }
 
-    push(result).then(() => {
-      if (!this.hasNext(exeContext)) {
-        if (!exeContext.closed) {
-          // eslint-disable-next-line @typescript-eslint/no-floating-promises
-          push({
-            hasNext: false,
-          });
-        }
-
-        stop();
-      }
-    });
+    return value;
   }
 }
 /**
