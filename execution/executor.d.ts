@@ -569,6 +569,19 @@ export declare class Executor {
     itemType: GraphQLOutputType,
     path: Path,
     label?: string,
+  ): Promise<void>;
+  advanceAsyncIterator(
+    index: number,
+    iterator: AsyncIterator<unknown>,
+    exeContext: ExecutionContext,
+    fieldNodes: ReadonlyArray<FieldNode>,
+    itemType: GraphQLOutputType,
+    path: Path,
+    label?: string,
+  ): Promise<IteratorResult<unknown> | undefined>;
+  closeAsyncIterator(
+    exeContext: ExecutionContext,
+    iterator: AsyncIterator<unknown>,
   ): void;
   hasNext(exeContext: ExecutionContext): boolean;
   queue(

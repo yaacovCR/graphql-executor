@@ -983,6 +983,7 @@ class Executor {
         typeof stream.initialCount === 'number' &&
         index >= stream.initialCount
       ) {
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         this.addAsyncIteratorValue(
           index,
           iterator,
@@ -1562,7 +1563,7 @@ class Executor {
     }
   }
 
-  addAsyncIteratorValue(
+  async addAsyncIteratorValue(
     initialIndex,
     iterator,
     exeContext,
@@ -1574,86 +1575,97 @@ class Executor {
   ) {
     const { iterators } = exeContext;
     iterators.push(iterator);
+    let index = initialIndex;
+    let iteration = await this.advanceAsyncIterator(
+      index,
+      iterator,
+      exeContext,
+      fieldNodes,
+      itemType,
+      path,
+      label,
+    );
 
-    const next = (index) => {
+    while (iteration && !iteration.done) {
       exeContext.pendingPushes++;
       const itemPath = (0, _Path.addPath)(path, index, undefined);
-      const errors = [];
-      iterator.next().then(
-        ({ value: data, done }) => {
-          if (done) {
-            exeContext.pendingPushes--;
-            iterators.splice(iterators.indexOf(iterator), 1);
-            const { publisher } = exeContext;
+      const errors = []; // eslint-disable-next-line @typescript-eslint/no-floating-promises
 
-            if (!this.hasNext(exeContext) && publisher) {
-              const { push, stop } = publisher; // eslint-disable-next-line @typescript-eslint/no-floating-promises
-
-              push({
-                hasNext: false,
-              });
-              stop();
-            }
-
-            return;
-          } // eslint-disable-next-line node/callback-return
-
-          next(index + 1);
-
-          try {
-            const completedItem = this.completeValue(
-              exeContext,
-              itemType,
-              fieldNodes,
-              info,
-              itemPath,
-              data,
-              errors,
-            );
-
-            if ((0, _isPromise.isPromise)(completedItem)) {
-              // eslint-disable-next-line @typescript-eslint/no-floating-promises
-              completedItem // Note: we don't rely on a `catch` method, but we do expect "thenable"
-                // to take a second callback for the error case.
-                .then(undefined, (rawError) => {
-                  const error = (0, _graphql.locatedError)(
-                    rawError,
-                    fieldNodes,
-                    (0, _Path.pathToArray)(itemPath),
-                  );
-                  return this.handleFieldError(error, itemType, errors);
-                })
-                .then((resolvedItem) =>
-                  this.queue(exeContext, resolvedItem, errors, itemPath, label),
-                );
-              return;
-            }
-
-            this.queue(exeContext, completedItem, errors, itemPath, label);
-          } catch (rawError) {
-            const error = (0, _graphql.locatedError)(
-              rawError,
-              fieldNodes,
-              (0, _Path.pathToArray)(itemPath),
-            );
-            this.handleFieldError(error, itemType, errors);
-            this.queue(exeContext, null, errors, itemPath, label);
-          }
-        },
-        (rawError) => {
-          iterators.splice(iterators.indexOf(iterator), 1);
+      Promise.resolve(iteration.value)
+        .then((resolved) =>
+          this.completeValue(
+            exeContext,
+            itemType,
+            fieldNodes,
+            info,
+            itemPath,
+            resolved,
+            errors,
+          ),
+        ) // Note: we don't rely on a `catch` method, but we do expect "thenable"
+        // to take a second callback for the error case.
+        .then(undefined, (rawError) => {
           const error = (0, _graphql.locatedError)(
             rawError,
             fieldNodes,
             (0, _Path.pathToArray)(itemPath),
           );
-          this.handleFieldError(error, itemType, errors);
-          this.queue(exeContext, null, errors, itemPath, label);
-        },
-      );
-    };
+          return this.handleFieldError(error, itemType, errors);
+        })
+        .then((data) => this.queue(exeContext, data, errors, itemPath, label));
+      index++; // eslint-disable-next-line no-await-in-loop
 
-    next(initialIndex);
+      iteration = await this.advanceAsyncIterator(
+        index,
+        iterator,
+        exeContext,
+        fieldNodes,
+        itemType,
+        path,
+        label,
+      );
+    }
+
+    this.closeAsyncIterator(exeContext, iterator);
+  }
+
+  async advanceAsyncIterator(
+    index,
+    iterator,
+    exeContext,
+    fieldNodes,
+    itemType,
+    path,
+    label,
+  ) {
+    try {
+      return await iterator.next();
+    } catch (rawError) {
+      exeContext.pendingPushes++;
+      const itemPath = (0, _Path.addPath)(path, index, undefined);
+      const errors = [];
+      const error = (0, _graphql.locatedError)(
+        rawError,
+        fieldNodes,
+        (0, _Path.pathToArray)(itemPath),
+      );
+      this.handleFieldError(error, itemType, errors);
+      this.queue(exeContext, null, errors, itemPath, label);
+    }
+  }
+
+  closeAsyncIterator(exeContext, iterator) {
+    const { iterators, publisher } = exeContext;
+    iterators.splice(iterators.indexOf(iterator), 1);
+
+    if (!this.hasNext(exeContext) && publisher) {
+      const { push, stop } = publisher; // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
+      push({
+        hasNext: false,
+      });
+      stop();
+    }
   }
 
   hasNext(exeContext) {
