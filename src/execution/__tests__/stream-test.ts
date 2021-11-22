@@ -433,9 +433,6 @@ describe('Execute: stream directive', () => {
           id: '3',
         },
         path: ['asyncIterableList', 2],
-        hasNext: true,
-      },
-      {
         hasNext: false,
       },
     ]);
@@ -760,14 +757,6 @@ describe('Execute: stream directive', () => {
       },
       {
         data: {
-          id: '2',
-        },
-        path: ['asyncIterableList', 1],
-        label: 'stream-label',
-        hasNext: true,
-      },
-      {
-        data: {
           name: 'Han',
         },
         path: ['asyncIterableList', 1],
@@ -776,9 +765,9 @@ describe('Execute: stream directive', () => {
       },
       {
         data: {
-          id: '3',
+          id: '2',
         },
-        path: ['asyncIterableList', 2],
+        path: ['asyncIterableList', 1],
         label: 'stream-label',
         hasNext: true,
       },
@@ -788,6 +777,14 @@ describe('Execute: stream directive', () => {
         },
         path: ['asyncIterableList', 2],
         label: 'DeferName',
+        hasNext: true,
+      },
+      {
+        data: {
+          id: '3',
+        },
+        path: ['asyncIterableList', 2],
+        label: 'stream-label',
         hasNext: false,
       },
     ]);
@@ -826,14 +823,6 @@ describe('Execute: stream directive', () => {
       },
       {
         data: {
-          id: '2',
-        },
-        path: ['asyncIterableListDelayedClose', 1],
-        label: 'stream-label',
-        hasNext: true,
-      },
-      {
-        data: {
           name: 'Han',
         },
         path: ['asyncIterableListDelayedClose', 1],
@@ -842,9 +831,9 @@ describe('Execute: stream directive', () => {
       },
       {
         data: {
-          id: '3',
+          id: '2',
         },
-        path: ['asyncIterableListDelayedClose', 2],
+        path: ['asyncIterableListDelayedClose', 1],
         label: 'stream-label',
         hasNext: true,
       },
@@ -854,6 +843,14 @@ describe('Execute: stream directive', () => {
         },
         path: ['asyncIterableListDelayedClose', 2],
         label: 'DeferName',
+        hasNext: true,
+      },
+      {
+        data: {
+          id: '3',
+        },
+        path: ['asyncIterableListDelayedClose', 2],
+        label: 'stream-label',
         hasNext: true,
       },
       {
