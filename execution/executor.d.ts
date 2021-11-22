@@ -239,9 +239,7 @@ export declare class Executor {
   buildResponse(
     exeContext: ExecutionContext,
     data: ObjMap<unknown> | null,
-  ): PromiseOrValue<
-    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
-  >;
+  ): ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>;
   /**
    * Essential assertions before executing to provide developer feedback for
    * improper use of the GraphQL library.
