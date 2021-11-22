@@ -375,9 +375,7 @@ export class Executor {
   buildResponse(
     exeContext: ExecutionContext,
     data: ObjMap<unknown> | null,
-  ): PromiseOrValue<
-    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
-  > {
+  ): ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void> {
     const initialResult =
       exeContext.errors.length === 0
         ? { data }
