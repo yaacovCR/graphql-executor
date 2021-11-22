@@ -19,6 +19,7 @@ import type { Path } from '../jsutils/Path';
 import type { ObjMap } from '../jsutils/ObjMap';
 import type { PromiseOrValue } from '../jsutils/PromiseOrValue';
 import type { Maybe } from '../jsutils/Maybe';
+import type { Push, Stop } from '../jsutils/repeater';
 import type { FieldsAndPatches, PatchFields } from './collectFields';
 /**
  * Terminology
@@ -60,11 +61,15 @@ interface ExecutionContext {
   disableIncremental: boolean;
   resolveField: FieldResolver;
   errors: Array<GraphQLError>;
-  subsequentPayloads: Array<Promise<IteratorResult<DispatcherResult, void>>>;
-  initialResult?: ExecutionResult;
+  subsequentPayloads: Array<DispatcherResult>;
   iterators: Array<AsyncIterator<unknown>>;
-  isDone: boolean;
-  hasReturnedInitialResult: boolean;
+  publisher:
+    | {
+        push: Push<ExecutionPatchResult>;
+        stop: Stop;
+      }
+    | undefined;
+  pendingPushes: number;
 }
 export interface ExecutionArgs {
   schema: GraphQLSchema;
@@ -119,15 +124,11 @@ export interface ExecutionPatchResult<
   hasNext: boolean;
   extensions?: TExtensions;
 }
-/**
- * Same as ExecutionPatchResult, but without hasNext
- */
 interface DispatcherResult {
-  errors?: ReadonlyArray<GraphQLError>;
-  data?: ObjMap<unknown> | unknown | null;
-  path: ReadonlyArray<string | number>;
+  data: ObjMap<unknown> | unknown | null;
+  errors: ReadonlyArray<GraphQLError>;
+  path: Path | undefined;
   label?: string;
-  extensions?: ObjMap<unknown>;
 }
 export declare type AsyncExecutionResult =
   | ExecutionResult
@@ -542,7 +543,6 @@ export declare class Executor {
   ): PromiseOrValue<
     ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   >;
-  hasSubsequentPayloads(exeContext: ExecutionContext): boolean;
   addPatches(
     exeContext: ExecutionContext,
     patches: Array<PatchFields>,
@@ -570,29 +570,36 @@ export declare class Executor {
     path: Path,
     label?: string,
   ): void;
-  _race(
+  hasNext(exeContext: ExecutionContext): boolean;
+  queue(
     exeContext: ExecutionContext,
-  ): Promise<IteratorResult<ExecutionPatchResult, void>>;
-  _next(
-    exeContext: ExecutionContext,
-  ): Promise<IteratorResult<AsyncExecutionResult, void>>;
-  _return(
-    exeContext: ExecutionContext,
-  ): Promise<IteratorResult<AsyncExecutionResult, void>>;
-  _throw(
-    exeContext: ExecutionContext,
-    error?: unknown,
-  ): Promise<IteratorResult<AsyncExecutionResult, void>>;
-  get(
-    exeContext: ExecutionContext,
-    initialResult: ExecutionResult,
-  ): AsyncGenerator<AsyncExecutionResult>;
-  createPatchResult(
     data: ObjMap<unknown> | unknown | null,
+    errors: ReadonlyArray<GraphQLError>,
+    path: Path | undefined,
     label?: string,
-    path?: Path,
-    errors?: ReadonlyArray<GraphQLError>,
-  ): DispatcherResult;
+  ): void;
+  pushResult(
+    exeContext: ExecutionContext,
+    push: Push<ExecutionPatchResult>,
+    stop: Stop,
+    data: ObjMap<unknown> | unknown | null,
+    errors: ReadonlyArray<GraphQLError>,
+    path: Path | undefined,
+    label?: string,
+  ): void;
+  pushResults(
+    exeContext: ExecutionContext,
+    push: Push<ExecutionPatchResult>,
+    stop: Stop,
+    results: Array<DispatcherResult>,
+  ): void;
+  createPatchResult(
+    exeContext: ExecutionContext,
+    data: ObjMap<unknown> | unknown | null,
+    errors: ReadonlyArray<GraphQLError>,
+    path: Path | undefined,
+    label?: string,
+  ): ExecutionPatchResult;
 }
 /**
  * If a resolve function is not given, then a default resolve behavior is used
