@@ -1801,9 +1801,20 @@ export class Executor {
 
             if (isPromise(completedItem)) {
               // eslint-disable-next-line @typescript-eslint/no-floating-promises
-              completedItem.then((resolvedItem) =>
-                this.queue(exeContext, resolvedItem, errors, itemPath, label),
-              );
+              completedItem
+                // Note: we don't rely on a `catch` method, but we do expect "thenable"
+                // to take a second callback for the error case.
+                .then(undefined, (rawError) => {
+                  const error = locatedError(
+                    rawError,
+                    fieldNodes,
+                    pathToArray(itemPath),
+                  );
+                  return this.handleFieldError(error, itemType, errors);
+                })
+                .then((resolvedItem) =>
+                  this.queue(exeContext, resolvedItem, errors, itemPath, label),
+                );
               return;
             }
 
