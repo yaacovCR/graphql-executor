@@ -62,7 +62,7 @@ interface ExecutionContext {
   resolveField: FieldResolver;
   errors: Array<GraphQLError>;
   subsequentPayloads: Array<DispatcherResult>;
-  iterators: Array<AsyncIterator<unknown>>;
+  iterators: Set<AsyncIterator<unknown>>;
   publisher:
     | {
         push: Push<ExecutionPatchResult>;

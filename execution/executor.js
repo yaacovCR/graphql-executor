@@ -253,7 +253,7 @@ class Executor {
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
         stop.then(() =>
           Promise.all(
-            exeContext.iterators.map((iterator) => {
+            Array.from(exeContext.iterators.values()).map((iterator) => {
               var _iterator$return;
 
               return (_iterator$return = iterator.return) === null ||
@@ -420,7 +420,7 @@ class Executor {
           : this.buildFieldResolver('resolve', defaultResolveFieldValueFn),
       errors: [],
       subsequentPayloads: [],
-      iterators: [],
+      iterators: new Set(),
       publisher: undefined,
       pendingPushes: 0,
     };
@@ -441,7 +441,7 @@ class Executor {
       ),
       errors: [],
       subsequentPayloads: [],
-      iterators: [],
+      iterators: new Set(),
       publisher: undefined,
       pendingPushes: 0,
     };
@@ -1574,7 +1574,7 @@ class Executor {
     label,
   ) {
     const { iterators } = exeContext;
-    iterators.push(iterator);
+    iterators.add(iterator);
     let index = initialIndex;
     let iteration = await this.advanceAsyncIterator(
       index,
@@ -1656,7 +1656,7 @@ class Executor {
 
   closeAsyncIterator(exeContext, iterator) {
     const { iterators, publisher } = exeContext;
-    iterators.splice(iterators.indexOf(iterator), 1);
+    iterators.delete(iterator);
 
     if (!this.hasNext(exeContext) && publisher) {
       const { push, stop } = publisher; // eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -1669,7 +1669,7 @@ class Executor {
   }
 
   hasNext(exeContext) {
-    return exeContext.pendingPushes > 0 || exeContext.iterators.length > 0;
+    return exeContext.pendingPushes > 0 || exeContext.iterators.size > 0;
   }
 
   queue(exeContext, data, errors, path, label) {
