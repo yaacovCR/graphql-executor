@@ -5,7 +5,6 @@ import type { DocumentNode } from 'graphql';
 import {
   GraphQLID,
   GraphQLList,
-  GraphQLNonNull,
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
@@ -20,7 +19,7 @@ import { expectJSON } from '../../__testUtils__/expectJSON';
 
 const friendType = new GraphQLObjectType({
   fields: {
-    id: { type: new GraphQLNonNull(GraphQLID) },
+    id: { type: GraphQLID },
     name: { type: GraphQLString },
     asyncName: {
       type: GraphQLString,
@@ -78,14 +77,6 @@ const query = new GraphQLObjectType({
       async *resolve() {
         yield await Promise.resolve(friends[0].name);
         yield await Promise.resolve({});
-      },
-    },
-    asyncIterableListNestedError: {
-      type: new GraphQLList(friendType),
-      async *resolve() {
-        yield await Promise.resolve(friends[0]);
-        yield await Promise.resolve({ id: Promise.reject(new Error('bad')) });
-        yield await Promise.resolve(friends[2]);
       },
     },
     asyncIterableListDelayed: {
@@ -679,56 +670,9 @@ describe('Execute: stream directive', () => {
           asyncName: 'Leia',
         },
         path: ['asyncIterableList', 2],
-        hasNext: false,
-      },
-    ]);
-  });
-
-  it('Handles rejected promises returned by completeValue after initialCount is reached', async () => {
-    const document = parse(`
-      query { 
-        asyncIterableListNestedError @stream(initialCount: 1) {
-          id
-          name
-        }
-      }
-    `);
-    const result = await complete(document);
-    expectJSON(result).toDeepEqual([
-      {
-        data: {
-          asyncIterableListNestedError: [
-            {
-              id: '1',
-              name: 'Luke',
-            },
-          ],
-        },
         hasNext: true,
       },
       {
-        data: {
-          id: '3',
-          name: 'Leia',
-        },
-        path: ['asyncIterableListNestedError', 2],
-        hasNext: true,
-      },
-      {
-        errors: [
-          {
-            message: 'bad',
-            locations: [
-              {
-                line: 4,
-                column: 11,
-              },
-            ],
-            path: ['asyncIterableListNestedError', 1, 'id'],
-          },
-        ],
-        data: null,
-        path: ['asyncIterableListNestedError', 1],
         hasNext: false,
       },
     ]);
@@ -776,18 +720,18 @@ describe('Execute: stream directive', () => {
       },
       {
         data: {
-          name: 'Han',
-        },
-        path: ['asyncIterableList', 1],
-        label: 'DeferName',
-        hasNext: true,
-      },
-      {
-        data: {
           id: '3',
         },
         path: ['asyncIterableList', 2],
         label: 'stream-label',
+        hasNext: true,
+      },
+      {
+        data: {
+          name: 'Han',
+        },
+        path: ['asyncIterableList', 1],
+        label: 'DeferName',
         hasNext: true,
       },
       {
@@ -842,18 +786,18 @@ describe('Execute: stream directive', () => {
       },
       {
         data: {
-          name: 'Han',
-        },
-        path: ['asyncIterableListDelayedClose', 1],
-        label: 'DeferName',
-        hasNext: true,
-      },
-      {
-        data: {
           id: '3',
         },
         path: ['asyncIterableListDelayedClose', 2],
         label: 'stream-label',
+        hasNext: true,
+      },
+      {
+        data: {
+          name: 'Han',
+        },
+        path: ['asyncIterableListDelayedClose', 1],
+        label: 'DeferName',
         hasNext: true,
       },
       {
@@ -902,11 +846,27 @@ describe('Execute: stream directive', () => {
 
     iterator.return?.();
 
-    // all calls to return and next settle in call order
+    // this result had started processing before return was called
     const result2 = await iterator.next();
     expect(result2).to.deep.equal({
-      done: true,
-      value: undefined,
+      done: false,
+      value: {
+        data: {
+          id: '2',
+          name: 'Han',
+        },
+        hasNext: true,
+        path: ['asyncIterableListDelayed', 1],
+      },
+    });
+
+    // third result is not returned because async iterator has returned
+    const result3 = await iterator.next();
+    expect(result3).to.deep.equal({
+      done: false,
+      value: {
+        hasNext: false,
+      },
     });
   });
   it('Can return async iterable when underlying iterable does not have a return method', async () => {
@@ -942,11 +902,27 @@ describe('Execute: stream directive', () => {
 
     iterator.return?.();
 
-    // all calls to return and next settle in call order
+    // this result had started processing before return was called
     const result2 = await iterator.next();
     expect(result2).to.deep.equal({
-      done: true,
-      value: undefined,
+      done: false,
+      value: {
+        data: {
+          id: '2',
+          name: 'Han',
+        },
+        hasNext: true,
+        path: ['asyncIterableListNoReturn', 1],
+      },
+    });
+
+    // third result is not returned because async iterator has returned
+    const result3 = await iterator.next();
+    expect(result3).to.deep.equal({
+      done: false,
+      value: {
+        hasNext: false,
+      },
     });
   });
   it('Returns underlying async iterables when dispatcher is thrown', async () => {
@@ -982,11 +958,27 @@ describe('Execute: stream directive', () => {
 
     iterator.throw?.(new Error('bad'));
 
-    // all calls to throw and next settle in call order
+    // this result had started processing before return was called
     const result2 = await iterator.next();
     expect(result2).to.deep.equal({
-      done: true,
-      value: undefined,
+      done: false,
+      value: {
+        data: {
+          id: '2',
+          name: 'Han',
+        },
+        hasNext: true,
+        path: ['asyncIterableListDelayed', 1],
+      },
+    });
+
+    // third result is not returned because async iterator has returned
+    const result3 = await iterator.next();
+    expect(result3).to.deep.equal({
+      done: false,
+      value: {
+        hasNext: false,
+      },
     });
   });
 });
