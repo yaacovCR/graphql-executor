@@ -92,6 +92,14 @@ class Executor {
 
     _defineProperty(
       this,
+      'getArgumentValues',
+      (0, _memoize.memoize3)((def, node, variableValues) =>
+        (0, _values.getArgumentValues)(def, node, variableValues),
+      ),
+    );
+
+    _defineProperty(
+      this,
       'buildFieldResolver',
       (resolverKey, defaultResolver) =>
         (exeContext, fieldDef, source, info, fieldNodes) => {
@@ -103,9 +111,8 @@ class Executor {
               ? _fieldDef$resolverKey
               : defaultResolver; // Build a JS object of arguments from the field.arguments AST, using the
           // variables scope to fulfill any variable references.
-          // TODO: find a way to memoize, in case this field is within a List type.
 
-          const args = (0, _values.getArgumentValues)(
+          const args = this.getArgumentValues(
             fieldDef,
             fieldNodes[0],
             exeContext.variableValues,

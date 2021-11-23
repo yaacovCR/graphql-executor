@@ -176,6 +176,18 @@ export declare class Executor {
     a3: readonly FieldNode[],
   ) => FieldsAndPatches;
   /**
+   * A memoized collection of field argument values.
+   * Memoizing ensures the subfields are not repeatedly calculated, which
+   * saves overhead when resolving lists of values.
+   */
+  getArgumentValues: (
+    a1: GraphQLField<unknown, unknown, any>,
+    a2: FieldNode,
+    a3: ObjMap<unknown>,
+  ) => {
+    [argument: string]: unknown;
+  };
+  /**
    * Implements the "Executing requests" section of the spec.
    */
   execute(

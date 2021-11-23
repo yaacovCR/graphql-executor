@@ -42,7 +42,7 @@ import { resolveAfterAll } from '../jsutils/resolveAfterAll.mjs';
 import { Repeater } from '../jsutils/repeater.mjs';
 import {
   getVariableValues,
-  getArgumentValues,
+  getArgumentValues as _getArgumentValues,
   getDirectiveValues,
 } from './values.mjs';
 import {
@@ -112,6 +112,14 @@ export class Executor {
 
     _defineProperty(
       this,
+      'getArgumentValues',
+      memoize3((def, node, variableValues) =>
+        _getArgumentValues(def, node, variableValues),
+      ),
+    );
+
+    _defineProperty(
+      this,
       'buildFieldResolver',
       (resolverKey, defaultResolver) =>
         (exeContext, fieldDef, source, info, fieldNodes) => {
@@ -123,9 +131,8 @@ export class Executor {
               ? _fieldDef$resolverKey
               : defaultResolver; // Build a JS object of arguments from the field.arguments AST, using the
           // variables scope to fulfill any variable references.
-          // TODO: find a way to memoize, in case this field is within a List type.
 
-          const args = getArgumentValues(
+          const args = this.getArgumentValues(
             fieldDef,
             fieldNodes[0],
             exeContext.variableValues,
