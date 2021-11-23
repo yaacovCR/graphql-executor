@@ -113,7 +113,9 @@ const schema = buildSchema(`
 function executeQuery(
   query: string,
   rootValue: unknown,
-): PromiseOrValue<ExecutionResult | AsyncIterable<AsyncExecutionResult>> {
+): PromiseOrValue<
+  ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
+> {
   return execute({ schema, document: parse(query), rootValue });
 }
 
