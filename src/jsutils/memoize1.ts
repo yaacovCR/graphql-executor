@@ -1,10 +1,9 @@
 /**
  * Memoizes the provided one-argument function.
  */
-export function memoize1<
-  A1 extends object,
-  R,
->(fn: (a1: A1) => R): (a1: A1) => R {
+export function memoize1<A1 extends object, R>(
+  fn: (a1: A1) => R,
+): (a1: A1) => R {
   let cache0: WeakMap<A1, R>;
 
   return function memoized(a1) {
