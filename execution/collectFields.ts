@@ -16,7 +16,7 @@ import {
 } from 'graphql';
 import type { Maybe } from '../jsutils/Maybe.ts';
 import type { ObjMap } from '../jsutils/ObjMap.ts';
-import { GraphQLDeferDirective } from '../type/index.ts';
+import { GraphQLDeferDirective } from '../type/directives.ts';
 import { getDirectiveValues } from './values.ts';
 export interface PatchFields {
   label?: string;
