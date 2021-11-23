@@ -1,5 +1,5 @@
 ---
-'graphql-executor': major
+'graphql-executor': patch
 ---
 
 Refactor mapAsyncIterator to use a Repeater implementation

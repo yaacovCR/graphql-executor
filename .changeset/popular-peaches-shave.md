@@ -1,5 +1,5 @@
 ---
-'graphql-executor': major
+'graphql-executor': patch
 ---
 
 BREAKING CHANGE: `execute` now executes subscriptions as subscriptions, not queries, unless the new `forceQueryAlgorithm` option is set to true. The `subscribe` function has been removed.
