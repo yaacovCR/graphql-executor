@@ -143,6 +143,12 @@ export class Executor {
    * Implements the "Executing requests" section of the spec.
    */
   execute(args) {
+    // Temporary for v15 to v16 migration. Remove in v17
+    arguments.length < 2 ||
+      devAssert(
+        false,
+        'graphql@16 dropped long-deprecated support for positional arguments, please pass an object instead.',
+      );
     const exeContext = this.buildExecutionContext(args); // If a valid execution context cannot be created due to incorrect arguments,
     // a "Response" with only errors is returned.
 
