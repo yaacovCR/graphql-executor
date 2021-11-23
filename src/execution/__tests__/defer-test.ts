@@ -293,7 +293,7 @@ describe('Execute: defer directive', () => {
       }
     `);
     const result = await complete(document);
-    
+
     expectJSON(result).toDeepEqual([
       {
         data: { hero: { id: '1' } },

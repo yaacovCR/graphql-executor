@@ -142,7 +142,7 @@ async function complete(
   disableIncremental = false,
 ) {
   const schema = new GraphQLSchema({ query });
-  
+
   const result = await execute({
     schema,
     document,
