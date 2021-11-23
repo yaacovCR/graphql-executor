@@ -101,15 +101,20 @@ interface ExecutionContext {
   disableIncremental: boolean;
   resolveField: FieldResolver;
   errors: Array<GraphQLError>;
-  subsequentPayloads: Array<DispatcherResult>;
+  subsequentPayloads: Array<IncrementalResult>;
   iterators: Set<AsyncIterator<unknown>>;
-  publisher:
-    | {
-        push: Push<ExecutionPatchResult>;
-        stop: Stop;
-      }
-    | undefined;
+  publisher: Publisher | undefined;
   pendingPushes: number;
+}
+interface IncrementalResult {
+  data: ObjMap<unknown> | unknown | null;
+  errors: ReadonlyArray<GraphQLError>;
+  path: Path | undefined;
+  label?: string;
+}
+interface Publisher {
+  push: Push<ExecutionPatchResult>;
+  stop: Stop;
 }
 export interface ExecutionArgs {
   schema: GraphQLSchema;
@@ -165,12 +170,6 @@ export interface ExecutionPatchResult<
   label?: string;
   hasNext: boolean;
   extensions?: TExtensions;
-}
-interface DispatcherResult {
-  data: ObjMap<unknown> | unknown | null;
-  errors: ReadonlyArray<GraphQLError>;
-  path: Path | undefined;
-  label?: string;
 }
 export type AsyncExecutionResult = ExecutionResult | ExecutionPatchResult;
 export type FieldsExecutor = (
@@ -1927,7 +1926,7 @@ export class Executor {
     exeContext: ExecutionContext,
     push: Push<ExecutionPatchResult>,
     stop: Stop,
-    results: Array<DispatcherResult>,
+    results: Array<IncrementalResult>,
   ): void {
     const promises: Array<unknown> = [];
 
