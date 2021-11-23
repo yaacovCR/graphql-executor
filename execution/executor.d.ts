@@ -577,6 +577,14 @@ export declare class Executor {
     path: Path,
     label?: string,
   ): Promise<IteratorResult<unknown> | undefined>;
+  handleIncrementalRawError(
+    exeContext: ExecutionContext,
+    rawError: unknown,
+    fieldNodes: ReadonlyArray<FieldNode>,
+    type: GraphQLOutputType,
+    path: Path,
+    label?: string,
+  ): void;
   closeAsyncIterator(
     exeContext: ExecutionContext,
     iterator: AsyncIterator<unknown>,

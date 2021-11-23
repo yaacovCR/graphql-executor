@@ -5,7 +5,7 @@ import {
   isAbstractType,
   typeFromAST,
 } from 'graphql';
-import { GraphQLDeferDirective } from '../type/index.mjs';
+import { GraphQLDeferDirective } from '../type/directives.mjs';
 import { getDirectiveValues } from './values.mjs';
 
 /**

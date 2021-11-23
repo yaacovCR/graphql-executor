@@ -1499,18 +1499,25 @@ export class Executor {
     for (const patch of patches) {
       exeContext.pendingPushes++;
       const { label, fields: patchFields } = patch;
-      const errors = []; // eslint-disable-next-line @typescript-eslint/no-floating-promises
-
-      Promise.resolve(
-        this.executeFields(
-          exeContext,
-          parentType,
-          source,
-          path,
-          patchFields,
-          errors,
-        ),
-      ).then((data) => this.queue(exeContext, data, errors, path, label));
+      const errors = [];
+      Promise.resolve(source)
+        .then(() =>
+          this.executeFields(
+            exeContext,
+            parentType,
+            source,
+            path,
+            patchFields,
+            errors,
+          ),
+        )
+        .then(
+          (data) => this.queue(exeContext, data, errors, path, label),
+          (error) => {
+            this.handleFieldError(error, parentType, errors);
+            this.queue(exeContext, null, errors, path, label);
+          },
+        );
     }
   }
 
@@ -1530,8 +1537,7 @@ export class Executor {
     while (!iteration.done) {
       exeContext.pendingPushes++;
       const itemPath = addPath(path, index, undefined);
-      const errors = []; // eslint-disable-next-line @typescript-eslint/no-floating-promises
-
+      const errors = [];
       Promise.resolve(iteration.value)
         .then((resolved) =>
           this.completeValue(
@@ -1543,17 +1549,17 @@ export class Executor {
             resolved,
             errors,
           ),
-        ) // Note: we don't rely on a `catch` method, but we do expect "thenable"
-        // to take a second callback for the error case.
+        )
+        .then((data) => this.queue(exeContext, data, errors, itemPath, label))
         .then(undefined, (rawError) => {
           const error = locatedError(
             rawError,
             fieldNodes,
             pathToArray(itemPath),
           );
-          return this.handleFieldError(error, itemType, errors);
-        })
-        .then((data) => this.queue(exeContext, data, errors, itemPath, label));
+          errors.push(error);
+          this.queue(exeContext, null, errors, itemPath, label);
+        });
       index++;
       iteration = iterator.next();
     }
@@ -1585,8 +1591,7 @@ export class Executor {
     while (iteration && !iteration.done) {
       exeContext.pendingPushes++;
       const itemPath = addPath(path, index, undefined);
-      const errors = []; // eslint-disable-next-line @typescript-eslint/no-floating-promises
-
+      const errors = [];
       Promise.resolve(iteration.value)
         .then((resolved) =>
           this.completeValue(
@@ -1598,17 +1603,17 @@ export class Executor {
             resolved,
             errors,
           ),
-        ) // Note: we don't rely on a `catch` method, but we do expect "thenable"
-        // to take a second callback for the error case.
+        )
+        .then((data) => this.queue(exeContext, data, errors, itemPath, label))
         .then(undefined, (rawError) => {
           const error = locatedError(
             rawError,
             fieldNodes,
             pathToArray(itemPath),
           );
-          return this.handleFieldError(error, itemType, errors);
-        })
-        .then((data) => this.queue(exeContext, data, errors, itemPath, label));
+          errors.push(error);
+          this.queue(exeContext, null, errors, itemPath, label);
+        });
       index++; // eslint-disable-next-line no-await-in-loop
 
       iteration = await this.advanceAsyncIterator(
@@ -1639,11 +1644,29 @@ export class Executor {
     } catch (rawError) {
       exeContext.pendingPushes++;
       const itemPath = addPath(path, index, undefined);
-      const errors = [];
-      const error = locatedError(rawError, fieldNodes, pathToArray(itemPath));
-      this.handleFieldError(error, itemType, errors);
-      this.queue(exeContext, null, errors, itemPath, label);
+      this.handleIncrementalRawError(
+        exeContext,
+        rawError,
+        fieldNodes,
+        itemType,
+        itemPath,
+        label,
+      );
     }
+  }
+
+  handleIncrementalRawError(
+    exeContext,
+    rawError,
+    fieldNodes,
+    type,
+    path,
+    label,
+  ) {
+    const errors = [];
+    const error = locatedError(rawError, fieldNodes, pathToArray(path));
+    this.handleFieldError(error, type, errors);
+    this.queue(exeContext, null, errors, path, label);
   }
 
   closeAsyncIterator(exeContext, iterator) {

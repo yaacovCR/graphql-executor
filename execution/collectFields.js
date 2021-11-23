@@ -8,7 +8,7 @@ exports.collectSubfields = collectSubfields;
 
 var _graphql = require('graphql');
 
-var _index = require('../type/index.js');
+var _directives = require('../type/directives.js');
 
 var _values = require('./values.js');
 
@@ -234,7 +234,7 @@ function collectFieldsImpl(
 
 function getDeferValues(variableValues, node) {
   const defer = (0, _values.getDirectiveValues)(
-    _index.GraphQLDeferDirective,
+    _directives.GraphQLDeferDirective,
     node,
     variableValues,
   );
