@@ -53,7 +53,7 @@ import { Repeater } from '../jsutils/repeater';
 
 import {
   getVariableValues,
-  getArgumentValues,
+  getArgumentValues as _getArgumentValues,
   getDirectiveValues,
 } from './values';
 import type { FieldsAndPatches, PatchFields } from './collectFields';
@@ -234,6 +234,19 @@ export class Executor {
         disableIncremental,
       );
     },
+  );
+
+  /**
+   * A memoized collection of field argument values.
+   * Memoizing ensures the subfields are not repeatedly calculated, which
+   * saves overhead when resolving lists of values.
+   */
+  getArgumentValues = memoize3(
+    (
+      def: GraphQLField<unknown, unknown>,
+      node: FieldNode,
+      variableValues: ObjMap<unknown>,
+    ) => _getArgumentValues(def, node, variableValues),
   );
 
   /**
@@ -461,8 +474,7 @@ export class Executor {
 
       // Build a JS object of arguments from the field.arguments AST, using the
       // variables scope to fulfill any variable references.
-      // TODO: find a way to memoize, in case this field is within a List type.
-      const args = getArgumentValues(
+      const args = this.getArgumentValues(
         fieldDef,
         fieldNodes[0],
         exeContext.variableValues,
