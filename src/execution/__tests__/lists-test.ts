@@ -76,9 +76,9 @@ describe('Execute: Accepts any iterable as list value', () => {
 });
 
 describe('Execute: Accepts async iterables as list value', () => {
-  function complete(rootValue: unknown) {
+  function complete(rootValue: unknown, as: string = '[String]') {
     return execute({
-      schema: buildSchema('type Query { listField: [String] }'),
+      schema: buildSchema(`type Query { listField: ${as} }`),
       document: parse('{ listField }'),
       rootValue,
     });
@@ -86,7 +86,9 @@ describe('Execute: Accepts async iterables as list value', () => {
 
   function completeObjectList(
     resolve: GraphQLFieldResolver<{ index: number }, unknown>,
-  ): PromiseOrValue<ExecutionResult | AsyncIterable<AsyncExecutionResult>> {
+  ): PromiseOrValue<
+    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
+  > {
     const schema = new GraphQLSchema({
       query: new GraphQLObjectType({
         name: 'Query',
@@ -211,6 +213,35 @@ describe('Execute: Accepts async iterables as list value', () => {
           path: ['listField', 2, 'index'],
         },
       ],
+    });
+  });
+  it('Handles nulls yielded by async generator', async () => {
+    async function* listField() {
+      yield await Promise.resolve(1);
+      yield await Promise.resolve(null);
+      yield await Promise.resolve(2);
+    }
+    const errors = [
+      {
+        message: 'Cannot return null for non-nullable field Query.listField.',
+        locations: [{ line: 1, column: 3 }],
+        path: ['listField', 1],
+      },
+    ];
+
+    expect(await complete({ listField }, '[Int]')).to.deep.equal({
+      data: { listField: [1, null, 2] },
+    });
+    expect(await complete({ listField }, '[Int]!')).to.deep.equal({
+      data: { listField: [1, null, 2] },
+    });
+    expectJSON(await complete({ listField }, '[Int!]')).toDeepEqual({
+      data: { listField: null },
+      errors,
+    });
+    expectJSON(await complete({ listField }, '[Int!]!')).toDeepEqual({
+      data: null,
+      errors,
     });
   });
 });

@@ -19,7 +19,7 @@ import {
 import type { Maybe } from '../jsutils/Maybe';
 import type { ObjMap } from '../jsutils/ObjMap';
 
-import { GraphQLDeferDirective } from '../type/index';
+import { GraphQLDeferDirective } from '../type/directives';
 
 import { getDirectiveValues } from './values';
 
@@ -87,6 +87,7 @@ export function collectSubfields(
   const subFieldNodes = new Map();
   const subPatches: Array<PatchFields> = [];
   const visitedFragmentNames = new Set<string>();
+
   for (const node of fieldNodes) {
     if (node.selectionSet) {
       collectFieldsImpl(

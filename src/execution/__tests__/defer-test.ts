@@ -5,6 +5,7 @@ import type { DocumentNode } from 'graphql';
 import {
   GraphQLID,
   GraphQLList,
+  GraphQLNonNull,
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
@@ -39,6 +40,14 @@ const heroType = new GraphQLObjectType({
       resolve: () => {
         throw new Error('bad');
       },
+    },
+    nonNullErrorField: {
+      type: new GraphQLNonNull(GraphQLString),
+      resolve: () => null,
+    },
+    promiseNonNullErrorField: {
+      type: new GraphQLNonNull(GraphQLString),
+      resolve: () => Promise.resolve(null),
     },
     friends: {
       type: new GraphQLList(friendType),
@@ -168,13 +177,13 @@ describe('Execute: defer directive', () => {
       }
       fragment QueryFragment on Query {
         hero {
-          id
+          errorField
         }
       }
     `);
     const result = await complete(document);
 
-    expect(result).to.deep.equal([
+    expectJSON(result).toDeepEqual([
       {
         data: {},
         hasNext: true,
@@ -182,9 +191,16 @@ describe('Execute: defer directive', () => {
       {
         data: {
           hero: {
-            id: '1',
+            errorField: null,
           },
         },
+        errors: [
+          {
+            message: 'bad',
+            locations: [{ line: 7, column: 11 }],
+            path: ['hero', 'errorField'],
+          },
+        ],
         path: [],
         label: 'DeferQuery',
         hasNext: false,
@@ -277,7 +293,7 @@ describe('Execute: defer directive', () => {
       }
     `);
     const result = await complete(document);
-
+    
     expectJSON(result).toDeepEqual([
       {
         data: { hero: { id: '1' } },
@@ -291,6 +307,72 @@ describe('Execute: defer directive', () => {
             message: 'bad',
             locations: [{ line: 9, column: 9 }],
             path: ['hero', 'errorField'],
+          },
+        ],
+        hasNext: false,
+      },
+    ]);
+  });
+  it('Handles non-nullable errors thrown in deferred fragments', async () => {
+    const document = parse(`
+      query HeroNameQuery {
+        hero {
+          id
+          ...NameFragment @defer
+        }
+      }
+      fragment NameFragment on Hero {
+        nonNullErrorField
+      }
+    `);
+    const result = await complete(document);
+    expectJSON(result).toDeepEqual([
+      {
+        data: { hero: { id: '1' } },
+        hasNext: true,
+      },
+      {
+        data: null,
+        path: ['hero'],
+        errors: [
+          {
+            message:
+              'Cannot return null for non-nullable field Hero.nonNullErrorField.',
+            locations: [{ line: 9, column: 9 }],
+            path: ['hero', 'nonNullErrorField'],
+          },
+        ],
+        hasNext: false,
+      },
+    ]);
+  });
+  it('Handles async non-nullable errors thrown in deferred fragments', async () => {
+    const document = parse(`
+      query HeroNameQuery {
+        hero {
+          id
+          ...NameFragment @defer
+        }
+      }
+      fragment NameFragment on Hero {
+        promiseNonNullErrorField
+      }
+    `);
+    const result = await complete(document);
+    expectJSON(result).toDeepEqual([
+      {
+        data: { hero: { id: '1' } },
+        hasNext: true,
+      },
+      {
+        data: null,
+        path: ['hero'],
+        errors: [
+          {
+            message:
+              'Cannot return null for non-nullable field Hero.promiseNonNullErrorField.',
+            locations: [{ line: 9, column: 9 }],
+            path: ['hero', 'promiseNonNullErrorField'],
           },
         ],
         hasNext: false,
