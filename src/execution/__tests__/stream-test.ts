@@ -405,14 +405,6 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          name: 'Leia',
-          id: '3',
-        },
-        path: ['asyncListError', 2],
-        hasNext: true,
-      },
-      {
         data: null,
         path: ['asyncListError', 1],
         errors: [
@@ -427,6 +419,14 @@ describe('Execute: stream directive', () => {
             path: ['asyncListError', 1],
           },
         ],
+        hasNext: true,
+      },
+      {
+        data: {
+          name: 'Leia',
+          id: '3',
+        },
+        path: ['asyncListError', 2],
         hasNext: false,
       },
     ]);
