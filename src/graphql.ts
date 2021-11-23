@@ -8,6 +8,7 @@ import type {
 import { parse, validate, validateSchema } from 'graphql';
 
 import type { PromiseOrValue } from './jsutils/PromiseOrValue';
+import { devAssert } from './jsutils/devAssert';
 import { isPromise } from './jsutils/isPromise';
 import type { Maybe } from './jsutils/Maybe';
 import { isAsyncIterable } from './jsutils/isAsyncIterable';
@@ -95,6 +96,12 @@ export function graphqlSync(args: GraphQLArgs): ExecutionResult {
 function graphqlImpl(
   args: GraphQLArgs,
 ): PromiseOrValue<ExecutionResult | AsyncIterable<AsyncExecutionResult>> {
+  // Temporary for v15 to v16 migration. Remove in v17
+  devAssert(
+    arguments.length < 2,
+    'graphql@16 dropped long-deprecated support for positional arguments, please pass an object instead.',
+  );
+
   const {
     schema,
     source,
