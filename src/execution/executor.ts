@@ -2048,7 +2048,7 @@ export class Executor {
       // the push and stop methods after the first payload has been requested
       // and sent.
       // TODO: create a method that returns an eager (or primed) repeater, as
-      // well as its push and stop methods. 
+      // well as its push and stop methods.
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const publisher = exeContext.publisher!;
       const { push, stop } = publisher;
