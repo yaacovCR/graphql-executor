@@ -8,6 +8,10 @@
 
   This allows functions that operate on these field lists to be memoized.
 
+- 79440e60: Re-implement incremental delivery using repeaters.
+
+  See https://repeater.js.org/ for further discussion about repeaters. This avoids bespoke raw async iterator and promise racing implementations.
+
 - 6bb42abe: Refactor mapAsyncIterator to use a Repeater implementation
 
   This is a breaking change as the generator returned by mapAsyncIterator will now (correctly) not support concurrent next() and throw() calls. As the generator returned by calls to execute should rarely be used with throw(), this breaking change should have little impact.
