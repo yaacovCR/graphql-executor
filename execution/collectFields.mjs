@@ -5,6 +5,8 @@ import {
   isAbstractType,
   typeFromAST,
 } from 'graphql';
+import { memoize1 } from '../jsutils/memoize1.mjs';
+import { memoize2 } from '../jsutils/memoize2.mjs';
 import { GraphQLDeferDirective } from '../type/directives.mjs';
 import { getDirectiveValues } from './values.mjs';
 
@@ -110,9 +112,9 @@ function collectFieldsImpl(
         const fieldList = fields.get(name);
 
         if (fieldList !== undefined) {
-          fieldList.push(selection);
+          fields.set(name, updateFieldList(fieldList, selection));
         } else {
-          fields.set(name, [selection]);
+          fields.set(name, createFieldList(selection));
         }
 
         break;
@@ -299,3 +301,15 @@ function doesFragmentConditionMatch(schema, fragment, type) {
 function getFieldEntryKey(node) {
   return node.alias ? node.alias.value : node.name.value;
 }
+/**
+ * Creates a field list, memoizing so that functions operating on the
+ * field list can be memoized.
+ */
+
+const createFieldList = memoize1((node) => [node]);
+/**
+ * Appends to a field list, memoizing so that functions operating on the
+ * field list can be memoized.
+ */
+
+const updateFieldList = memoize2((fieldList, node) => [...fieldList, node]);

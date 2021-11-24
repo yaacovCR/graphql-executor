@@ -8,6 +8,10 @@ exports.collectSubfields = collectSubfields;
 
 var _graphql = require('graphql');
 
+var _memoize = require('../jsutils/memoize1.js');
+
+var _memoize2 = require('../jsutils/memoize2.js');
+
 var _directives = require('../type/directives.js');
 
 var _values = require('./values.js');
@@ -114,9 +118,9 @@ function collectFieldsImpl(
         const fieldList = fields.get(name);
 
         if (fieldList !== undefined) {
-          fieldList.push(selection);
+          fields.set(name, updateFieldList(fieldList, selection));
         } else {
-          fields.set(name, [selection]);
+          fields.set(name, createFieldList(selection));
         }
 
         break;
@@ -311,3 +315,18 @@ function doesFragmentConditionMatch(schema, fragment, type) {
 function getFieldEntryKey(node) {
   return node.alias ? node.alias.value : node.name.value;
 }
+/**
+ * Creates a field list, memoizing so that functions operating on the
+ * field list can be memoized.
+ */
+
+const createFieldList = (0, _memoize.memoize1)((node) => [node]);
+/**
+ * Appends to a field list, memoizing so that functions operating on the
+ * field list can be memoized.
+ */
+
+const updateFieldList = (0, _memoize2.memoize2)((fieldList, node) => [
+  ...fieldList,
+  node,
+]);
