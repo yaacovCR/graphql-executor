@@ -1,5 +1,26 @@
 # graphql-executor
 
+## 0.0.9
+
+### Patch Changes
+
+- 797ee218: Memoize field lists created by the collectFields utility function.
+
+  This allows functions that operate on these field lists to be memoized.
+
+- 6bb42abe: Refactor mapAsyncIterator to use a Repeater implementation
+
+  This is a breaking change as the generator returned by mapAsyncIterator will now (correctly) not support concurrent next() and throw() calls. As the generator returned by calls to execute should rarely be used with throw(), this breaking change should have little impact.
+
+- f6d0b735: Support incremental delivery with defer/stream directives
+
+  Port of https://github.com/graphql/graphql-js/pull/2839
+  defer/stream support is enabled by default, but can be disabled using the `disableIncremental` argument.
+
+- 7aaffa24: BREAKING CHANGE: `execute` now executes subscriptions as subscriptions, not queries, unless the new `forceQueryAlgorithm` option is set to true. The `subscribe` function has been removed.
+
+  Executing a subscription with improper arguments now throws an error (rather than returning a promise that rejects with an error), aligning execution of subscriptions to that of queries and mutations.
+
 ## 0.0.8
 
 ### Patch Changes
