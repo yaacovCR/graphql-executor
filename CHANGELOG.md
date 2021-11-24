@@ -1,5 +1,11 @@
 # graphql-executor
 
+## 0.0.10
+
+### Patch Changes
+
+- 5a9c3be1: Update README.md to reflect integration of execute and subscribe
+
 ## 0.0.9
 
 ### Patch Changes
