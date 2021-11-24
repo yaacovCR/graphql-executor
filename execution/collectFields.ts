@@ -16,6 +16,8 @@ import {
 } from 'graphql';
 import type { Maybe } from '../jsutils/Maybe.ts';
 import type { ObjMap } from '../jsutils/ObjMap.ts';
+import { memoize1 } from '../jsutils/memoize1.ts';
+import { memoize2 } from '../jsutils/memoize2.ts';
 import { GraphQLDeferDirective } from '../type/directives.ts';
 import { getDirectiveValues } from './values.ts';
 export interface PatchFields {
@@ -135,9 +137,9 @@ function collectFieldsImpl(
         const fieldList = fields.get(name);
 
         if (fieldList !== undefined) {
-          fieldList.push(selection);
+          fields.set(name, updateFieldList(fieldList, selection));
         } else {
-          fields.set(name, [selection]);
+          fields.set(name, createFieldList(selection));
         }
 
         break;
@@ -340,3 +342,20 @@ function doesFragmentConditionMatch(
 function getFieldEntryKey(node: FieldNode): string {
   return node.alias ? node.alias.value : node.name.value;
 }
+/**
+ * Creates a field list, memoizing so that functions operating on the
+ * field list can be memoized.
+ */
+
+const createFieldList = memoize1((node: FieldNode): Array<FieldNode> => [node]);
+/**
+ * Appends to a field list, memoizing so that functions operating on the
+ * field list can be memoized.
+ */
+
+const updateFieldList = memoize2(
+  (fieldList: Array<FieldNode>, node: FieldNode): Array<FieldNode> => [
+    ...fieldList,
+    node,
+  ],
+);
