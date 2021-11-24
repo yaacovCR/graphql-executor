@@ -131,7 +131,7 @@ function collectFieldsImpl(
         const name = getFieldEntryKey(selection);
         const fieldList = fields.get(name);
         if (fieldList !== undefined) {
-          appendFieldToFieldList(fieldList, selection);
+          fields.set(name, updateFieldList(fieldList, selection));
         } else {
           fields.set(name, createFieldList(selection));
         }
@@ -323,8 +323,9 @@ const createFieldList = memoize1((node: FieldNode): Array<FieldNode> => [node]);
  * Appends to a field list, memoizing so that functions operating on the
  * field list can be memoized.
  */
-const appendFieldToFieldList = memoize2(
-  (fieldList: Array<FieldNode>, node: FieldNode): void => {
-    fieldList.push(node);
-  },
+const updateFieldList = memoize2(
+  (fieldList: Array<FieldNode>, node: FieldNode): Array<FieldNode> => [
+    ...fieldList,
+    node,
+  ],
 );
