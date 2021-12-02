@@ -1,6 +1,7 @@
 import type { PromiseOrValue } from '../jsutils/PromiseOrValue';
 import { isPromise } from '../jsutils/isPromise';
 import { isAsyncIterable } from '../jsutils/isAsyncIterable';
+import { devAssert } from '../jsutils/devAssert';
 
 import type {
   ExecutionArgs,
@@ -24,6 +25,12 @@ export function execute(
 ): PromiseOrValue<
   ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
 > {
+  // Temporary for v15 to v16 migration. Remove in v17
+  devAssert(
+    arguments.length < 2,
+    'graphql@16 dropped long-deprecated support for positional arguments, please pass an object instead.',
+  );
+
   const executor = new Executor();
   return executor.execute(args);
 }
