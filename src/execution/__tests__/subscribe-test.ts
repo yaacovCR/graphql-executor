@@ -2,7 +2,6 @@ import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
 import {
-  executeSync,
   GraphQLBoolean,
   GraphQLInt,
   GraphQLList,
@@ -19,7 +18,7 @@ import { resolveOnNextTick } from '../../__testUtils__/resolveOnNextTick';
 import { invariant } from '../../jsutils/invariant';
 import { isAsyncIterable } from '../../jsutils/isAsyncIterable';
 
-import { execute } from '../execute';
+import { execute, executeSync } from '../execute';
 import { createSourceEventStream } from '../createSourceEventStream';
 
 import { SimplePubSub } from './simplePubSub';
