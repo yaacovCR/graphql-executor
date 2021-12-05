@@ -7,19 +7,19 @@ export function expectPromise(promise: Promise<unknown>) {
 
       try {
         resolvedValue = await promise;
-      } catch (error) {
-        // istanbul ignore next (Shouldn't be reached)
+      } /* c8 ignore start */ catch (error) {
         expect.fail(`promise threw unexpected error ${error}`);
-      }
+      } /* c8 ignore stop */
       expect(resolvedValue).to.deep.equal(value);
     },
     async toRejectWith(err: unknown) {
       let caughtError: unknown;
 
       try {
-        await promise;
-        // istanbul ignore next (Shouldn't be reached)
-        expect.fail('promise should have thrown but did not');
+        await promise; /* c8 ignore start */
+        expect.fail(
+          'promise should have thrown but did not',
+        ); /* c8 ignore stop */
       } catch (error) {
         caughtError = error;
       }
@@ -30,9 +30,10 @@ export function expectPromise(promise: Promise<unknown>) {
       let caughtError: Error;
 
       try {
-        await promise;
-        // istanbul ignore next (Shouldn't be reached)
-        expect.fail('promise should have thrown but did not');
+        await promise; /* c8 ignore start */
+        expect.fail(
+          'promise should have thrown but did not',
+        ); /* c8 ignore stop */
       } catch (error) {
         caughtError = error;
       }

@@ -57,7 +57,6 @@ describe('SimplePubSub', () => {
 
   it('allows returning early', async () => {
     const pubsub = new SimplePubSub();
-    // istanbul ignore next (Shouldn't be reached)
     const iterator = pubsub.getSubscriber((x) => x);
 
     // Read ahead
@@ -84,7 +83,6 @@ describe('SimplePubSub', () => {
 
   it('allows throwing into the iterator', async () => {
     const pubsub = new SimplePubSub();
-    // istanbul ignore next (Shouldn't be reached)
     const iterator = pubsub.getSubscriber((x) => x);
 
     // Read ahead
