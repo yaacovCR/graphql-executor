@@ -257,12 +257,6 @@ export class Executor {
   ): PromiseOrValue<
     ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   > {
-    // Temporary for v15 to v16 migration. Remove in v17
-    devAssert(
-      arguments.length < 2,
-      'graphql@16 dropped long-deprecated support for positional arguments, please pass an object instead.',
-    );
-
     const exeContext = this.buildExecutionContext(args);
 
     // If a valid execution context cannot be created due to incorrect arguments,
