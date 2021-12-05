@@ -10,6 +10,8 @@ var _isPromise = require('../jsutils/isPromise.js');
 
 var _isAsyncIterable = require('../jsutils/isAsyncIterable.js');
 
+var _devAssert = require('../jsutils/devAssert.js');
+
 var _executor = require('./executor.js');
 
 /**
@@ -23,6 +25,12 @@ var _executor = require('./executor.js');
  * a GraphQLError will be thrown immediately explaining the invalid input.
  */
 function execute(args) {
+  // Temporary for v15 to v16 migration. Remove in v17
+  arguments.length < 2 ||
+    (0, _devAssert.devAssert)(
+      false,
+      'graphql@16 dropped long-deprecated support for positional arguments, please pass an object instead.',
+    );
   const executor = new _executor.Executor();
   return executor.execute(args);
 }

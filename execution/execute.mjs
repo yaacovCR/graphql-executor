@@ -1,5 +1,6 @@
 import { isPromise } from '../jsutils/isPromise.mjs';
 import { isAsyncIterable } from '../jsutils/isAsyncIterable.mjs';
+import { devAssert } from '../jsutils/devAssert.mjs';
 import { Executor } from './executor.mjs';
 /**
  * Implements the "Executing requests" section of the GraphQL specification.
@@ -13,6 +14,12 @@ import { Executor } from './executor.mjs';
  */
 
 export function execute(args) {
+  // Temporary for v15 to v16 migration. Remove in v17
+  arguments.length < 2 ||
+    devAssert(
+      false,
+      'graphql@16 dropped long-deprecated support for positional arguments, please pass an object instead.',
+    );
   const executor = new Executor();
   return executor.execute(args);
 }
