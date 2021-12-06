@@ -519,15 +519,16 @@ function findConflict(
         [node1],
         [node2],
       ];
-    } // istanbul ignore next (See: 'https://github.com/graphql/graphql-js/issues/2203')
+    } // FIXME https://github.com/graphql/graphql-js/issues/2203
 
     const args1 =
+      /* c8 ignore next */
       (_node1$arguments = node1.arguments) !== null &&
       _node1$arguments !== void 0
         ? _node1$arguments
-        : []; // istanbul ignore next (See: 'https://github.com/graphql/graphql-js/issues/2203')
-
+        : [];
     const args2 =
+      /* c8 ignore next */
       (_node2$arguments = node2.arguments) !== null &&
       _node2$arguments !== void 0
         ? _node2$arguments
@@ -539,15 +540,16 @@ function findConflict(
         [node1],
         [node2],
       ];
-    } // istanbul ignore next (See: 'https://github.com/graphql/graphql-js/issues/2203')
+    } // FIXME https://github.com/graphql/graphql-js/issues/2203
 
     const directives1 =
+      /* c8 ignore next */
       (_node1$directives = node1.directives) !== null &&
       _node1$directives !== void 0
         ? _node1$directives
-        : []; // istanbul ignore next (See: 'https://github.com/graphql/graphql-js/issues/2203')
-
+        : [];
     const directives2 =
+      /* c8 ignore next */
       (_node2$directives = node2.directives) !== null &&
       _node2$directives !== void 0
         ? _node2$directives
@@ -619,8 +621,9 @@ function sameArguments(arguments1, arguments2) {
 function sameDirectiveArgument(directive1, directive2, argumentName) {
   var _directive1$arguments, _directive2$arguments;
 
-  /* istanbul ignore next (See https://github.com/graphql/graphql-js/issues/2203) */
+  // See https://github.com/graphql/graphql-js/issues/2203
   const args1 =
+    /* c8 ignore next */
     (_directive1$arguments = directive1.arguments) !== null &&
     _directive1$arguments !== void 0
       ? _directive1$arguments
@@ -629,10 +632,10 @@ function sameDirectiveArgument(directive1, directive2, argumentName) {
 
   if (!arg1) {
     return false;
-  }
-  /* istanbul ignore next (See https://github.com/graphql/graphql-js/issues/2203) */
+  } // See https://github.com/graphql/graphql-js/issues/2203
 
   const args2 =
+    /* c8 ignore next */
     (_directive2$arguments = directive2.arguments) !== null &&
     _directive2$arguments !== void 0
       ? _directive2$arguments
