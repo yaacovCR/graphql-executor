@@ -9,6 +9,7 @@ describe('isAsyncIterable', () => {
     const asyncIterable = { [Symbol.asyncIterator]: identityFunc };
     expect(isAsyncIterable(asyncIterable)).to.equal(true);
 
+    // istanbul ignore next (Never called and use just as a placeholder)
     async function* asyncGeneratorFunc() {
       /* do nothing */
     }
@@ -39,6 +40,7 @@ describe('isAsyncIterable', () => {
     const nonAsyncIterable = { [Symbol.iterator]: identityFunc };
     expect(isAsyncIterable(nonAsyncIterable)).to.equal(false);
 
+    // istanbul ignore next (Never called and use just as a placeholder)
     function* generatorFunc() {
       /* do nothing */
     }

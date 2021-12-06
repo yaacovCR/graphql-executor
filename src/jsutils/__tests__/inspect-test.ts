@@ -33,14 +33,12 @@ describe('inspect', () => {
 
   it('function', () => {
     const unnamedFuncStr = inspect(
-      // Never called and used as a placeholder
-      /* c8 ignore next */
+      // istanbul ignore next (Never called and used as a placeholder)
       () => expect.fail('Should not be called'),
     );
     expect(unnamedFuncStr).to.equal('[function]');
 
-    // Never called and used as a placeholder
-    /* c8 ignore next 3 */
+    // istanbul ignore next (Never called and used as a placeholder)
     function namedFunc() {
       expect.fail('Should not be called');
     }

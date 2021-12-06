@@ -24,12 +24,9 @@ function toJSONDeep(value: unknown): unknown {
 }
 
 export function expectJSON(actual: unknown) {
-  const actualJSON = toJSONDeep(actual);
-
   return {
     toDeepEqual(expected: unknown) {
-      const expectedJSON = toJSONDeep(expected);
-      expect(actualJSON).to.deep.equal(expectedJSON);
+      expect(toJSONDeep(actual)).to.deep.equal(toJSONDeep(expected));
     },
   };
 }

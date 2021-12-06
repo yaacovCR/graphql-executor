@@ -17,7 +17,6 @@ import { isAsyncIterable } from '../../jsutils/isAsyncIterable';
 
 import { execute } from '../execute';
 import { expectJSON } from '../../__testUtils__/expectJSON';
-import { expectPromise } from '../../__testUtils__/expectPromise';
 
 const friendType = new GraphQLObjectType({
   fields: {
@@ -137,8 +136,8 @@ const query = new GraphQLObjectType({
           // eslint-disable-next-line no-await-in-loop
           await new Promise((r) => setTimeout(r, 1));
           yield friend;
-        } /* c8 ignore start */
-      } /* c8 ignore stop */,
+        }
+      },
     },
     asyncIterableListNoReturn: {
       type: new GraphQLList(friendType),
@@ -1189,16 +1188,11 @@ describe('Execute: stream directive', () => {
       },
     });
 
-    const returnPromise = iterator.return();
+    iterator.return?.();
 
     // all calls to return and next settle in call order
     const result2 = await iterator.next();
     expect(result2).to.deep.equal({
-      done: true,
-      value: undefined,
-    });
-
-    await expectPromise(returnPromise).toResolveAs({
       done: true,
       value: undefined,
     });
@@ -1234,16 +1228,11 @@ describe('Execute: stream directive', () => {
       },
     });
 
-    const returnPromise = iterator.return();
+    iterator.return?.();
 
     // all calls to return and next settle in call order
     const result2 = await iterator.next();
     expect(result2).to.deep.equal({
-      done: true,
-      value: undefined,
-    });
-
-    await expectPromise(returnPromise).toResolveAs({
       done: true,
       value: undefined,
     });
@@ -1279,8 +1268,7 @@ describe('Execute: stream directive', () => {
       },
     });
 
-    const error = new Error('bad');
-    const throwPromise = iterator.throw(error);
+    iterator.throw?.(new Error('bad'));
 
     // all calls to throw and next settle in call order
     const result2 = await iterator.next();
@@ -1288,7 +1276,5 @@ describe('Execute: stream directive', () => {
       done: true,
       value: undefined,
     });
-
-    await expectPromise(throwPromise).toRejectWith(error);
   });
 });

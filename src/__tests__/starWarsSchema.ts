@@ -8,6 +8,8 @@ import {
   GraphQLString,
 } from 'graphql';
 
+import { invariant } from '../jsutils/invariant';
+
 import { getFriends, getHero, getHuman, getDroid } from './starWarsData';
 
 /**
@@ -135,6 +137,9 @@ const characterInterface: GraphQLInterfaceType = new GraphQLInterfaceType({
       case 'Droid':
         return droidType.name;
     }
+
+    // istanbul ignore next (Not reachable. All possible types have been considered)
+    invariant(false);
   },
 });
 

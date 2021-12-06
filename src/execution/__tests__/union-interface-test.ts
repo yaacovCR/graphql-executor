@@ -115,11 +115,12 @@ const PetType = new GraphQLUnionType({
     if (value instanceof Dog) {
       return DogType.name;
     }
+    // istanbul ignore else (See: 'https://github.com/graphql/graphql-js/issues/2618')
     if (value instanceof Cat) {
       return CatType.name;
     }
-    /* c8 ignore next 3 */
-    // Not reachable, all possible types have been considered.
+
+    // istanbul ignore next (Not reachable. All possible types have been considered)
     expect.fail('Not reachable');
   },
 });

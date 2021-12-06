@@ -1,6 +1,5 @@
 language: en
 useGitignore: true
-# TODO enableGlobDot: true
 ignorePaths:
   # Excluded from spelling check
   - cspell.yml

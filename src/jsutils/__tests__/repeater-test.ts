@@ -103,8 +103,8 @@ describe('Repeater', () => {
       await push(1);
       await push(2);
       await push(3);
-      await push(4); /* c8 ignore start */
-    }); /* c8 ignore stop */
+      await push(4);
+    });
     expect(await r.next()).to.deep.equal({ value: 1, done: false });
     expect(await r.next()).to.deep.equal({ value: 2, done: false });
     expect(await r.next()).to.deep.equal({ value: 3, done: false });
@@ -133,8 +133,8 @@ describe('Repeater', () => {
       await push(Promise.resolve(1));
       await push(Promise.resolve(2));
       await push(Promise.resolve(3));
-      await push(Promise.resolve(4)); /* c8 ignore start */
-    }); /* c8 ignore stop */
+      await push(Promise.resolve(4));
+    });
     expect(await r.next()).to.deep.equal({ value: 1, done: false });
     expect(await r.next()).to.deep.equal({ value: 2, done: false });
     expect(await r.next()).to.deep.equal({ value: 3, done: false });
@@ -163,8 +163,8 @@ describe('Repeater', () => {
       await push(delayPromise(5, 1));
       await push(Promise.resolve(2));
       await push(3);
-      await push(delayPromise(10, 4)); /* c8 ignore start */
-    }); /* c8 ignore stop */
+      await push(delayPromise(10, 4));
+    });
     expect(await r.next()).to.deep.equal({ value: 1, done: false });
     expect(await r.next()).to.deep.equal({ value: 2, done: false });
     expect(await r.next()).to.deep.equal({ value: 3, done: false });
@@ -801,6 +801,7 @@ describe('Repeater', () => {
 
   it('ignored repeater', () => {
     const mock = fn();
+    // istanbul ignore next (Shouldn't be reached)
     // eslint-disable-next-line no-new
     new Repeater(() => mock());
     expectMock(mock).toHaveBeenCalledTimes(0);
@@ -811,9 +812,9 @@ describe('Repeater', () => {
     const r = new Repeater(async (push) => {
       for (let i = 0; i < 100; i++) {
         // eslint-disable-next-line no-await-in-loop
-        mock(await push(i)); /* c8 ignore start */
+        mock(await push(i));
       }
-    }); /* c8 ignore stop */
+    });
     expect(await r.next()).to.deep.equal({ value: 0, done: false });
     expectMock(mock).toHaveBeenCalledTimes(0);
     for (let i = 1; i < 50; i++) {
@@ -1112,9 +1113,9 @@ describe('Repeater', () => {
           result.push(num);
           if (num === 3) {
             throw error;
-          } /* c8 ignore start */
+          }
         }
-      })() /* c8 ignore stop */,
+      })(),
     ).toRejectWith(error);
     expect(result).to.deep.equal([1, 2, 3]);
     expectSpy(spy).toHaveBeenCalledTimes(1);
@@ -1149,6 +1150,7 @@ describe('Repeater', () => {
 
   it('return method before execution', async () => {
     const mock = fn();
+    // istanbul ignore next (Shouldn't be reached)
     const r = new Repeater<unknown, unknown>(() => mock());
     expect(await r.return(-1)).to.deep.equal({
       value: -1,
@@ -1366,6 +1368,7 @@ describe('Repeater', () => {
   it('throw method before execution', async () => {
     const error = new Error('throw method before execution');
     const mock = fn();
+    // istanbul ignore next (Shouldn't be reached)
     const r = new Repeater(() => mock());
     await expectPromise(r.throw(error)).toRejectWith(error);
     expect(await r.next()).to.deep.equal({ done: true, value: undefined });

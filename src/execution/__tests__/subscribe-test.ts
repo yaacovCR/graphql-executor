@@ -177,10 +177,8 @@ describe('Subscription Initialization Phase', () => {
       value: { data: { foo: 'FooValue' } },
     });
 
-    expect(await subscription.next()).to.deep.equal({
-      done: true,
-      value: undefined,
-    });
+    // Close subscription
+    await subscription.return();
   });
 
   it('accepts type definition with sync subscribe function', async () => {
@@ -212,10 +210,8 @@ describe('Subscription Initialization Phase', () => {
       value: { data: { foo: 'FooValue' } },
     });
 
-    expect(await subscription.next()).to.deep.equal({
-      done: true,
-      value: undefined,
-    });
+    // Close subscription
+    await subscription.return();
   });
 
   it('accepts type definition with async subscribe function', async () => {
@@ -250,10 +246,8 @@ describe('Subscription Initialization Phase', () => {
       value: { data: { foo: 'FooValue' } },
     });
 
-    expect(await subscription.next()).to.deep.equal({
-      done: true,
-      value: undefined,
-    });
+    // Close subscription
+    await subscription.return();
   });
 
   it('uses a custom default subscribeFieldResolver', async () => {
@@ -284,10 +278,8 @@ describe('Subscription Initialization Phase', () => {
       value: { data: { foo: 'FooValue' } },
     });
 
-    expect(await subscription.next()).to.deep.equal({
-      done: true,
-      value: undefined,
-    });
+    // Close subscription
+    await subscription.return();
   });
 
   it('should only resolve the first field of invalid multi-field', async () => {
@@ -312,7 +304,7 @@ describe('Subscription Initialization Phase', () => {
           },
           bar: {
             type: GraphQLString,
-            /* c8 ignore next 3 */
+            // istanbul ignore next (Shouldn't be called)
             subscribe() {
               didResolveBar = true;
             },
@@ -332,10 +324,8 @@ describe('Subscription Initialization Phase', () => {
 
     expect(await subscription.next()).to.have.property('done', false);
 
-    expect(await subscription.next()).to.deep.equal({
-      done: true,
-      value: undefined,
-    });
+    // Close subscription
+    await subscription.return();
   });
 
   it('throws an error if some of required arguments are missing', async () => {
@@ -1109,16 +1099,11 @@ describe('Subscription Publish Phase', () => {
 
     // However that does not close the response event stream.
     // Subsequent events are still executed.
-    expect(await subscription.next()).to.deep.equal({
+    expectJSON(await subscription.next()).toDeepEqual({
       done: false,
       value: {
         data: { newMessage: 'Bonjour' },
       },
-    });
-
-    expect(await subscription.next()).to.deep.equal({
-      done: true,
-      value: undefined,
     });
   });
 

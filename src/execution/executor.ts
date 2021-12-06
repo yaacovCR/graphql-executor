@@ -531,8 +531,6 @@ export class Executor {
         case Kind.FRAGMENT_DEFINITION:
           fragments[definition.name.value] = definition;
           break;
-        default:
-        // ignore non-executable definitions
       }
     }
 
@@ -545,9 +543,8 @@ export class Executor {
       return [new GraphQLError('Must provide an operation.')];
     }
 
-    // See: 'https://github.com/graphql/graphql-js/issues/2203'
-    const variableDefinitions =
-      /* c8 ignore next */ operation.variableDefinitions ?? [];
+    // istanbul ignore next (See: 'https://github.com/graphql/graphql-js/issues/2203')
+    const variableDefinitions = operation.variableDefinitions ?? [];
 
     const coercedVariableValues = getVariableValues(
       schema,
@@ -1004,6 +1001,7 @@ export class Executor {
     }
 
     // If field type is Object, execute and complete all sub-selections.
+    // istanbul ignore else (See: 'https://github.com/graphql/graphql-js/issues/2618')
     if (isObjectType(returnType)) {
       return this.completeObjectValue(
         exeContext,
@@ -1016,8 +1014,8 @@ export class Executor {
         payloadID,
       );
     }
-    /* c8 ignore next 6 */
-    // Not reachable. All possible output types have been considered
+
+    // istanbul ignore next (Not reachable. All possible output types have been considered)
     invariant(
       false,
       'Cannot complete value of unexpected output type: ' + inspect(returnType),
@@ -1110,8 +1108,7 @@ export class Executor {
 
     return {
       initialCount:
-        // initialCount is required number argument
-        /* c8 ignore next 3 */
+        // istanbul ignore next (initialCount is required number argument)
         typeof stream.initialCount === 'number'
           ? stream.initialCount
           : undefined,

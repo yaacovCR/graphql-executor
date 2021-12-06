@@ -165,8 +165,7 @@ export function getArgumentValues(
 ): { [argument: string]: unknown } {
   const coercedValues: { [argument: string]: unknown } = {};
 
-  // FIXME: https://github.com/graphql/graphql-js/issues/2203
-  /* c8 ignore next */
+  // istanbul ignore next (See: 'https://github.com/graphql/graphql-js/issues/2203')
   const argumentNodes = node.arguments ?? [];
   const argNodeMap = keyMap(argumentNodes, (arg) => arg.name.value);
 
@@ -250,6 +249,7 @@ export function getDirectiveValues(
   node: { readonly directives?: ReadonlyArray<DirectiveNode> },
   variableValues?: Maybe<ObjMap<unknown>>,
 ): undefined | { [argument: string]: unknown } {
+  // istanbul ignore next (See: 'https://github.com/graphql/graphql-js/issues/2203')
   const directiveNode = node.directives?.find(
     (directive) => directive.name.value === directiveDef.name,
   );

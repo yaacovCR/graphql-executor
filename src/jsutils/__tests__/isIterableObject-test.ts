@@ -20,6 +20,7 @@ describe('isIterableObject', () => {
     const iterable = { [Symbol.iterator]: identityFunc };
     expect(isIterableObject(iterable)).to.equal(true);
 
+    // istanbul ignore next (Never called and use just as a placeholder)
     function* generatorFunc() {
       /* do nothing */
     }
