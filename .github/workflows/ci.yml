@@ -117,7 +117,7 @@ jobs:
         uses: actions/setup-node@v2
         with:
           cache: npm
-          node-version: ${{ matrix.node_version_to_setup }}-node-${{ matrix.graphql_version }}-graphql
+          node-version: ${{ matrix.node_version_to_setup }}
 
       - name: Install Dependencies
         run: npm ci --ignore-scripts
@@ -138,24 +138,17 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v2
 
-      - name: Setup Node.js
+      - name: Setup Node.js v${{ matrix.node_version_to_setup }}
         uses: actions/setup-node@v2
         with:
-          node-version: ${{ env.NODE_VERSION_USED_FOR_DEVELOPMENT }}
-
-      - name: Cache Node.js modules
-        uses: actions/cache@v2
-        with:
-          path: ~/.npm
-          key: ${{ runner.OS }}-node-${{ matrix.graphql_version }}-graphql-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.OS }}-node-${{ matrix.graphql_version }}-graphql-
-
-      - name: Force GraphQL Version
-        run: npm install graphql@${{ matrix.graphql_version }}
+          cache: npm
+          node-version: ${{ matrix.node_version_to_setup }}
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci --ignore-scripts
+
+      - name: Force GraphQL Version
+        run: npm install graphql@${{ matrix.graphql_version }} --save=false
 
       - name: Run Build
         run: npm run build
