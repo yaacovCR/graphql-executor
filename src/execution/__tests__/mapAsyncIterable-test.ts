@@ -93,10 +93,8 @@ describe('mapAsyncIterable', () => {
     async function* source() {
       try {
         yield 1;
-        yield 2;
-
-        // istanbul ignore next (Shouldn't be reached)
-        yield 3;
+        yield 2; /* c8 ignore start */
+        yield 3; /* c8 ignore stop */
       } finally {
         // eslint-disable-next-line no-unsafe-finally
         return 'The End';
@@ -159,10 +157,8 @@ describe('mapAsyncIterable', () => {
     async function* source() {
       try {
         yield 'a';
-        yield 'b';
-
-        // istanbul ignore next (Shouldn't be reached)
-        yield 'c';
+        yield 'b'; /* c8 ignore start */
+        yield 'c'; /* c8 ignore start */
       } finally {
         didVisitFinally = true;
         yield 'The End';
@@ -216,7 +212,9 @@ describe('mapAsyncIterable', () => {
     expect(await doubles.next()).to.deep.equal({ value: 4, done: false });
 
     // Throw error
-    const error = new Error('allows throwing when mapping async iterable');
+    const error = new Error(
+      'allows throwing errors when mapping async iterable',
+    );
     await expectPromise(doubles.throw(error)).toRejectWith(error);
   });
 
@@ -226,10 +224,8 @@ describe('mapAsyncIterable', () => {
     async function* source() {
       try {
         yield 1;
-        yield 2;
-
-        // istanbul ignore next (Shouldn't be reached)
-        yield 3;
+        yield 2; /* c8 start */
+        yield 3; /* c8 stop */
       } finally {
         didVisitFinally = true;
       }
@@ -279,14 +275,12 @@ describe('mapAsyncIterable', () => {
     async function* source() {
       try {
         yield 1;
-        yield 2;
-
-        // istanbul ignore next (Shouldn't be reached)
-        yield 3;
+        yield 2; /* c8 ignore start */
+        yield 3; /* c8 ignore stop */
       } finally {
         didVisitFinally = true;
-        yield 1000;
-      }
+        yield 1000; /* c8 ignore start */
+      } /* c8 ignore stop */
     }
 
     const throwOver1 = mapAsyncIterable(source(), mapper);

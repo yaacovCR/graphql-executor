@@ -1,7 +1,7 @@
 name: CI
 on: [push, pull_request]
 env:
-  NODE_VERSION_USED_FOR_DEVELOPMENT: 16
+  NODE_VERSION_USED_FOR_DEVELOPMENT: 17
 jobs:
   lint:
     name: Lint source files
@@ -13,18 +13,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
+          cache: npm
           node-version: ${{ env.NODE_VERSION_USED_FOR_DEVELOPMENT }}
 
-      - name: Cache Node.js modules
-        uses: actions/cache@v2
-        with:
-          path: ~/.npm
-          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.OS }}-node-
-
       - name: Install Dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Lint ESLint
         run: npm run lint
@@ -65,13 +58,23 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
+          cache: npm
           node-version: ${{ env.NODE_VERSION_USED_FOR_DEVELOPMENT }}
 
       - name: Run npm install
-        run: npm install --package-lock-only --engine-strict --strict-peer-deps
+        run: npm install --ignore-scripts --engine-strict --strict-peer-deps
 
       - name: Check that package-lock.json is in sync with package.json
         run: git diff --exit-code package-lock.json
+
+      - name: Run npm dedupe
+        run: npm dedupe
+
+      - name: Check that package-lock.json doesn't contain unnecessary duplicates
+        run: git diff --exit-code package-lock.json
+
+      - name: Check that package-lock.json doesn't have conflicts
+        run: npm ls --depth 999
 
   coverage:
     name: Measure test coverage
@@ -83,18 +86,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
+          cache: npm
           node-version: ${{ env.NODE_VERSION_USED_FOR_DEVELOPMENT }}
 
-      - name: Cache Node.js modules
-        uses: actions/cache@v2
-        with:
-          path: ~/.npm
-          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.OS }}-node-
-
       - name: Install Dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run tests and measure code coverage
         run: npm run testonly:cover
@@ -111,7 +107,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node_version_to_setup: [12, 14, 16]
+        node_version_to_setup: [12, 14, 16, 17]
         graphql_version: [15, 16]
     steps:
       - name: Checkout repo
@@ -120,21 +116,14 @@ jobs:
       - name: Setup Node.js v${{ matrix.node_version_to_setup }}
         uses: actions/setup-node@v2
         with:
+          cache: npm
           node-version: ${{ matrix.node_version_to_setup }}
 
-      - name: Cache Node.js modules
-        uses: actions/cache@v2
-        with:
-          path: ~/.npm
-          key: ${{ runner.OS }}-node-${{ matrix.graphql_version }}-graphql-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.OS }}-node-${{ matrix.graphql_version }}-graphql-
+      - name: Install Dependencies
+        run: npm ci --ignore-scripts
 
       - name: Force GraphQL Version
-        run: npm install graphql@${{ matrix.graphql_version }}
-
-      - name: Install Dependencies
-        run: npm install
+        run: npm install graphql@${{ matrix.graphql_version }} --save=false
 
       - name: Run Tests
         run: npm run testonly
@@ -149,24 +138,17 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v2
 
-      - name: Setup Node.js
+      - name: Setup Node.js v${{ matrix.node_version_to_setup }}
         uses: actions/setup-node@v2
         with:
-          node-version: ${{ env.NODE_VERSION_USED_FOR_DEVELOPMENT }}
-
-      - name: Cache Node.js modules
-        uses: actions/cache@v2
-        with:
-          path: ~/.npm
-          key: ${{ runner.OS }}-node-${{ matrix.graphql_version }}-graphql-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.OS }}-node-${{ matrix.graphql_version }}-graphql-
-
-      - name: Force GraphQL Version
-        run: npm install graphql@${{ matrix.graphql_version }}
+          cache: npm
+          node-version: ${{ matrix.node_version_to_setup }}
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci --ignore-scripts
+
+      - name: Force GraphQL Version
+        run: npm install graphql@${{ matrix.graphql_version }} --save=false
 
       - name: Run Build
         run: npm run build
@@ -183,18 +165,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
+          cache: npm
           node-version: ${{ env.NODE_VERSION_USED_FOR_DEVELOPMENT }}
 
-      - name: Cache Node.js modules
-        uses: actions/cache@v2
-        with:
-          path: ~/.npm
-          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.OS }}-node-
-
       - name: Install Dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run Benchmark
         run: 'npm run benchmark -- --revs HEAD HEAD~1'
@@ -211,18 +186,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
+          cache: npm
           node-version: ${{ env.NODE_VERSION_USED_FOR_DEVELOPMENT }}
 
-      - name: Cache Node.js modules
-        uses: actions/cache@v2
-        with:
-          path: ~/.npm
-          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.OS }}-node-
-
       - name: Install Dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Generate report
         run: 'node resources/diff-npm-package.js $BASE_COMMIT HEAD'
@@ -251,18 +219,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
+          cache: npm
           node-version: ${{ env.NODE_VERSION_USED_FOR_DEVELOPMENT }}
 
-      - name: Cache Node.js modules
-        uses: actions/cache@v2
-        with:
-          path: ~/.npm
-          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.OS }}-node-
-
       - name: Install Dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Build NPM package
         run: npm run build:npm
@@ -287,18 +248,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: ${{ env.GITHUB_TOKEN }}
-
-      - name: Cache Node.js modules
-        uses: actions/cache@v2
-        with:
-          path: ~/.npm
-          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.OS }}-node-
+          cache: npm
+          node-version: ${{ env.NODE_VERSION_USED_FOR_DEVELOPMENT }}
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Build Deno package
         run: npm run build:deno
