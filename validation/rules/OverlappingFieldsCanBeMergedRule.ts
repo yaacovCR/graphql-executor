@@ -546,11 +546,14 @@ function findConflict(
         [node1],
         [node2],
       ];
-    } // istanbul ignore next (See: 'https://github.com/graphql/graphql-js/issues/2203')
+    } // FIXME https://github.com/graphql/graphql-js/issues/2203
 
-    const args1 = node1.arguments ?? []; // istanbul ignore next (See: 'https://github.com/graphql/graphql-js/issues/2203')
-
-    const args2 = node2.arguments ?? []; // Two field calls must have the same arguments.
+    const args1 =
+      /* c8 ignore next */
+      node1.arguments ?? [];
+    const args2 =
+      /* c8 ignore next */
+      node2.arguments ?? []; // Two field calls must have the same arguments.
 
     if (!sameArguments(args1, args2)) {
       return [
@@ -558,11 +561,14 @@ function findConflict(
         [node1],
         [node2],
       ];
-    } // istanbul ignore next (See: 'https://github.com/graphql/graphql-js/issues/2203')
+    } // FIXME https://github.com/graphql/graphql-js/issues/2203
 
-    const directives1 = node1.directives ?? []; // istanbul ignore next (See: 'https://github.com/graphql/graphql-js/issues/2203')
-
-    const directives2 = node2.directives ?? [];
+    const directives1 =
+      /* c8 ignore next */
+      node1.directives ?? [];
+    const directives2 =
+      /* c8 ignore next */
+      node2.directives ?? [];
 
     if (!sameStreams(directives1, directives2)) {
       return [
@@ -635,16 +641,19 @@ function sameDirectiveArgument(
   directive2: DirectiveNode,
   argumentName: string,
 ): boolean {
-  /* istanbul ignore next (See https://github.com/graphql/graphql-js/issues/2203) */
-  const args1 = directive1.arguments ?? [];
+  // See https://github.com/graphql/graphql-js/issues/2203
+  const args1 =
+    /* c8 ignore next */
+    directive1.arguments ?? [];
   const arg1 = args1.find((argument) => argument.name.value === argumentName);
 
   if (!arg1) {
     return false;
-  }
-  /* istanbul ignore next (See https://github.com/graphql/graphql-js/issues/2203) */
+  } // See https://github.com/graphql/graphql-js/issues/2203
 
-  const args2 = directive2.arguments ?? [];
+  const args2 =
+    /* c8 ignore next */
+    directive2.arguments ?? [];
   const arg2 = args2.find((argument) => argument.name.value === argumentName);
 
   if (!arg2) {
