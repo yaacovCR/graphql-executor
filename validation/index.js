@@ -3,6 +3,12 @@
 Object.defineProperty(exports, '__esModule', {
   value: true,
 });
+Object.defineProperty(exports, 'DeferStreamDirectiveOnRootFieldRule', {
+  enumerable: true,
+  get: function () {
+    return _DeferStreamDirectiveOnRootFieldRule.DeferStreamDirectiveOnRootFieldRule;
+  },
+});
 Object.defineProperty(exports, 'OverlappingFieldsCanBeMergedRule', {
   enumerable: true,
   get: function () {
@@ -15,6 +21,8 @@ Object.defineProperty(exports, 'StreamDirectiveOnListFieldRule', {
     return _StreamDirectiveOnListFieldRule.StreamDirectiveOnListFieldRule;
   },
 });
+
+var _DeferStreamDirectiveOnRootFieldRule = require('./rules/DeferStreamDirectiveOnRootFieldRule.js');
 
 var _OverlappingFieldsCanBeMergedRule = require('./rules/OverlappingFieldsCanBeMergedRule.js');
 

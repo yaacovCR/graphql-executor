@@ -71,8 +71,12 @@ function collectSubfields(
   ignoreDefer,
 ) {
   const subFieldNodes = new Map();
-  const subPatches = [];
   const visitedFragmentNames = new Set();
+  const subPatches = [];
+  const subFieldsAndPatches = {
+    fields: subFieldNodes,
+    patches: subPatches,
+  };
 
   for (const node of fieldNodes) {
     if (node.selectionSet) {
@@ -90,10 +94,7 @@ function collectSubfields(
     }
   }
 
-  return {
-    fields: subFieldNodes,
-    patches: subPatches,
-  };
+  return subFieldsAndPatches;
 }
 
 function collectFieldsImpl(
@@ -134,9 +135,9 @@ function collectFieldsImpl(
           continue;
         }
 
-        const defer = getDeferValues(variableValues, selection);
+        const defer = getDeferValues(variableValues, selection, ignoreDefer);
 
-        if (!ignoreDefer && defer) {
+        if (defer) {
           const patchFields = new Map();
           collectFieldsImpl(
             schema,
@@ -177,7 +178,7 @@ function collectFieldsImpl(
           continue;
         }
 
-        const defer = getDeferValues(variableValues, selection);
+        const defer = getDeferValues(variableValues, selection, ignoreDefer);
 
         if (visitedFragmentNames.has(fragName) && !defer) {
           continue;
@@ -194,7 +195,7 @@ function collectFieldsImpl(
 
         visitedFragmentNames.add(fragName);
 
-        if (!ignoreDefer && defer) {
+        if (defer) {
           const patchFields = new Map();
           collectFieldsImpl(
             schema,
@@ -236,7 +237,11 @@ function collectFieldsImpl(
  * not disabled by the "if" argument.
  */
 
-function getDeferValues(variableValues, node) {
+function getDeferValues(variableValues, node, ignoreDefer) {
+  if (ignoreDefer) {
+    return;
+  }
+
   const defer = (0, _values.getDirectiveValues)(
     _directives.GraphQLDeferDirective,
     node,

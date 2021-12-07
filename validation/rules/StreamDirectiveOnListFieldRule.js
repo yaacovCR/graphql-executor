@@ -24,7 +24,11 @@ function StreamDirectiveOnListFieldRule(context) {
         fieldDef &&
         parentType &&
         node.name.value === _directives.GraphQLStreamDirective.name &&
-        !(0, _graphql.isListType)(fieldDef.type)
+        !(
+          (0, _graphql.isListType)(fieldDef.type) ||
+          ((0, _graphql.isWrappingType)(fieldDef.type) &&
+            (0, _graphql.isListType)(fieldDef.type.ofType))
+        )
       ) {
         context.reportError(
           new _graphql.GraphQLError(

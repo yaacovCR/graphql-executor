@@ -935,14 +935,15 @@ class Executor {
       return;
     }
 
+    typeof stream.initialCount === 'number' ||
+      (0, _invariant.invariant)(false, 'initialCount must be a number');
+    stream.initialCount >= 0 ||
+      (0, _invariant.invariant)(
+        false,
+        'initialCount must be a positive integer',
+      );
     return {
-      // initialCount is required number argument
-
-      initialCount:
-        /* c8 ignore next 3 */
-        typeof stream.initialCount === 'number'
-          ? stream.initialCount
-          : undefined,
+      initialCount: stream.initialCount,
       label: typeof stream.label === 'string' ? stream.label : undefined,
     };
   }
