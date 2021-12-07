@@ -223,7 +223,7 @@ class Executor {
     try {
       data = this.executeRootFields(exeContext, fieldsExecutor);
     } catch (error) {
-      exeContext.errors.push(error);
+      exeContext.rootPayloadContext.errors.push(error);
       return this.buildResponse(exeContext, null);
     }
 
@@ -231,7 +231,7 @@ class Executor {
       return data.then(
         (resolvedData) => this.buildResponse(exeContext, resolvedData),
         (error) => {
-          exeContext.errors.push(error);
+          exeContext.rootPayloadContext.errors.push(error);
           return this.buildResponse(exeContext, null);
         },
       );
@@ -245,13 +245,15 @@ class Executor {
    */
 
   buildResponse(exeContext, data) {
+    const { rootPayloadContext } = exeContext;
+    const errors = rootPayloadContext.errors;
     const initialResult =
-      exeContext.errors.length === 0
+      errors.length === 0
         ? {
             data,
           }
         : {
-            errors: exeContext.errors,
+            errors,
             data,
           };
 
@@ -274,18 +276,17 @@ class Executor {
           push,
           stop,
         };
-        const { pushedPayloads } = exeContext;
-        pushedPayloads.set(0, true); // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        const { pushedPayloads, pendingPayloads } = exeContext;
+        pushedPayloads.set(rootPayloadContext, true); // eslint-disable-next-line @typescript-eslint/no-floating-promises
 
         push({ ...initialResult, hasNext: true });
-        const { pendingPayloads } = exeContext;
-        const parentPendingPayloads = pendingPayloads.get(0);
+        const parentPendingPayloads = pendingPayloads.get(rootPayloadContext);
 
         if (parentPendingPayloads) {
           this.pushResults(exeContext, push, stop, parentPendingPayloads);
         }
 
-        pendingPayloads.delete(0);
+        pendingPayloads.delete(rootPayloadContext);
       });
     }
 
@@ -437,13 +438,14 @@ class Executor {
                 : defaultFieldResolver,
             )
           : this.buildFieldResolver('resolve', defaultResolveFieldValueFn),
-      errors: [],
+      rootPayloadContext: {
+        errors: [],
+      },
       iterators: new Set(),
       publisher: undefined,
       pendingPushes: 0,
-      nextPayloadID: 1,
-      pushedPayloads: new Map(),
-      pendingPayloads: new Map(),
+      pushedPayloads: new WeakMap(),
+      pendingPayloads: new WeakMap(),
     };
   }
   /**
@@ -460,13 +462,14 @@ class Executor {
         'resolve',
         exeContext.fieldResolver,
       ),
-      errors: [],
+      rootPayloadContext: {
+        errors: [],
+      },
       iterators: new Set(),
       publisher: undefined,
       pendingPushes: 0,
-      nextPayloadID: 1,
-      pushedPayloads: new Map(),
-      pendingPayloads: new Map(),
+      pushedPayloads: new WeakMap(),
+      pendingPayloads: new WeakMap(),
     };
   }
   /**
@@ -481,7 +484,7 @@ class Executor {
       operation,
       variableValues,
       disableIncremental,
-      errors,
+      rootPayloadContext,
     } = exeContext;
     const {
       rootType,
@@ -500,10 +503,16 @@ class Executor {
       rootValue,
       path,
       fields,
-      errors,
-      0,
+      rootPayloadContext,
     );
-    this.addPatches(exeContext, patches, rootType, rootValue, path, 0);
+    this.addPatches(
+      exeContext,
+      patches,
+      rootType,
+      rootValue,
+      path,
+      rootPayloadContext,
+    );
     return result;
   }
 
@@ -550,8 +559,7 @@ class Executor {
           sourceValue,
           fieldNodes,
           fieldPath,
-          exeContext.errors,
-          0,
+          exeContext.rootPayloadContext,
         );
 
         if (result === undefined) {
@@ -582,8 +590,7 @@ class Executor {
     sourceValue,
     path,
     fields,
-    errors,
-    payloadID,
+    payloadContext,
   ) {
     const results = Object.create(null);
     const promises = [];
@@ -596,8 +603,7 @@ class Executor {
         sourceValue,
         fieldNodes,
         fieldPath,
-        errors,
-        payloadID,
+        payloadContext,
       );
 
       if (result !== undefined) {
@@ -633,8 +639,7 @@ class Executor {
     source,
     fieldNodes,
     path,
-    errors,
-    payloadID,
+    payloadContext,
   ) {
     const fieldDef = this.getFieldDef(
       exeContext.schema,
@@ -675,8 +680,7 @@ class Executor {
             info,
             path,
             resolved,
-            errors,
-            payloadID,
+            payloadContext,
           ),
         );
       } else {
@@ -687,8 +691,7 @@ class Executor {
           info,
           path,
           result,
-          errors,
-          payloadID,
+          payloadContext,
         );
       }
 
@@ -701,7 +704,11 @@ class Executor {
             fieldNodes,
             (0, _Path.pathToArray)(path),
           );
-          return this.handleFieldError(error, returnType, errors);
+          return this.handleFieldError(
+            error,
+            returnType,
+            payloadContext.errors,
+          );
         });
       }
 
@@ -712,7 +719,7 @@ class Executor {
         fieldNodes,
         (0, _Path.pathToArray)(path),
       );
-      return this.handleFieldError(error, returnType, errors);
+      return this.handleFieldError(error, returnType, payloadContext.errors);
     }
   }
 
@@ -773,8 +780,7 @@ class Executor {
     info,
     path,
     result,
-    errors,
-    payloadID,
+    payloadContext,
   ) {
     // If result is an Error, throw a located error.
     if (result instanceof Error) {
@@ -790,8 +796,7 @@ class Executor {
         info,
         path,
         result,
-        errors,
-        payloadID,
+        payloadContext,
       );
 
       if (completed === null) {
@@ -815,8 +820,7 @@ class Executor {
         info,
         path,
         result,
-        errors,
-        payloadID,
+        payloadContext,
       );
     } // If field type is a leaf type, Scalar or Enum, serialize to a valid value,
     // returning null if serialization is not possible.
@@ -834,8 +838,7 @@ class Executor {
         info,
         path,
         result,
-        errors,
-        payloadID,
+        payloadContext,
       );
     } // If field type is Object, execute and complete all sub-selections.
 
@@ -847,8 +850,7 @@ class Executor {
         info,
         path,
         result,
-        errors,
-        payloadID,
+        payloadContext,
       );
     }
     /* c8 ignore next 6 */
@@ -873,8 +875,7 @@ class Executor {
     info,
     path,
     result,
-    errors,
-    payloadID,
+    payloadContext,
   ) {
     const itemType = returnType.ofType;
 
@@ -887,8 +888,7 @@ class Executor {
         info,
         path,
         iterator,
-        errors,
-        payloadID,
+        payloadContext,
       );
     }
 
@@ -906,8 +906,7 @@ class Executor {
       info,
       path,
       iterator,
-      errors,
-      payloadID,
+      payloadContext,
     );
   }
   /**
@@ -958,8 +957,7 @@ class Executor {
     info,
     path,
     iterator,
-    errors,
-    payloadID,
+    payloadContext,
   ) {
     const stream = this.getStreamValues(exeContext, fieldNodes); // This is specified as a simple map, however we're optimizing the path
     // where the list contains no Promises by avoiding creating another Promise.
@@ -983,7 +981,7 @@ class Executor {
           itemType,
           path,
           stream.label,
-          payloadID,
+          payloadContext,
         );
         break;
       }
@@ -1005,8 +1003,7 @@ class Executor {
         fieldNodes,
         info,
         itemPath,
-        errors,
-        payloadID,
+        payloadContext,
       );
       index++;
     }
@@ -1026,8 +1023,7 @@ class Executor {
     info,
     path,
     iterator,
-    errors,
-    payloadID,
+    payloadContext,
   ) {
     const stream = this.getStreamValues(exeContext, fieldNodes); // This is specified as a simple map, however we're optimizing the path
     // where the list contains no Promises by avoiding creating another Promise.
@@ -1052,7 +1048,7 @@ class Executor {
           itemType,
           path,
           stream.label,
-          payloadID,
+          payloadContext,
         );
         break;
       }
@@ -1069,7 +1065,9 @@ class Executor {
           fieldNodes,
           (0, _Path.pathToArray)(itemPath),
         );
-        completedResults.push(this.handleFieldError(error, itemType, errors));
+        completedResults.push(
+          this.handleFieldError(error, itemType, payloadContext.errors),
+        );
         break;
       }
 
@@ -1087,8 +1085,7 @@ class Executor {
         fieldNodes,
         info,
         itemPath,
-        errors,
-        payloadID,
+        payloadContext,
       );
       index++;
     }
@@ -1108,8 +1105,7 @@ class Executor {
     fieldNodes,
     info,
     itemPath,
-    errors,
-    payloadID,
+    payloadContext,
   ) {
     try {
       let completedItem;
@@ -1123,8 +1119,7 @@ class Executor {
             info,
             itemPath,
             resolved,
-            errors,
-            payloadID,
+            payloadContext,
           ),
         );
       } else {
@@ -1135,8 +1130,7 @@ class Executor {
           info,
           itemPath,
           item,
-          errors,
-          payloadID,
+          payloadContext,
         );
       }
 
@@ -1154,7 +1148,7 @@ class Executor {
             fieldNodes,
             (0, _Path.pathToArray)(itemPath),
           );
-          return this.handleFieldError(error, itemType, errors);
+          return this.handleFieldError(error, itemType, payloadContext.errors);
         })
         .then((resolved) => {
           completedResults[index] = resolved;
@@ -1166,7 +1160,11 @@ class Executor {
         fieldNodes,
         (0, _Path.pathToArray)(itemPath),
       );
-      completedResults[index] = this.handleFieldError(error, itemType, errors);
+      completedResults[index] = this.handleFieldError(
+        error,
+        itemType,
+        payloadContext.errors,
+      );
     }
   }
   /**
@@ -1201,8 +1199,7 @@ class Executor {
     info,
     path,
     result,
-    errors,
-    payloadID,
+    payloadContext,
   ) {
     var _returnType$resolveTy;
 
@@ -1230,8 +1227,7 @@ class Executor {
           info,
           path,
           result,
-          errors,
-          payloadID,
+          payloadContext,
         ),
       );
     }
@@ -1250,8 +1246,7 @@ class Executor {
       info,
       path,
       result,
-      errors,
-      payloadID,
+      payloadContext,
     );
   }
 
@@ -1321,8 +1316,7 @@ class Executor {
     info,
     path,
     result,
-    errors,
-    payloadID,
+    payloadContext,
   ) {
     // If there is an isTypeOf predicate function, call it with the
     // current result. If isTypeOf returns false, then raise an error rather
@@ -1346,8 +1340,7 @@ class Executor {
             fieldNodes,
             path,
             result,
-            errors,
-            payloadID,
+            payloadContext,
           );
         });
       }
@@ -1363,8 +1356,7 @@ class Executor {
       fieldNodes,
       path,
       result,
-      errors,
-      payloadID,
+      payloadContext,
     );
   }
 
@@ -1382,8 +1374,7 @@ class Executor {
     fieldNodes,
     path,
     result,
-    errors,
-    payloadID,
+    payloadContext,
   ) {
     // Collect sub-fields to execute to complete this value.
     const { fields: subFieldNodes, patches: subPatches } =
@@ -1394,8 +1385,7 @@ class Executor {
       result,
       path,
       subFieldNodes,
-      errors,
-      payloadID,
+      payloadContext,
     );
     this.addPatches(
       exeContext,
@@ -1403,7 +1393,7 @@ class Executor {
       returnType,
       result,
       path,
-      payloadID,
+      payloadContext,
     );
     return subFields;
   }
@@ -1578,12 +1568,21 @@ class Executor {
     return this.executeQueryAlgorithm(exeContext);
   }
 
-  addPatches(exeContext, patches, parentType, source, path, parentPayloadID) {
+  addPatches(
+    exeContext,
+    patches,
+    parentType,
+    source,
+    path,
+    parentPayloadContext,
+  ) {
     for (const patch of patches) {
-      const payloadID = exeContext.nextPayloadID++;
       exeContext.pendingPushes++;
       const { label, fields: patchFields } = patch;
-      const errors = [];
+      const payloadContext = {
+        errors: [],
+        label,
+      };
       Promise.resolve(source)
         .then(() =>
           this.executeFields(
@@ -1592,31 +1591,26 @@ class Executor {
             source,
             path,
             patchFields,
-            errors,
-            payloadID,
+            payloadContext,
           ),
         )
         .then(
           (data) =>
             this.queue(
               exeContext,
-              payloadID,
-              parentPayloadID,
+              payloadContext,
+              parentPayloadContext,
               data,
-              errors,
               path,
-              label,
             ),
           (error) => {
-            this.handleFieldError(error, parentType, errors);
+            this.handleFieldError(error, parentType, payloadContext.errors);
             this.queue(
               exeContext,
-              payloadID,
-              parentPayloadID,
+              payloadContext,
+              parentPayloadContext,
               null,
-              errors,
               path,
-              label,
             );
           },
         );
@@ -1632,20 +1626,22 @@ class Executor {
     itemType,
     path,
     label,
-    parentPayloadID,
+    parentPayloadContext,
   ) {
     let index = initialIndex;
-    let prevPayloadID = parentPayloadID;
+    let prevPayloadContext = parentPayloadContext;
     let iteration = iterator.next();
 
     while (!iteration.done) {
-      const _prevPayloadID = prevPayloadID;
-      const payloadID = exeContext.nextPayloadID++; // avoid unsafe reference of variable from functions inside a loop
+      const _prevPayloadContext = prevPayloadContext;
+      const payloadContext = {
+        errors: [],
+        label,
+      }; // avoid unsafe reference of variable from functions inside a loop
       // see https://eslint.org/docs/rules/no-loop-func
 
       exeContext.pendingPushes++;
       const itemPath = (0, _Path.addPath)(path, index, undefined);
-      const errors = [];
       Promise.resolve(iteration.value)
         .then((resolved) =>
           this.completeValue(
@@ -1655,19 +1651,16 @@ class Executor {
             info,
             itemPath,
             resolved,
-            errors,
-            payloadID,
+            payloadContext,
           ),
         )
         .then((data) =>
           this.queue(
             exeContext,
-            payloadID,
-            _prevPayloadID,
+            payloadContext,
+            _prevPayloadContext,
             data,
-            errors,
             itemPath,
-            label,
           ),
         )
         .then(undefined, (rawError) => {
@@ -1676,19 +1669,17 @@ class Executor {
             fieldNodes,
             (0, _Path.pathToArray)(itemPath),
           );
-          errors.push(error);
+          payloadContext.errors.push(error);
           this.queue(
             exeContext,
-            payloadID,
-            _prevPayloadID,
+            payloadContext,
+            _prevPayloadContext,
             null,
-            errors,
             itemPath,
-            label,
           );
         });
       index++;
-      prevPayloadID = payloadID;
+      prevPayloadContext = payloadContext;
       iteration = iterator.next();
     }
   }
@@ -1702,13 +1693,16 @@ class Executor {
     itemType,
     path,
     label,
-    parentPayloadID,
+    parentPayloadContext,
   ) {
     const { iterators } = exeContext;
     iterators.add(iterator);
     let index = initialIndex;
-    let prevPayloadID = parentPayloadID;
-    let currentPayloadID = exeContext.nextPayloadID++;
+    let prevPayloadContext = parentPayloadContext;
+    let currentPayloadContext = {
+      errors: [],
+      label,
+    };
     let iteration = await this.advanceAsyncIterator(
       index,
       iterator,
@@ -1716,19 +1710,17 @@ class Executor {
       fieldNodes,
       itemType,
       path,
-      label,
-      currentPayloadID,
-      parentPayloadID,
+      currentPayloadContext,
+      parentPayloadContext,
     );
 
     while (iteration && !iteration.done) {
       // avoid unsafe reference of variable from functions inside a loop
       // see https://eslint.org/docs/rules/no-loop-func
-      const _prevPayloadID = prevPayloadID;
-      const _currentPayloadID = currentPayloadID;
+      const _prevPayloadContext = prevPayloadContext;
+      const _currentPayloadContext = currentPayloadContext;
       exeContext.pendingPushes++;
       const itemPath = (0, _Path.addPath)(path, index, undefined);
-      const errors = [];
       Promise.resolve(iteration.value)
         .then((resolved) =>
           this.completeValue(
@@ -1738,19 +1730,16 @@ class Executor {
             info,
             itemPath,
             resolved,
-            errors,
-            _currentPayloadID,
+            _currentPayloadContext,
           ),
         )
         .then((data) =>
           this.queue(
             exeContext,
-            _currentPayloadID,
-            _prevPayloadID,
+            _currentPayloadContext,
+            _prevPayloadContext,
             data,
-            errors,
             itemPath,
-            label,
           ),
         )
         .then(undefined, (rawError) => {
@@ -1759,20 +1748,23 @@ class Executor {
             fieldNodes,
             (0, _Path.pathToArray)(itemPath),
           );
-          errors.push(error);
+
+          _currentPayloadContext.errors.push(error);
+
           this.queue(
             exeContext,
-            _currentPayloadID,
-            _prevPayloadID,
+            _currentPayloadContext,
+            _prevPayloadContext,
             null,
-            errors,
             itemPath,
-            label,
           );
         });
       index++;
-      prevPayloadID = currentPayloadID;
-      currentPayloadID = exeContext.nextPayloadID++; // eslint-disable-next-line no-await-in-loop
+      prevPayloadContext = currentPayloadContext;
+      currentPayloadContext = {
+        errors: [],
+        label,
+      }; // eslint-disable-next-line no-await-in-loop
 
       iteration = await this.advanceAsyncIterator(
         index,
@@ -1781,9 +1773,8 @@ class Executor {
         fieldNodes,
         itemType,
         path,
-        label,
-        currentPayloadID,
-        prevPayloadID,
+        currentPayloadContext,
+        prevPayloadContext,
       );
     }
 
@@ -1797,9 +1788,8 @@ class Executor {
     fieldNodes,
     itemType,
     path,
-    label,
-    payloadID,
-    prevPayloadID,
+    payloadContext,
+    prevPayloadContext,
   ) {
     try {
       return await iterator.next();
@@ -1812,9 +1802,8 @@ class Executor {
         fieldNodes,
         itemType,
         itemPath,
-        label,
-        payloadID,
-        prevPayloadID,
+        payloadContext,
+        prevPayloadContext,
       );
     }
   }
@@ -1825,18 +1814,16 @@ class Executor {
     fieldNodes,
     type,
     path,
-    label,
-    payloadID,
-    prevPayloadID,
+    payloadContext,
+    prevPayloadContext,
   ) {
-    const errors = [];
     const error = (0, _graphql.locatedError)(
       rawError,
       fieldNodes,
       (0, _Path.pathToArray)(path),
     );
-    this.handleFieldError(error, type, errors);
-    this.queue(exeContext, payloadID, prevPayloadID, null, errors, path, label);
+    this.handleFieldError(error, type, payloadContext.errors);
+    this.queue(exeContext, payloadContext, prevPayloadContext, null, path);
   }
 
   closeAsyncIterator(exeContext, iterator) {
@@ -1857,10 +1844,10 @@ class Executor {
     return exeContext.pendingPushes > 0 || exeContext.iterators.size > 0;
   }
 
-  queue(exeContext, payloadID, parentPayloadID, data, errors, path, label) {
+  queue(exeContext, payloadContext, parentPayloadContext, data, path) {
     const { pushedPayloads } = exeContext;
 
-    if (pushedPayloads.get(parentPayloadID)) {
+    if (pushedPayloads.get(parentPayloadContext)) {
       // Repeater executors are executed lazily, only after the first payload
       // is requested, and so we cannot add the push and stop methods to
       // the execution context during construction.
@@ -1872,48 +1859,36 @@ class Executor {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const publisher = exeContext.publisher;
       const { push, stop } = publisher;
-      this.pushResult(
-        exeContext,
-        push,
-        stop,
-        payloadID,
-        data,
-        errors,
-        path,
-        label,
-      );
+      this.pushResult(exeContext, push, stop, payloadContext, data, path);
       return;
     }
 
     const { pendingPayloads } = exeContext;
     const parentPendingPayloads =
-      exeContext.pendingPayloads.get(parentPayloadID);
+      exeContext.pendingPayloads.get(parentPayloadContext);
 
     if (parentPendingPayloads) {
       parentPendingPayloads.push({
-        payloadID,
+        payloadContext,
         data,
-        errors,
         path,
-        label,
       });
       return;
     }
 
-    pendingPayloads.set(parentPayloadID, [
+    pendingPayloads.set(parentPayloadContext, [
       {
-        payloadID,
+        payloadContext,
         data,
-        errors,
         path,
-        label,
       },
     ]);
   }
 
-  pushResult(exeContext, push, stop, payloadID, data, errors, path, label) {
+  pushResult(exeContext, push, stop, payloadContext, data, path) {
     exeContext.pendingPushes--;
-    exeContext.pushedPayloads.set(payloadID, true); // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    exeContext.pushedPayloads.set(payloadContext, true);
+    const { errors, label } = payloadContext; // eslint-disable-next-line @typescript-eslint/no-floating-promises
 
     push(this.createPatchResult(exeContext, data, errors, path, label)).then(
       () => {
@@ -1922,28 +1897,35 @@ class Executor {
         }
       },
     );
-    const pendingPayloads = exeContext.pendingPayloads.get(payloadID);
+    const { pendingPayloads } = exeContext;
+    const parentPendingPayloads = pendingPayloads.get(payloadContext);
 
-    if (pendingPayloads) {
-      this.pushResults(exeContext, push, stop, pendingPayloads);
+    if (parentPendingPayloads) {
+      this.pushResults(exeContext, push, stop, parentPendingPayloads);
     }
+
+    pendingPayloads.delete(payloadContext);
   }
 
   pushResults(exeContext, push, stop, results) {
     const promises = [];
+    const { pendingPayloads } = exeContext;
 
     for (const result of results) {
       exeContext.pendingPushes--;
-      const { payloadID, data, errors, path, label } = result;
-      exeContext.pushedPayloads.set(payloadID, true);
+      const { payloadContext, data, path } = result;
+      exeContext.pushedPayloads.set(payloadContext, true);
+      const { errors, label } = payloadContext;
       promises.push(
         push(this.createPatchResult(exeContext, data, errors, path, label)),
       );
-      const pendingPayloads = exeContext.pendingPayloads.get(payloadID);
+      const parentPendingPayloads = pendingPayloads.get(payloadContext);
 
-      if (pendingPayloads) {
-        this.pushResults(exeContext, push, stop, pendingPayloads);
+      if (parentPendingPayloads) {
+        this.pushResults(exeContext, push, stop, parentPendingPayloads);
       }
+
+      pendingPayloads.delete(payloadContext);
     } // eslint-disable-next-line @typescript-eslint/no-floating-promises
 
     Promise.all(promises).then(() => {

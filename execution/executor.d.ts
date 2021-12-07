@@ -60,20 +60,21 @@ interface ExecutionContext {
   forceQueryAlgorithm: boolean;
   disableIncremental: boolean;
   resolveField: FieldResolver;
-  errors: Array<GraphQLError>;
+  rootPayloadContext: PayloadContext;
   iterators: Set<AsyncIterator<unknown>>;
   publisher: Publisher | undefined;
   pendingPushes: number;
-  nextPayloadID: number;
-  pushedPayloads: Map<number, boolean>;
-  pendingPayloads: Map<number, Array<IncrementalResult>>;
+  pushedPayloads: WeakMap<PayloadContext, boolean>;
+  pendingPayloads: WeakMap<PayloadContext, Array<IncrementalResult>>;
+}
+interface PayloadContext {
+  errors: Array<GraphQLError>;
+  label?: string;
 }
 interface IncrementalResult {
-  payloadID: number;
+  payloadContext: PayloadContext;
   data: ObjMap<unknown> | unknown | null;
-  errors: ReadonlyArray<GraphQLError>;
   path: Path | undefined;
-  label?: string;
 }
 interface Publisher {
   push: Push<ExecutionPatchResult>;
@@ -141,8 +142,7 @@ export declare type FieldsExecutor = (
   sourceValue: unknown,
   path: Path | undefined,
   fields: Map<string, ReadonlyArray<FieldNode>>,
-  errors: Array<GraphQLError>,
-  payloadID: number,
+  payloadContext: PayloadContext,
 ) => PromiseOrValue<ObjMap<unknown>>;
 export declare type FieldResolver = (
   exeContext: ExecutionContext,
@@ -334,8 +334,7 @@ export declare class Executor {
     sourceValue: unknown,
     path: Path | undefined,
     fields: Map<string, ReadonlyArray<FieldNode>>,
-    errors: Array<GraphQLError>,
-    payloadID: number,
+    payloadContext: PayloadContext,
   ): PromiseOrValue<ObjMap<unknown>>;
   /**
    * Implements the "Executing field" section of the spec
@@ -349,8 +348,7 @@ export declare class Executor {
     source: unknown,
     fieldNodes: ReadonlyArray<FieldNode>,
     path: Path,
-    errors: Array<GraphQLError>,
-    payloadID: number,
+    payloadContext: PayloadContext,
   ): PromiseOrValue<unknown>;
   buildResolveInfo(
     exeContext: ExecutionContext,
@@ -392,8 +390,7 @@ export declare class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
-    errors: Array<GraphQLError>,
-    payloadID: number,
+    payloadContext: PayloadContext,
   ): PromiseOrValue<unknown>;
   /**
    * Complete a list value by completing each item in the list with the
@@ -406,8 +403,7 @@ export declare class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
-    errors: Array<GraphQLError>,
-    payloadID: number,
+    payloadContext: PayloadContext,
   ): PromiseOrValue<ReadonlyArray<unknown>>;
   /**
    * Returns an object containing the `@stream` arguments if a field should be
@@ -433,8 +429,7 @@ export declare class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     iterator: Iterator<unknown>,
-    errors: Array<GraphQLError>,
-    payloadID: number,
+    payloadContext: PayloadContext,
   ): PromiseOrValue<ReadonlyArray<unknown>>;
   /**
    * Complete an async iterator value by completing each result.
@@ -446,8 +441,7 @@ export declare class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     iterator: AsyncIterator<unknown>,
-    errors: Array<GraphQLError>,
-    payloadID: number,
+    payloadContext: PayloadContext,
   ): Promise<ReadonlyArray<unknown>>;
   completeListItemValue(
     completedResults: Array<unknown>,
@@ -459,8 +453,7 @@ export declare class Executor {
     fieldNodes: ReadonlyArray<FieldNode>,
     info: GraphQLResolveInfo,
     itemPath: Path,
-    errors: Array<GraphQLError>,
-    payloadID: number,
+    payloadContext: PayloadContext,
   ): void;
   /**
    * Complete a Scalar or Enum by serializing to a valid value, returning
@@ -478,8 +471,7 @@ export declare class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
-    errors: Array<GraphQLError>,
-    payloadID: number,
+    payloadContext: PayloadContext,
   ): PromiseOrValue<ObjMap<unknown>>;
   ensureValidRuntimeType(
     runtimeTypeName: unknown,
@@ -499,8 +491,7 @@ export declare class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
-    errors: Array<GraphQLError>,
-    payloadID: number,
+    payloadContext: PayloadContext,
   ): PromiseOrValue<ObjMap<unknown>>;
   invalidReturnTypeError(
     returnType: GraphQLObjectType,
@@ -513,8 +504,7 @@ export declare class Executor {
     fieldNodes: ReadonlyArray<FieldNode>,
     path: Path,
     result: unknown,
-    errors: Array<GraphQLError>,
-    payloadID: number,
+    payloadContext: PayloadContext,
   ): PromiseOrValue<ObjMap<unknown>>;
   /**
    * This method looks up the field on the given type definition.
@@ -572,7 +562,7 @@ export declare class Executor {
     parentType: GraphQLObjectType,
     source: unknown,
     path: Path | undefined,
-    parentPayloadID: number,
+    parentPayloadContext: PayloadContext,
   ): void;
   addIteratorValue(
     initialIndex: number,
@@ -583,7 +573,7 @@ export declare class Executor {
     itemType: GraphQLOutputType,
     path: Path,
     label: string | undefined,
-    parentPayloadID: number,
+    parentPayloadContext: PayloadContext,
   ): void;
   addAsyncIteratorValue(
     initialIndex: number,
@@ -594,7 +584,7 @@ export declare class Executor {
     itemType: GraphQLOutputType,
     path: Path,
     label: string | undefined,
-    parentPayloadID: number,
+    parentPayloadContext: PayloadContext,
   ): Promise<void>;
   advanceAsyncIterator(
     index: number,
@@ -603,9 +593,8 @@ export declare class Executor {
     fieldNodes: ReadonlyArray<FieldNode>,
     itemType: GraphQLOutputType,
     path: Path,
-    label: string | undefined,
-    payloadID: number,
-    prevPayloadID: number,
+    payloadContext: PayloadContext,
+    prevPayloadContext: PayloadContext,
   ): Promise<IteratorResult<unknown> | undefined>;
   handleIncrementalRawError(
     exeContext: ExecutionContext,
@@ -613,9 +602,8 @@ export declare class Executor {
     fieldNodes: ReadonlyArray<FieldNode>,
     type: GraphQLOutputType,
     path: Path,
-    label: string | undefined,
-    payloadID: number,
-    prevPayloadID: number,
+    payloadContext: PayloadContext,
+    prevPayloadContext: PayloadContext,
   ): void;
   closeAsyncIterator(
     exeContext: ExecutionContext,
@@ -624,22 +612,18 @@ export declare class Executor {
   hasNext(exeContext: ExecutionContext): boolean;
   queue(
     exeContext: ExecutionContext,
-    payloadID: number,
-    parentPayloadID: number,
+    payloadContext: PayloadContext,
+    parentPayloadContext: PayloadContext,
     data: ObjMap<unknown> | unknown | null,
-    errors: ReadonlyArray<GraphQLError>,
     path: Path | undefined,
-    label: string | undefined,
   ): void;
   pushResult(
     exeContext: ExecutionContext,
     push: Push<ExecutionPatchResult>,
     stop: Stop,
-    payloadID: number,
+    payloadContext: PayloadContext,
     data: ObjMap<unknown> | unknown | null,
-    errors: ReadonlyArray<GraphQLError>,
     path: Path | undefined,
-    label?: string,
   ): void;
   pushResults(
     exeContext: ExecutionContext,
