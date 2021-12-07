@@ -31,15 +31,6 @@ const friendType = new GraphQLObjectType({
         return Promise.resolve(rootValue.name);
       },
     },
-    variablyDelayedAsyncName: {
-      type: GraphQLString,
-      async resolve(rootValue) {
-        await new Promise((r) =>
-          setTimeout(r, (10 - parseInt(rootValue.id, 10)) * 10),
-        );
-        return rootValue.name;
-      },
-    },
   },
   name: 'Friend',
 });
@@ -50,33 +41,8 @@ const friends = [
   { name: 'Leia', id: 3 },
 ];
 
-const heroType = new GraphQLObjectType({
-  fields: {
-    id: { type: GraphQLID },
-    name: { type: GraphQLString },
-    delayedName: {
-      type: GraphQLString,
-      async resolve(rootValue) {
-        await new Promise((r) => setTimeout(r, 1));
-        return rootValue.name;
-      },
-    },
-    friends: {
-      type: new GraphQLList(friendType),
-      resolve: () => friends,
-    },
-  },
-  name: 'Hero',
-});
-
-const hero = { name: 'R2-D2', id: 1 };
-
 const query = new GraphQLObjectType({
   fields: {
-    hero: {
-      type: heroType,
-      resolve: () => hero,
-    },
     scalarList: {
       type: new GraphQLList(GraphQLString),
       resolve: () => ['apple', 'banana', 'coconut'],
@@ -84,6 +50,16 @@ const query = new GraphQLObjectType({
     asyncList: {
       type: new GraphQLList(friendType),
       resolve: () => friends.map((f) => Promise.resolve(f)),
+    },
+    asyncSlowList: {
+      type: new GraphQLList(friendType),
+      resolve: () =>
+        friends.map(async (f, i) => {
+          if (i === 0) {
+            await new Promise((r) => setTimeout(r, 5));
+          }
+          return f;
+        }),
     },
     nonNullError: {
       type: new GraphQLList(new GraphQLNonNull(friendType)),
@@ -118,8 +94,10 @@ const query = new GraphQLObjectType({
       type: new GraphQLList(new GraphQLNonNull(friendType)),
       async *resolve() {
         yield await Promise.resolve(friends[0]);
-        yield await Promise.resolve(null);
+        yield await Promise.resolve(null); /* c8 ignore start */
+        // Not reachable, error from resolving null
       },
+      /* c8 ignore stop */
     },
     asyncIterableInvalid: {
       type: new GraphQLList(GraphQLString),
@@ -136,8 +114,9 @@ const query = new GraphQLObjectType({
           // for tests to return or throw before next value is processed.
           // eslint-disable-next-line no-await-in-loop
           await new Promise((r) => setTimeout(r, 1));
-          yield friend;
-        } /* c8 ignore start */
+          yield friend; /* c8 ignore start */
+          // Not reachable, early return
+        }
       } /* c8 ignore stop */,
     },
     asyncIterableListNoReturn: {
@@ -167,6 +146,29 @@ const query = new GraphQLObjectType({
         await new Promise((r) => setTimeout(r, 1));
       },
     },
+    nestedObject: {
+      type: new GraphQLObjectType({
+        name: 'NestedObject',
+        fields: {
+          slowField: {
+            type: GraphQLString,
+            resolve: async () => {
+              await new Promise((resolve) => setTimeout(resolve, 5));
+              return 'slow';
+            },
+          },
+          asyncIterableList: {
+            type: new GraphQLList(friendType),
+            async *resolve() {
+              yield await Promise.resolve(friends[0]);
+              yield await Promise.resolve(friends[1]);
+              yield await Promise.resolve(friends[2]);
+            },
+          },
+        },
+      }),
+      resolve: () => ({}),
+    },
   },
   name: 'Query',
 });
@@ -174,15 +176,15 @@ const query = new GraphQLObjectType({
 async function complete(
   document: DocumentNode,
   rootValue: unknown = {},
-  disableIncremental = false,
+  opts?: { enableDeferStream?: boolean },
 ) {
+  const enableDeferStream = opts?.enableDeferStream ?? true;
   const schema = new GraphQLSchema({ query });
-
   const result = await execute({
     schema,
     document,
     rootValue,
-    disableIncremental,
+    disableIncremental: !enableDeferStream,
   });
 
   if (isAsyncIterable(result)) {
@@ -212,6 +214,17 @@ async function completeAsync(document: DocumentNode, numCalls: number) {
 }
 
 describe('Execute: stream directive', () => {
+  it('Should ignore @stream if not enabled', async () => {
+    const document = parse('{ scalarList @stream(initialCount: 1) }');
+    const result = await complete(document, {}, { enableDeferStream: false });
+
+    expectJSON(result).toDeepEqual({
+      data: {
+        scalarList: ['apple', 'banana', 'coconut'],
+      },
+    });
+  });
+
   it('Can stream a list field', async () => {
     const document = parse('{ scalarList @stream(initialCount: 1) }');
     const result = await complete(document);
@@ -263,33 +276,26 @@ describe('Execute: stream directive', () => {
       },
     ]);
   });
-  it('Negative values of initialCount are treated as 0', async () => {
+  it('Negative values of initialCount throw field errors', async () => {
     const document = parse('{ scalarList @stream(initialCount: -2) }');
     const result = await complete(document);
-
-    expect(result).to.deep.equal([
-      {
-        data: {
-          scalarList: [],
+    expectJSON(result).toDeepEqual({
+      errors: [
+        {
+          message: 'initialCount must be a positive integer',
+          locations: [
+            {
+              line: 1,
+              column: 3,
+            },
+          ],
+          path: ['scalarList'],
         },
-        hasNext: true,
+      ],
+      data: {
+        scalarList: null,
       },
-      {
-        data: 'apple',
-        path: ['scalarList', 0],
-        hasNext: true,
-      },
-      {
-        data: 'banana',
-        path: ['scalarList', 1],
-        hasNext: true,
-      },
-      {
-        data: 'coconut',
-        path: ['scalarList', 2],
-        hasNext: false,
-      },
-    ]);
+    });
   });
   it('Returns label from stream directive', async () => {
     const document = parse(
@@ -317,14 +323,6 @@ describe('Execute: stream directive', () => {
         hasNext: false,
       },
     ]);
-  });
-  it('Can disable @stream using disableIncremental argument', async () => {
-    const document = parse('{ scalarList @stream(initialCount: 0) }');
-    const result = await complete(document, undefined, true);
-
-    expect(result).to.deep.equal({
-      data: { scalarList: ['apple', 'banana', 'coconut'] },
-    });
   });
   it('Can disable @stream using if argument', async () => {
     const document = parse(
@@ -372,11 +370,11 @@ describe('Execute: stream directive', () => {
       },
     ]);
   });
-  it('Can stream a field that returns a list of promises, returning items in list order', async () => {
+  it('Can stream in correct order with lists of promises', async () => {
     const document = parse(`
       query { 
-        asyncList @stream {
-          variablyDelayedAsyncName
+        asyncSlowList @stream(initialCount: 0) {
+          name
           id
         }
       }
@@ -385,88 +383,32 @@ describe('Execute: stream directive', () => {
     expect(result).to.deep.equal([
       {
         data: {
-          asyncList: [],
+          asyncSlowList: [],
         },
-        hasNext: true,
-      },
-      {
-        data: {
-          variablyDelayedAsyncName: 'Luke',
-          id: '1',
-        },
-        path: ['asyncList', 0],
-        hasNext: true,
-      },
-      {
-        data: {
-          variablyDelayedAsyncName: 'Han',
-          id: '2',
-        },
-        path: ['asyncList', 1],
-        hasNext: true,
-      },
-      {
-        data: {
-          variablyDelayedAsyncName: 'Leia',
-          id: '3',
-        },
-        path: ['asyncList', 2],
-        hasNext: false,
-      },
-    ]);
-  });
-  it('Can nest a streamed field within a deferred fragment, returning streamed items after empty list', async () => {
-    const document = parse(`
-      query HeroNameQuery {
-        hero {
-          ...HeroFragment @defer
-        }
-      }
-      fragment HeroFragment on Hero {
-        delayedName
-        friends @stream {
-          ...FriendFragment
-        }
-      }
-      fragment FriendFragment on Friend {
-        name
-      }
-    `);
-    const result = await complete(document);
-    expect(result).to.deep.equal([
-      {
-        data: {
-          hero: {},
-        },
-        hasNext: true,
-      },
-      {
-        data: {
-          delayedName: 'R2-D2',
-          friends: [],
-        },
-        path: ['hero'],
         hasNext: true,
       },
       {
         data: {
           name: 'Luke',
+          id: '1',
         },
-        path: ['hero', 'friends', 0],
+        path: ['asyncSlowList', 0],
         hasNext: true,
       },
       {
         data: {
           name: 'Han',
+          id: '2',
         },
-        path: ['hero', 'friends', 1],
+        path: ['asyncSlowList', 1],
         hasNext: true,
       },
       {
         data: {
           name: 'Leia',
+          id: '3',
         },
-        path: ['hero', 'friends', 2],
+        path: ['asyncSlowList', 2],
         hasNext: false,
       },
     ]);
@@ -650,7 +592,7 @@ describe('Execute: stream directive', () => {
       },
     ]);
   });
-  it('Can stream a field that returns an async iterable, using a negative initialCount', async () => {
+  it('Negative values of initialCount throw field errors on a field that returns an async iterable', async () => {
     const document = parse(`
       query { 
         asyncIterableList @stream(initialCount: -2) {
@@ -660,86 +602,25 @@ describe('Execute: stream directive', () => {
       }
     `);
     const result = await complete(document);
-    expect(result).to.deep.equal([
-      {
-        data: {
-          asyncIterableList: [],
+    expectJSON(result).toDeepEqual({
+      errors: [
+        {
+          message: 'initialCount must be a positive integer',
+          locations: [
+            {
+              line: 3,
+              column: 9,
+            },
+          ],
+          path: ['asyncIterableList'],
         },
-        hasNext: true,
+      ],
+      data: {
+        asyncIterableList: null,
       },
-      {
-        data: {
-          name: 'Luke',
-          id: '1',
-        },
-        path: ['asyncIterableList', 0],
-        hasNext: true,
-      },
-      {
-        data: {
-          name: 'Han',
-          id: '2',
-        },
-        path: ['asyncIterableList', 1],
-        hasNext: true,
-      },
-      {
-        data: {
-          name: 'Leia',
-          id: '3',
-        },
-        path: ['asyncIterableList', 2],
-        hasNext: true,
-      },
-      {
-        hasNext: false,
-      },
-    ]);
+    });
   });
-  it('Can stream a field that returns an async iterable, returning items in proper order', async () => {
-    const document = parse(`
-      query { 
-        asyncIterableList @stream {
-          variablyDelayedAsyncName
-          id
-        }
-      }
-    `);
-    const result = await complete(document);
-    expect(result).to.deep.equal([
-      {
-        data: {
-          asyncIterableList: [],
-        },
-        hasNext: true,
-      },
-      {
-        data: {
-          variablyDelayedAsyncName: 'Luke',
-          id: '1',
-        },
-        path: ['asyncIterableList', 0],
-        hasNext: true,
-      },
-      {
-        data: {
-          variablyDelayedAsyncName: 'Han',
-          id: '2',
-        },
-        path: ['asyncIterableList', 1],
-        hasNext: true,
-      },
-      {
-        data: {
-          variablyDelayedAsyncName: 'Leia',
-          id: '3',
-        },
-        path: ['asyncIterableList', 2],
-        hasNext: false,
-      },
-    ]);
-  });
-  it('Can handle subsequent calls to .next() without waiting', async () => {
+  it('Can handle concurrent calls to .next() without waiting', async () => {
     const document = parse(`
       query { 
         asyncIterableList @stream(initialCount: 2) {
@@ -1023,6 +904,53 @@ describe('Execute: stream directive', () => {
       },
     ]);
   });
+  it('Returns payloads in correct order when parent deferred fragment resolves slower than stream', async () => {
+    const document = parse(`
+      query { 
+        nestedObject {
+          ... DeferFragment @defer
+        }
+      }
+      fragment DeferFragment on NestedObject {
+        slowField
+        asyncIterableList @stream(initialCount: 0) {
+          name
+        }
+      }
+    `);
+    const result = await complete(document);
+    expectJSON(result).toDeepEqual([
+      {
+        data: {
+          nestedObject: {},
+        },
+        hasNext: true,
+      },
+      {
+        data: {
+          slowField: 'slow',
+          asyncIterableList: [],
+        },
+        path: ['nestedObject'],
+        hasNext: true,
+      },
+      {
+        data: { name: 'Luke' },
+        path: ['nestedObject', 'asyncIterableList', 0],
+        hasNext: true,
+      },
+      {
+        data: { name: 'Han' },
+        path: ['nestedObject', 'asyncIterableList', 1],
+        hasNext: true,
+      },
+      {
+        data: { name: 'Leia' },
+        path: ['nestedObject', 'asyncIterableList', 2],
+        hasNext: false,
+      },
+    ]);
+  });
   it('Can @defer fields that are resolved after async iterable is complete', async () => {
     const document = parse(`
     query { 
@@ -1032,11 +960,11 @@ describe('Execute: stream directive', () => {
       }
     }
     fragment NameFragment on Friend {
-      name
+      asyncName
     }
   `);
     const result = await complete(document);
-    expect(result).to.deep.equal([
+    expectJSON(result).toDeepEqual([
       {
         data: {
           asyncIterableList: [
@@ -1049,26 +977,10 @@ describe('Execute: stream directive', () => {
       },
       {
         data: {
-          name: 'Luke',
-        },
-        path: ['asyncIterableList', 0],
-        label: 'DeferName',
-        hasNext: true,
-      },
-      {
-        data: {
           id: '2',
         },
         path: ['asyncIterableList', 1],
         label: 'stream-label',
-        hasNext: true,
-      },
-      {
-        data: {
-          name: 'Han',
-        },
-        path: ['asyncIterableList', 1],
-        label: 'DeferName',
         hasNext: true,
       },
       {
@@ -1081,7 +993,23 @@ describe('Execute: stream directive', () => {
       },
       {
         data: {
-          name: 'Leia',
+          asyncName: 'Luke',
+        },
+        path: ['asyncIterableList', 0],
+        label: 'DeferName',
+        hasNext: true,
+      },
+      {
+        data: {
+          asyncName: 'Han',
+        },
+        path: ['asyncIterableList', 1],
+        label: 'DeferName',
+        hasNext: true,
+      },
+      {
+        data: {
+          asyncName: 'Leia',
         },
         path: ['asyncIterableList', 2],
         label: 'DeferName',

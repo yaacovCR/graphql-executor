@@ -1,5 +1,5 @@
 import type { ASTVisitor, DirectiveNode, ValidationContext } from 'graphql';
-import { GraphQLError, isListType } from 'graphql';
+import { GraphQLError, isListType, isWrappingType } from 'graphql';
 
 import { GraphQLStreamDirective } from '../../type/directives';
 
@@ -19,7 +19,10 @@ export function StreamDirectiveOnListFieldRule(
         fieldDef &&
         parentType &&
         node.name.value === GraphQLStreamDirective.name &&
-        !isListType(fieldDef.type)
+        !(
+          isListType(fieldDef.type) ||
+          (isWrappingType(fieldDef.type) && isListType(fieldDef.type.ofType))
+        )
       ) {
         context.reportError(
           new GraphQLError(

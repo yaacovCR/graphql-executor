@@ -50,7 +50,7 @@ export const testSchema: GraphQLSchema = buildSchema(`
   type Human {
     name(surname: Boolean): String
     pets: [Pet]
-    relatives: [Human]
+    relatives: [Human]!
   }
 
   enum FurColor {

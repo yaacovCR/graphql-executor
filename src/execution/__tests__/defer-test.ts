@@ -35,11 +35,11 @@ const heroType = new GraphQLObjectType({
   fields: {
     id: { type: GraphQLID },
     name: { type: GraphQLString },
-    delayedName: {
+    slowField: {
       type: GraphQLString,
-      async resolve(rootValue) {
-        await new Promise((r) => setTimeout(r, 1));
-        return rootValue.name;
+      resolve: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return 'slow';
       },
     },
     errorField: {
@@ -76,14 +76,18 @@ const query = new GraphQLObjectType({
   name: 'Query',
 });
 
-async function complete(document: DocumentNode, disableIncremental = false) {
+async function complete(
+  document: DocumentNode,
+  opts?: { enableDeferStream?: boolean },
+) {
+  const enableDeferStream = opts?.enableDeferStream ?? true;
   const schema = new GraphQLSchema({ query });
 
   const result = await execute({
     schema,
     document,
     rootValue: {},
-    disableIncremental,
+    disableIncremental: !enableDeferStream,
   });
 
   if (isAsyncIterable(result)) {
@@ -97,6 +101,30 @@ async function complete(document: DocumentNode, disableIncremental = false) {
 }
 
 describe('Execute: defer directive', () => {
+  it('Should ignore @defer if not enabled', async () => {
+    const document = parse(`
+      query HeroNameQuery {
+        hero {
+          id
+          ...NameFragment @defer
+        }
+      }
+      fragment NameFragment on Hero {
+        id
+        name
+      }
+    `);
+    const result = await complete(document, { enableDeferStream: false });
+
+    expectJSON(result).toDeepEqual({
+      data: {
+        hero: {
+          id: '1',
+          name: 'Luke',
+        },
+      },
+    });
+  });
   it('Can defer fragments containing scalar types', async () => {
     const document = parse(`
       query HeroNameQuery {
@@ -131,29 +159,6 @@ describe('Execute: defer directive', () => {
       },
     ]);
   });
-  it('Can disable defer using disableIncremental argument', async () => {
-    const document = parse(`
-      query HeroNameQuery {
-        hero {
-          id
-          ...NameFragment @defer
-        }
-      }
-      fragment NameFragment on Hero {
-        name
-      }
-    `);
-    const result = await complete(document, true);
-
-    expect(result).to.deep.equal({
-      data: {
-        hero: {
-          id: '1',
-          name: 'Luke',
-        },
-      },
-    });
-  });
   it('Can disable defer using if argument', async () => {
     const document = parse(`
       query HeroNameQuery {
@@ -177,7 +182,37 @@ describe('Execute: defer directive', () => {
       },
     });
   });
-  it('Can defer fragments containing on the top level Query field', async () => {
+  it('Can defer fragments on the top level Query field', async () => {
+    const document = parse(`
+      query HeroNameQuery {
+        ...QueryFragment @defer(label: "DeferQuery")
+      }
+      fragment QueryFragment on Query {
+        hero {
+          id
+        }
+      }
+    `);
+    const result = await complete(document);
+
+    expect(result).to.deep.equal([
+      {
+        data: {},
+        hasNext: true,
+      },
+      {
+        data: {
+          hero: {
+            id: '1',
+          },
+        },
+        path: [],
+        label: 'DeferQuery',
+        hasNext: false,
+      },
+    ]);
+  });
+  it('Can defer fragments with errors on the top level Query field', async () => {
     const document = parse(`
       query HeroNameQuery {
         ...QueryFragment @defer(label: "DeferQuery")
@@ -300,7 +335,6 @@ describe('Execute: defer directive', () => {
       }
     `);
     const result = await complete(document);
-
     expectJSON(result).toDeepEqual([
       {
         data: { hero: { id: '1' } },
@@ -386,63 +420,53 @@ describe('Execute: defer directive', () => {
       },
     ]);
   });
-  it('Can defer fragments at multiple levels, returning fragments in path order', async () => {
+  it('Returns payloads in correct order', async () => {
     const document = parse(`
       query HeroNameQuery {
         hero {
-          ...HeroFragment @defer(label: "DeferHero")
+          id
+          ...NameFragment @defer
         }
       }
-      fragment HeroFragment on Hero {
-        delayedName
+      fragment NameFragment on Hero {
+        slowField
         friends {
-          ...FriendFragment @defer(label: "DeferFriend")
+          ...NestedFragment @defer
         }
       }
-      fragment FriendFragment on Friend {
+      fragment NestedFragment on Friend {
         name
       }
     `);
     const result = await complete(document);
-
     expect(result).to.deep.equal([
       {
         data: {
-          hero: {},
+          hero: { id: '1' },
         },
         hasNext: true,
       },
       {
         data: {
-          delayedName: 'Luke',
+          slowField: 'slow',
           friends: [{}, {}, {}],
         },
         path: ['hero'],
-        label: 'DeferHero',
         hasNext: true,
       },
       {
-        data: {
-          name: 'Han',
-        },
+        data: { name: 'Han' },
         path: ['hero', 'friends', 0],
-        label: 'DeferFriend',
         hasNext: true,
       },
       {
-        data: {
-          name: 'Leia',
-        },
+        data: { name: 'Leia' },
         path: ['hero', 'friends', 1],
-        label: 'DeferFriend',
         hasNext: true,
       },
       {
-        data: {
-          name: 'C-3PO',
-        },
+        data: { name: 'C-3PO' },
         path: ['hero', 'friends', 2],
-        label: 'DeferFriend',
         hasNext: false,
       },
     ]);

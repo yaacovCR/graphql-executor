@@ -23,6 +23,16 @@ describe('Validate: Stream directive on list field', () => {
     `);
   });
 
+  it('Stream on non-null list field', () => {
+    expectValid(`
+      fragment objectFieldSelection on Human {
+        relatives @stream(initialCount: 0) {
+          name
+        }
+      }
+    `);
+  });
+
   it("Doesn't validate other directives on list fields", () => {
     expectValid(`
     fragment objectFieldSelection on Human {
