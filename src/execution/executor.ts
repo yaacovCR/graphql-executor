@@ -1089,7 +1089,6 @@ export class Executor {
     if (exeContext.disableIncremental) {
       return;
     }
-
     // validation only allows equivalent streams on multiple fields, so it is
     // safe to only check the first fieldNode for the stream directive
     const stream = getDirectiveValues(
@@ -1106,13 +1105,18 @@ export class Executor {
       return;
     }
 
+    invariant(
+      typeof stream.initialCount === 'number',
+      'initialCount must be a number',
+    );
+
+    invariant(
+      stream.initialCount >= 0,
+      'initialCount must be a positive integer',
+    );
+
     return {
-      initialCount:
-        // initialCount is required number argument
-        /* c8 ignore next 3 */
-        typeof stream.initialCount === 'number'
-          ? stream.initialCount
-          : undefined,
+      initialCount: stream.initialCount,
       label: typeof stream.label === 'string' ? stream.label : undefined,
     };
   }
