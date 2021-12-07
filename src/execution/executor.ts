@@ -1072,54 +1072,54 @@ export class Executor {
     );
   }
 
-/**
- * Returns an object containing the `@stream` arguments if a field should be
- * streamed based on the experimental flag, stream directive present and
- * not disabled by the "if" argument.
- */
- getStreamValues(
-  exeContext: ExecutionContext,
-  fieldNodes: ReadonlyArray<FieldNode>,
-):
-  | undefined
-  | {
-      initialCount?: number;
-      label?: string;
-    } {
-  if (exeContext.disableIncremental) {
-    return;
+  /**
+   * Returns an object containing the `@stream` arguments if a field should be
+   * streamed based on the experimental flag, stream directive present and
+   * not disabled by the "if" argument.
+   */
+  getStreamValues(
+    exeContext: ExecutionContext,
+    fieldNodes: ReadonlyArray<FieldNode>,
+  ):
+    | undefined
+    | {
+        initialCount?: number;
+        label?: string;
+      } {
+    if (exeContext.disableIncremental) {
+      return;
+    }
+    // validation only allows equivalent streams on multiple fields, so it is
+    // safe to only check the first fieldNode for the stream directive
+    const stream = getDirectiveValues(
+      GraphQLStreamDirective,
+      fieldNodes[0],
+      exeContext.variableValues,
+    );
+
+    if (!stream) {
+      return;
+    }
+
+    if (stream.if === false) {
+      return;
+    }
+
+    invariant(
+      typeof stream.initialCount === 'number',
+      'initialCount must be a number',
+    );
+
+    invariant(
+      stream.initialCount >= 0,
+      'initialCount must be a positive integer',
+    );
+
+    return {
+      initialCount: stream.initialCount,
+      label: typeof stream.label === 'string' ? stream.label : undefined,
+    };
   }
-  // validation only allows equivalent streams on multiple fields, so it is
-  // safe to only check the first fieldNode for the stream directive
-  const stream = getDirectiveValues(
-    GraphQLStreamDirective,
-    fieldNodes[0],
-    exeContext.variableValues,
-  );
-
-  if (!stream) {
-    return;
-  }
-
-  if (stream.if === false) {
-    return;
-  }
-
-  invariant(
-    typeof stream.initialCount === 'number',
-    'initialCount must be a number',
-  );
-
-  invariant(
-    stream.initialCount >= 0,
-    'initialCount must be a positive integer',
-  );
-
-  return {
-    initialCount: stream.initialCount,
-    label: typeof stream.label === 'string' ? stream.label : undefined,
-  };
-}
 
   /**
    * Complete an iterator value by completing each result.
