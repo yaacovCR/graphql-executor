@@ -641,7 +641,7 @@ function sameDirectiveArgument(
   directive2: DirectiveNode,
   argumentName: string,
 ): boolean {
-  // See https://github.com/graphql/graphql-js/issues/2203
+  // FIXME https://github.com/graphql/graphql-js/issues/2203
   const args1 =
     /* c8 ignore next */
     directive1.arguments ?? [];
@@ -649,7 +649,7 @@ function sameDirectiveArgument(
 
   if (!arg1) {
     return false;
-  } // See https://github.com/graphql/graphql-js/issues/2203
+  } // FIXME https://github.com/graphql/graphql-js/issues/2203
 
   const args2 =
     /* c8 ignore next */

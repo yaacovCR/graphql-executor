@@ -88,8 +88,12 @@ export function collectSubfields(
   ignoreDefer?: Maybe<boolean>,
 ): FieldsAndPatches {
   const subFieldNodes = new Map();
-  const subPatches: Array<PatchFields> = [];
   const visitedFragmentNames = new Set<string>();
+  const subPatches: Array<PatchFields> = [];
+  const subFieldsAndPatches = {
+    fields: subFieldNodes,
+    patches: subPatches,
+  };
 
   for (const node of fieldNodes) {
     if (node.selectionSet) {
@@ -107,10 +111,7 @@ export function collectSubfields(
     }
   }
 
-  return {
-    fields: subFieldNodes,
-    patches: subPatches,
-  };
+  return subFieldsAndPatches;
 }
 
 function collectFieldsImpl(
@@ -153,9 +154,9 @@ function collectFieldsImpl(
           continue;
         }
 
-        const defer = getDeferValues(variableValues, selection);
+        const defer = getDeferValues(variableValues, selection, ignoreDefer);
 
-        if (!ignoreDefer && defer) {
+        if (defer) {
           const patchFields = new Map();
           collectFieldsImpl(
             schema,
@@ -196,7 +197,7 @@ function collectFieldsImpl(
           continue;
         }
 
-        const defer = getDeferValues(variableValues, selection);
+        const defer = getDeferValues(variableValues, selection, ignoreDefer);
 
         if (visitedFragmentNames.has(fragName) && !defer) {
           continue;
@@ -213,7 +214,7 @@ function collectFieldsImpl(
 
         visitedFragmentNames.add(fragName);
 
-        if (!ignoreDefer && defer) {
+        if (defer) {
           const patchFields = new Map();
           collectFieldsImpl(
             schema,
@@ -260,11 +261,16 @@ function getDeferValues(
     [variable: string]: unknown;
   },
   node: FragmentSpreadNode | InlineFragmentNode,
+  ignoreDefer?: Maybe<boolean>,
 ):
   | undefined
   | {
       label?: string;
     } {
+  if (ignoreDefer) {
+    return;
+  }
+
   const defer = getDirectiveValues(GraphQLDeferDirective, node, variableValues);
 
   if (!defer) {
