@@ -1972,8 +1972,14 @@ export class Executor {
       const itemPath = addPath(path, index, undefined);
       const error = locatedError(rawError, fieldNodes, pathToArray(itemPath));
       this.handleFieldError(error, itemType, payloadContext.errors);
-      this.queue(exeContext, payloadContext, prevPayloadContext, null, itemPath);
-      }
+      this.queue(
+        exeContext,
+        payloadContext,
+        prevPayloadContext,
+        null,
+        itemPath,
+      );
+    }
   }
 
   closeAsyncIterator(
