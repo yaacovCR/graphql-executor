@@ -1970,30 +1970,16 @@ export class Executor {
     } catch (rawError) {
       exeContext.pendingPushes++;
       const itemPath = addPath(path, index, undefined);
-      this.handleIncrementalRawError(
+      const error = locatedError(rawError, fieldNodes, pathToArray(itemPath));
+      this.handleFieldError(error, itemType, payloadContext.errors);
+      this.queue(
         exeContext,
-        rawError,
-        fieldNodes,
-        itemType,
-        itemPath,
         payloadContext,
         prevPayloadContext,
+        null,
+        itemPath,
       );
     }
-  }
-
-  handleIncrementalRawError(
-    exeContext: ExecutionContext,
-    rawError: unknown,
-    fieldNodes: ReadonlyArray<FieldNode>,
-    type: GraphQLOutputType,
-    path: Path,
-    payloadContext: PayloadContext,
-    prevPayloadContext: PayloadContext,
-  ): void {
-    const error = locatedError(rawError, fieldNodes, pathToArray(path));
-    this.handleFieldError(error, type, payloadContext.errors);
-    this.queue(exeContext, payloadContext, prevPayloadContext, null, path);
   }
 
   closeAsyncIterator(
