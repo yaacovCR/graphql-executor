@@ -1796,34 +1796,20 @@ class Executor {
     } catch (rawError) {
       exeContext.pendingPushes++;
       const itemPath = (0, _Path.addPath)(path, index, undefined);
-      this.handleIncrementalRawError(
-        exeContext,
+      const error = (0, _graphql.locatedError)(
         rawError,
         fieldNodes,
-        itemType,
-        itemPath,
+        (0, _Path.pathToArray)(itemPath),
+      );
+      this.handleFieldError(error, itemType, payloadContext.errors);
+      this.queue(
+        exeContext,
         payloadContext,
         prevPayloadContext,
+        null,
+        itemPath,
       );
     }
-  }
-
-  handleIncrementalRawError(
-    exeContext,
-    rawError,
-    fieldNodes,
-    type,
-    path,
-    payloadContext,
-    prevPayloadContext,
-  ) {
-    const error = (0, _graphql.locatedError)(
-      rawError,
-      fieldNodes,
-      (0, _Path.pathToArray)(path),
-    );
-    this.handleFieldError(error, type, payloadContext.errors);
-    this.queue(exeContext, payloadContext, prevPayloadContext, null, path);
   }
 
   closeAsyncIterator(exeContext, iterator) {
