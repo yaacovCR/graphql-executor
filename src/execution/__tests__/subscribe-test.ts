@@ -14,6 +14,7 @@ import {
 import { expectJSON } from '../../__testUtils__/expectJSON';
 import { expectPromise } from '../../__testUtils__/expectPromise';
 import { resolveOnNextTick } from '../../__testUtils__/resolveOnNextTick';
+import { handlePre15 } from '../../__testUtils__/handlePre15';
 
 import { invariant } from '../../jsutils/invariant';
 import { isAsyncIterable } from '../../jsutils/isAsyncIterable';
@@ -524,7 +525,9 @@ describe('Subscription Initialization Phase', () => {
       errors: [
         {
           message:
-            'Variable "$arg" got invalid value "meow"; Int cannot represent non-integer value: "meow"',
+            'Variable "$arg" got invalid value "meow"; ' +
+            handlePre15('', 'Expected type "Int". ') +
+            'Int cannot represent non-integer value: "meow"',
           locations: [{ line: 2, column: 21 }],
         },
       ],

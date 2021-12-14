@@ -108,7 +108,7 @@ jobs:
     strategy:
       matrix:
         node_version_to_setup: [12, 14, 16, 17]
-        graphql_version: [15, 16]
+        graphql_version: [14, 15, 16]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
@@ -133,7 +133,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        graphql_version: [15, 16]
+        graphql_version: [14, 15, 16]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2

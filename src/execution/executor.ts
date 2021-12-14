@@ -44,6 +44,7 @@ import { isAsyncIterable } from '../jsutils/isAsyncIterable';
 import { isIterableObject } from '../jsutils/isIterableObject';
 import { resolveAfterAll } from '../jsutils/resolveAfterAll';
 import { Repeater } from '../jsutils/repeater';
+import { toError } from '../jsutils/toError';
 
 import { isGraphQLError } from '../error/isGraphQLError';
 
@@ -56,6 +57,9 @@ import {
 } from '../type/definition';
 
 import { assertSchema } from '../type/schema';
+
+import { isSubType } from '../utilities/isSubType';
+import { getPossibleTypes } from '../utilities/getPossibleTypes';
 
 import {
   getVariableValues,
@@ -863,7 +867,11 @@ export class Executor {
         // Note: we don't rely on a `catch` method, but we do expect "thenable"
         // to take a second callback for the error case.
         return completed.then(undefined, (rawError) => {
-          const error = locatedError(rawError, fieldNodes, pathToArray(path));
+          const error = locatedError(
+            toError(rawError),
+            fieldNodes,
+            pathToArray(path),
+          );
           return this.handleFieldError(
             error,
             returnType,
@@ -873,7 +881,11 @@ export class Executor {
       }
       return completed;
     } catch (rawError) {
-      const error = locatedError(rawError, fieldNodes, pathToArray(path));
+      const error = locatedError(
+        toError(rawError),
+        fieldNodes,
+        pathToArray(path),
+      );
       return this.handleFieldError(error, returnType, payloadContext.errors);
     }
   }
@@ -1243,7 +1255,11 @@ export class Executor {
         // eslint-disable-next-line no-await-in-loop
         iteration = await iterator.next();
       } catch (rawError) {
-        const error = locatedError(rawError, fieldNodes, pathToArray(itemPath));
+        const error = locatedError(
+          toError(rawError),
+          fieldNodes,
+          pathToArray(itemPath),
+        );
         completedResults.push(
           this.handleFieldError(error, itemType, payloadContext.errors),
         );
@@ -1324,7 +1340,7 @@ export class Executor {
       const promise = completedItem
         .then(undefined, (rawError) => {
           const error = locatedError(
-            rawError,
+            toError(rawError),
             fieldNodes,
             pathToArray(itemPath),
           );
@@ -1336,7 +1352,11 @@ export class Executor {
 
       promises.push(promise);
     } catch (rawError) {
-      const error = locatedError(rawError, fieldNodes, pathToArray(itemPath));
+      const error = locatedError(
+        toError(rawError),
+        fieldNodes,
+        pathToArray(itemPath),
+      );
       completedResults[index] = this.handleFieldError(
         error,
         itemType,
@@ -1467,7 +1487,7 @@ export class Executor {
       );
     }
 
-    if (!exeContext.schema.isSubType(returnType, runtimeType)) {
+    if (!isSubType(exeContext.schema, returnType, runtimeType)) {
       throw new GraphQLError(
         `Runtime Object type "${runtimeType.name}" is not a possible type for "${returnType.name}".`,
         fieldNodes,
@@ -1743,7 +1763,7 @@ export class Executor {
       }
       return eventStream;
     } catch (error) {
-      throw locatedError(error, fieldNodes, pathToArray(path));
+      throw locatedError(toError(error), fieldNodes, pathToArray(path));
     }
   }
 
@@ -1852,7 +1872,7 @@ export class Executor {
         )
         .then(undefined, (rawError) => {
           const error = locatedError(
-            rawError,
+            toError(rawError),
             fieldNodes,
             pathToArray(itemPath),
           );
@@ -1933,7 +1953,7 @@ export class Executor {
         )
         .then(undefined, (rawError) => {
           const error = locatedError(
-            rawError,
+            toError(rawError),
             fieldNodes,
             pathToArray(itemPath),
           );
@@ -1984,7 +2004,11 @@ export class Executor {
     } catch (rawError) {
       exeContext.pendingPushes++;
       const itemPath = addPath(path, index, undefined);
-      const error = locatedError(rawError, fieldNodes, pathToArray(itemPath));
+      const error = locatedError(
+        toError(rawError),
+        fieldNodes,
+        pathToArray(itemPath),
+      );
       this.handleFieldError(error, itemType, payloadContext.errors);
       this.queue(
         exeContext,
@@ -2180,7 +2204,7 @@ export const defaultTypeResolver: GraphQLTypeResolver<unknown, unknown> =
     }
 
     // Otherwise, test each possible type.
-    const possibleTypes = info.schema.getPossibleTypes(abstractType);
+    const possibleTypes = getPossibleTypes(info.schema, abstractType);
     const promisedIsTypeOfResults = [];
 
     for (let i = 0; i < possibleTypes.length; i++) {

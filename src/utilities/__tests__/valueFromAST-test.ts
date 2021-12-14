@@ -16,6 +16,8 @@ import {
 } from 'graphql';
 import type { GraphQLInputType } from 'graphql';
 
+import { handlePre15 } from '../../__testUtils__/handlePre15';
+
 import type { ObjMap } from '../../jsutils/ObjMap';
 import { invariant } from '../../jsutils/invariant';
 import { identityFunc } from '../../jsutils/identityFunc';
@@ -67,6 +69,7 @@ describe('valueFromAST', () => {
         return node.value;
       },
       parseValue: identityFunc,
+      serialize: identityFunc, // necessary pre v15
     });
 
     expectValueFrom('"value"', passthroughScalar).to.equal('value');
@@ -77,6 +80,7 @@ describe('valueFromAST', () => {
         throw new Error('Test');
       },
       parseValue: identityFunc,
+      serialize: identityFunc, // necessary pre v15
     });
 
     expectValueFrom('value', throwScalar).to.equal(undefined);
@@ -87,6 +91,7 @@ describe('valueFromAST', () => {
         return undefined;
       },
       parseValue: identityFunc,
+      serialize: identityFunc, // necessary pre v15
     });
 
     expectValueFrom('value', returnUndefinedScalar).to.equal(undefined);
@@ -113,7 +118,9 @@ describe('valueFromAST', () => {
     expectValueFrom('NULL', testEnum).to.equal(null);
     expectValueFrom('NULL', new GraphQLNonNull(testEnum)).to.equal(null);
     expectValueFrom('NAN', testEnum).to.deep.equal(NaN);
-    expectValueFrom('NO_CUSTOM_VALUE', testEnum).to.equal('NO_CUSTOM_VALUE');
+    expectValueFrom('NO_CUSTOM_VALUE', testEnum).to.equal(
+      handlePre15('NO_CUSTOM_VALUE', undefined),
+    );
   });
 
   // Boolean!

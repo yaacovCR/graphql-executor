@@ -2,6 +2,7 @@ import type { GraphQLSchema, ValidationRule } from 'graphql';
 import { buildSchema, parse, validate } from 'graphql';
 
 import { expectJSON } from '../../__testUtils__/expectJSON';
+import { handlePre15 } from '../../__testUtils__/handlePre15';
 
 export const testSchema: GraphQLSchema = buildSchema(`
   interface Mammal {
@@ -13,7 +14,7 @@ export const testSchema: GraphQLSchema = buildSchema(`
     name(surname: Boolean): String
   }
 
-  interface Canine implements Mammal {
+  interface Canine${handlePre15(' implements Mammal', '')} {
     name(surname: Boolean): String
     mother: Canine
     father: Canine

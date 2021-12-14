@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
+import { handlePre15 } from '../__testUtils__/handlePre15';
+
 import { graphqlSync } from '../graphql';
 
 import { StarWarsSchema } from './starWarsSchema';
@@ -29,23 +31,42 @@ describe('Star Wars Introspection Tests', () => {
       // `@include` and also inside introspection types.
       expect(data).to.deep.equal({
         __schema: {
-          types: [
-            { name: 'Human' },
-            { name: 'Character' },
-            { name: 'String' },
-            { name: 'Episode' },
-            { name: 'Droid' },
-            { name: 'Query' },
-            { name: 'Boolean' },
-            { name: '__Schema' },
-            { name: '__Type' },
-            { name: '__TypeKind' },
-            { name: '__Field' },
-            { name: '__InputValue' },
-            { name: '__EnumValue' },
-            { name: '__Directive' },
-            { name: '__DirectiveLocation' },
-          ],
+          types: handlePre15(
+            [
+              { name: 'Human' },
+              { name: 'Character' },
+              { name: 'String' },
+              { name: 'Episode' },
+              { name: 'Droid' },
+              { name: 'Query' },
+              { name: 'Boolean' },
+              { name: '__Schema' },
+              { name: '__Type' },
+              { name: '__TypeKind' },
+              { name: '__Field' },
+              { name: '__InputValue' },
+              { name: '__EnumValue' },
+              { name: '__Directive' },
+              { name: '__DirectiveLocation' },
+            ],
+            [
+              { name: 'Query' },
+              { name: 'Episode' },
+              { name: 'Character' },
+              { name: 'String' },
+              { name: 'Human' },
+              { name: 'Droid' },
+              { name: '__Schema' },
+              { name: '__Type' },
+              { name: '__TypeKind' },
+              { name: 'Boolean' },
+              { name: '__Field' },
+              { name: '__InputValue' },
+              { name: '__EnumValue' },
+              { name: '__Directive' },
+              { name: '__DirectiveLocation' },
+            ],
+          ),
         },
       });
     });
