@@ -20,7 +20,6 @@ import {
   SchemaMetaFieldDef,
   TypeMetaFieldDef,
   TypeNameMetaFieldDef,
-  assertValidSchema,
   getOperationRootType,
   isObjectType,
   isAbstractType,
@@ -47,6 +46,7 @@ import { isAsyncIterable } from '../jsutils/isAsyncIterable.ts';
 import { isIterableObject } from '../jsutils/isIterableObject.ts';
 import { resolveAfterAll } from '../jsutils/resolveAfterAll.ts';
 import { Repeater } from '../jsutils/repeater.ts';
+import { assertSchema } from '../type/schema.ts';
 import {
   getVariableValues,
   getArgumentValues as _getArgumentValues,
@@ -446,9 +446,9 @@ export class Executor {
       readonly [variable: string]: unknown;
     }>,
   ): void {
-    document || devAssert(false, 'Must provide document.'); // If the schema used for execution is invalid, throw an error.
+    document || devAssert(false, 'Must provide document.'); // Schema must be provided.
 
-    assertValidSchema(schema); // Variables, if provided, must be an object.
+    assertSchema(schema); // Variables, if provided, must be an object.
 
     rawVariableValues == null ||
       isObjectLike(rawVariableValues) ||
