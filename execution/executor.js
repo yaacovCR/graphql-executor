@@ -36,6 +36,8 @@ var _resolveAfterAll = require('../jsutils/resolveAfterAll.js');
 
 var _repeater = require('../jsutils/repeater.js');
 
+var _schema = require('../type/schema.js');
+
 var _values = require('./values.js');
 
 var _collectFields = require('./collectFields.js');
@@ -298,9 +300,9 @@ class Executor {
    */
 
   assertValidExecutionArguments(schema, document, rawVariableValues) {
-    document || (0, _devAssert.devAssert)(false, 'Must provide document.'); // If the schema used for execution is invalid, throw an error.
+    document || (0, _devAssert.devAssert)(false, 'Must provide document.'); // Schema must be provided.
 
-    (0, _graphql.assertValidSchema)(schema); // Variables, if provided, must be an object.
+    (0, _schema.assertSchema)(schema); // Variables, if provided, must be an object.
 
     rawVariableValues == null ||
       (0, _isObjectLike.isObjectLike)(rawVariableValues) ||
