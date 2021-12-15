@@ -21,7 +21,6 @@ import {
   SchemaMetaFieldDef,
   TypeMetaFieldDef,
   TypeNameMetaFieldDef,
-  assertValidSchema,
   getOperationRootType,
   isObjectType,
   isAbstractType,
@@ -50,6 +49,8 @@ import { isAsyncIterable } from '../jsutils/isAsyncIterable';
 import { isIterableObject } from '../jsutils/isIterableObject';
 import { resolveAfterAll } from '../jsutils/resolveAfterAll';
 import { Repeater } from '../jsutils/repeater';
+
+import { assertSchema } from '../type/schema';
 
 import {
   getVariableValues,
@@ -442,8 +443,8 @@ export class Executor {
   ): void {
     devAssert(document, 'Must provide document.');
 
-    // If the schema used for execution is invalid, throw an error.
-    assertValidSchema(schema);
+    // Schema must be provided.
+    assertSchema(schema);
 
     // Variables, if provided, must be an object.
     devAssert(
