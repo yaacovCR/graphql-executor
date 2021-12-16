@@ -307,7 +307,7 @@ function doesFragmentConditionMatch(
   if (conditionalType === type) {
     return true;
   }
-  if (isAbstractType(conditionalType)) {
+  if (conditionalType && isAbstractType(conditionalType)) {
     return schema.isSubType(conditionalType, type);
   }
   return false;
