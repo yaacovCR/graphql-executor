@@ -6,21 +6,15 @@ import type {
   GraphQLSchema,
   VariableDefinitionNode,
 } from 'graphql';
-import {
-  GraphQLError,
-  Kind,
-  coerceInputValue,
-  isInputType,
-  isNonNullType,
-  print,
-  typeFromAST,
-  valueFromAST,
-} from 'graphql';
+import { GraphQLError, Kind, print, typeFromAST } from 'graphql';
 import type { ObjMap } from '../jsutils/ObjMap.ts';
 import type { Maybe } from '../jsutils/Maybe.ts';
 import { keyMap } from '../jsutils/keyMap.ts';
 import { inspect } from '../jsutils/inspect.ts';
 import { printPathArray } from '../jsutils/printPathArray.ts';
+import { isInputType, isNonNullType } from '../type/definition.ts';
+import { coerceInputValue } from '../utilities/coerceInputValue.ts';
+import { valueFromAST } from '../utilities/valueFromAST.ts';
 type CoercedVariableValues =
   | {
       errors: ReadonlyArray<GraphQLError>;
@@ -105,7 +99,7 @@ function coerceVariableValues(
     const varName = varDefNode.variable.name.value;
     const varType = typeFromAST(schema, varDefNode.type);
 
-    if (!isInputType(varType)) {
+    if (!varType || !isInputType(varType)) {
       // Must use input types for variables. This should be caught during
       // validation, however is checked again here for safety.
       const varTypeStr = print(varDefNode.type);

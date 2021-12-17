@@ -21,11 +21,6 @@ import {
   TypeMetaFieldDef,
   TypeNameMetaFieldDef,
   getOperationRootType,
-  isObjectType,
-  isAbstractType,
-  isLeafType,
-  isListType,
-  isNonNullType,
   locatedError,
 } from 'graphql';
 import { GraphQLStreamDirective } from '../type/directives.ts';
@@ -46,6 +41,14 @@ import { isAsyncIterable } from '../jsutils/isAsyncIterable.ts';
 import { isIterableObject } from '../jsutils/isIterableObject.ts';
 import { resolveAfterAll } from '../jsutils/resolveAfterAll.ts';
 import { Repeater } from '../jsutils/repeater.ts';
+import { isGraphQLError } from '../error/isGraphQLError.ts';
+import {
+  isAbstractType,
+  isLeafType,
+  isListType,
+  isNonNullType,
+  isObjectType,
+} from '../type/definition.ts';
 import { assertSchema } from '../type/schema.ts';
 import {
   getVariableValues,
@@ -1420,7 +1423,11 @@ export class Executor {
     } // releases before 16.0.0 supported returning `GraphQLObjectType` from `resolveType`
     // TODO: remove in 17.0.0 release
 
-    if (isObjectType(runtimeTypeName)) {
+    if (
+      typeof runtimeTypeName === 'object' &&
+      runtimeTypeName &&
+      isObjectType(runtimeTypeName)
+    ) {
       throw new GraphQLError(
         'Support for returning GraphQLObjectType from resolveType was removed in graphql-js@16.0.0 please return type name instead.',
       );
@@ -1657,7 +1664,7 @@ export class Executor {
     } catch (error) {
       // If it GraphQLError, report it as an ExecutionResult, containing only errors and no data.
       // Otherwise treat the error as a system-class error and re-throw it.
-      if (error instanceof GraphQLError) {
+      if (isGraphQLError(error)) {
         return {
           errors: [error],
         };
