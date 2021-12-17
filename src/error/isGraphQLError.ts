@@ -1,3 +1,5 @@
-export function isGraphQLError(error: Error) {
-  return Object.prototype.toString.call(error) === '[object GraphQLError]';
+import type { GraphQLError } from 'graphql';
+
+export function isGraphQLError(error: Error): error is GraphQLError {
+  return error.name === 'GraphQLError';
 }
