@@ -36,6 +36,10 @@ var _resolveAfterAll = require('../jsutils/resolveAfterAll.js');
 
 var _repeater = require('../jsutils/repeater.js');
 
+var _isGraphQLError = require('../error/isGraphQLError.js');
+
+var _definition = require('../type/definition.js');
+
 var _schema = require('../type/schema.js');
 
 var _values = require('./values.js');
@@ -745,7 +749,7 @@ class Executor {
   handleFieldError(error, returnType, errors) {
     // If the field type is non-nullable, then it is resolved without any
     // protection from errors, however it still properly locates the error.
-    if ((0, _graphql.isNonNullType)(returnType)) {
+    if ((0, _definition.isNonNullType)(returnType)) {
       throw error;
     } // Otherwise, error protection is applied, logging the error and resolving
     // a null value for this field if one is encountered.
@@ -790,7 +794,7 @@ class Executor {
     } // If field type is NonNull, complete for inner type, and throw field error
     // if result is null.
 
-    if ((0, _graphql.isNonNullType)(returnType)) {
+    if ((0, _definition.isNonNullType)(returnType)) {
       const completed = this.completeValue(
         exeContext,
         returnType.ofType,
@@ -814,7 +818,7 @@ class Executor {
       return null;
     } // If field type is List, complete each item in the list with the inner type
 
-    if ((0, _graphql.isListType)(returnType)) {
+    if ((0, _definition.isListType)(returnType)) {
       return this.completeListValue(
         exeContext,
         returnType,
@@ -827,12 +831,12 @@ class Executor {
     } // If field type is a leaf type, Scalar or Enum, serialize to a valid value,
     // returning null if serialization is not possible.
 
-    if ((0, _graphql.isLeafType)(returnType)) {
+    if ((0, _definition.isLeafType)(returnType)) {
       return this.completeLeafValue(returnType, result);
     } // If field type is an abstract type, Interface or Union, determine the
     // runtime Object type and complete for that type.
 
-    if ((0, _graphql.isAbstractType)(returnType)) {
+    if ((0, _definition.isAbstractType)(returnType)) {
       return this.completeAbstractValue(
         exeContext,
         returnType,
@@ -844,7 +848,7 @@ class Executor {
       );
     } // If field type is Object, execute and complete all sub-selections.
 
-    if ((0, _graphql.isObjectType)(returnType)) {
+    if ((0, _definition.isObjectType)(returnType)) {
       return this.completeObjectValue(
         exeContext,
         returnType,
@@ -1269,7 +1273,11 @@ class Executor {
     } // releases before 16.0.0 supported returning `GraphQLObjectType` from `resolveType`
     // TODO: remove in 17.0.0 release
 
-    if ((0, _graphql.isObjectType)(runtimeTypeName)) {
+    if (
+      typeof runtimeTypeName === 'object' &&
+      runtimeTypeName &&
+      (0, _definition.isObjectType)(runtimeTypeName)
+    ) {
       throw new _graphql.GraphQLError(
         'Support for returning GraphQLObjectType from resolveType was removed in graphql-js@16.0.0 please return type name instead.',
       );
@@ -1292,7 +1300,7 @@ class Executor {
       );
     }
 
-    if (!(0, _graphql.isObjectType)(runtimeType)) {
+    if (!(0, _definition.isObjectType)(runtimeType)) {
       throw new _graphql.GraphQLError(
         `Abstract type "${returnType.name}" was resolved to a non-object type "${runtimeTypeName}".`,
         fieldNodes,
@@ -1495,7 +1503,7 @@ class Executor {
     } catch (error) {
       // If it GraphQLError, report it as an ExecutionResult, containing only errors and no data.
       // Otherwise treat the error as a system-class error and re-throw it.
-      if (error instanceof _graphql.GraphQLError) {
+      if ((0, _isGraphQLError.isGraphQLError)(error)) {
         return {
           errors: [error],
         };

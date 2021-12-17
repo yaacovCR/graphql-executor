@@ -1,4 +1,27 @@
+/** Operate on GraphQL type definitions and schema. */
+export {
+  /** Directives for defer/stream support */
+  GraphQLDeferDirective,
+  GraphQLStreamDirective,
+  /** Predicates */
+  isSchema,
+  isScalarType,
+  isObjectType,
+  isInterfaceType,
+  isUnionType,
+  isEnumType,
+  isInputObjectType,
+  isListType,
+  isNonNullType,
+  isInputType,
+  isLeafType,
+  isAbstractType,
+  isWrappingType,
+  /** Assertions */
+  assertSchema,
+} from './type/index.mjs';
 /** Execute GraphQL queries. */
+
 export {
   Executor,
   defaultFieldResolver,
@@ -7,9 +30,6 @@ export {
   executeSync,
   createSourceEventStream,
 } from './execution/index.mjs';
-/** Directives for defer/stream support */
+/** Operate on GraphQL errors. */
 
-export {
-  GraphQLDeferDirective,
-  GraphQLStreamDirective,
-} from './type/index.mjs';
+export { isGraphQLError } from './error/index.mjs';

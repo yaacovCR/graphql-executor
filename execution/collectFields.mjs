@@ -293,7 +293,7 @@ function doesFragmentConditionMatch(schema, fragment, type) {
     return true;
   }
 
-  if (isAbstractType(conditionalType)) {
+  if (conditionalType && isAbstractType(conditionalType)) {
     return schema.isSubType(conditionalType, type);
   }
 

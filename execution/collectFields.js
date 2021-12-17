@@ -307,7 +307,7 @@ function doesFragmentConditionMatch(schema, fragment, type) {
     return true;
   }
 
-  if ((0, _graphql.isAbstractType)(conditionalType)) {
+  if (conditionalType && (0, _graphql.isAbstractType)(conditionalType)) {
     return schema.isSubType(conditionalType, type);
   }
 

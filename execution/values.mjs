@@ -1,16 +1,10 @@
-import {
-  GraphQLError,
-  Kind,
-  coerceInputValue,
-  isInputType,
-  isNonNullType,
-  print,
-  typeFromAST,
-  valueFromAST,
-} from 'graphql';
+import { GraphQLError, Kind, print, typeFromAST } from 'graphql';
 import { keyMap } from '../jsutils/keyMap.mjs';
 import { inspect } from '../jsutils/inspect.mjs';
 import { printPathArray } from '../jsutils/printPathArray.mjs';
+import { isInputType, isNonNullType } from '../type/definition.mjs';
+import { coerceInputValue } from '../utilities/coerceInputValue.mjs';
+import { valueFromAST } from '../utilities/valueFromAST.mjs';
 
 /**
  * Prepares an object map of variableValues of the correct type based on the
@@ -65,7 +59,7 @@ function coerceVariableValues(schema, varDefNodes, inputs, onError) {
     const varName = varDefNode.variable.name.value;
     const varType = typeFromAST(schema, varDefNode.type);
 
-    if (!isInputType(varType)) {
+    if (!varType || !isInputType(varType)) {
       // Must use input types for variables. This should be caught during
       // validation, however is checked again here for safety.
       const varTypeStr = print(varDefNode.type);
