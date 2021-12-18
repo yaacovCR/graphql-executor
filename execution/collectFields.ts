@@ -11,13 +11,13 @@ import {
   GraphQLIncludeDirective,
   GraphQLSkipDirective,
   Kind,
-  isAbstractType,
   typeFromAST,
 } from 'graphql';
 import type { Maybe } from '../jsutils/Maybe.ts';
 import type { ObjMap } from '../jsutils/ObjMap.ts';
 import { memoize1 } from '../jsutils/memoize1.ts';
 import { memoize2 } from '../jsutils/memoize2.ts';
+import { isAbstractType } from '../type/definition.ts';
 import { GraphQLDeferDirective } from '../type/directives.ts';
 import { getDirectiveValues } from './values.ts';
 export interface PatchFields {
