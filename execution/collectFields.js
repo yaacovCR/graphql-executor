@@ -16,6 +16,8 @@ var _definition = require('../type/definition.js');
 
 var _directives = require('../type/directives.js');
 
+var _isSubType = require('../utilities/isSubType.js');
+
 var _values = require('./values.js');
 
 /**
@@ -310,7 +312,7 @@ function doesFragmentConditionMatch(schema, fragment, type) {
   }
 
   if (conditionalType && (0, _definition.isAbstractType)(conditionalType)) {
-    return schema.isSubType(conditionalType, type);
+    return (0, _isSubType.isSubType)(schema, conditionalType, type);
   }
 
   return false;

@@ -36,11 +36,17 @@ var _resolveAfterAll = require('../jsutils/resolveAfterAll.js');
 
 var _repeater = require('../jsutils/repeater.js');
 
+var _toError = require('../jsutils/toError.js');
+
 var _isGraphQLError = require('../error/isGraphQLError.js');
 
 var _definition = require('../type/definition.js');
 
 var _schema = require('../type/schema.js');
+
+var _isSubType = require('../utilities/isSubType.js');
+
+var _getPossibleTypes = require('../utilities/getPossibleTypes.js');
 
 var _values = require('./values.js');
 
@@ -706,7 +712,7 @@ class Executor {
         // to take a second callback for the error case.
         return completed.then(undefined, (rawError) => {
           const error = (0, _graphql.locatedError)(
-            rawError,
+            (0, _toError.toError)(rawError),
             fieldNodes,
             (0, _Path.pathToArray)(path),
           );
@@ -721,7 +727,7 @@ class Executor {
       return completed;
     } catch (rawError) {
       const error = (0, _graphql.locatedError)(
-        rawError,
+        (0, _toError.toError)(rawError),
         fieldNodes,
         (0, _Path.pathToArray)(path),
       );
@@ -1068,7 +1074,7 @@ class Executor {
         iteration = await iterator.next();
       } catch (rawError) {
         const error = (0, _graphql.locatedError)(
-          rawError,
+          (0, _toError.toError)(rawError),
           fieldNodes,
           (0, _Path.pathToArray)(itemPath),
         );
@@ -1151,7 +1157,7 @@ class Executor {
       const promise = completedItem
         .then(undefined, (rawError) => {
           const error = (0, _graphql.locatedError)(
-            rawError,
+            (0, _toError.toError)(rawError),
             fieldNodes,
             (0, _Path.pathToArray)(itemPath),
           );
@@ -1163,7 +1169,7 @@ class Executor {
       promises.push(promise);
     } catch (rawError) {
       const error = (0, _graphql.locatedError)(
-        rawError,
+        (0, _toError.toError)(rawError),
         fieldNodes,
         (0, _Path.pathToArray)(itemPath),
       );
@@ -1307,7 +1313,9 @@ class Executor {
       );
     }
 
-    if (!exeContext.schema.isSubType(returnType, runtimeType)) {
+    if (
+      !(0, _isSubType.isSubType)(exeContext.schema, returnType, runtimeType)
+    ) {
       throw new _graphql.GraphQLError(
         `Runtime Object type "${runtimeType.name}" is not a possible type for "${returnType.name}".`,
         fieldNodes,
@@ -1568,7 +1576,7 @@ class Executor {
       return eventStream;
     } catch (error) {
       throw (0, _graphql.locatedError)(
-        error,
+        (0, _toError.toError)(error),
         fieldNodes,
         (0, _Path.pathToArray)(path),
       );
@@ -1676,7 +1684,7 @@ class Executor {
         )
         .then(undefined, (rawError) => {
           const error = (0, _graphql.locatedError)(
-            rawError,
+            (0, _toError.toError)(rawError),
             fieldNodes,
             (0, _Path.pathToArray)(itemPath),
           );
@@ -1755,7 +1763,7 @@ class Executor {
         )
         .then(undefined, (rawError) => {
           const error = (0, _graphql.locatedError)(
-            rawError,
+            (0, _toError.toError)(rawError),
             fieldNodes,
             (0, _Path.pathToArray)(itemPath),
           );
@@ -1808,7 +1816,7 @@ class Executor {
       exeContext.pendingPushes++;
       const itemPath = (0, _Path.addPath)(path, index, undefined);
       const error = (0, _graphql.locatedError)(
-        rawError,
+        (0, _toError.toError)(rawError),
         fieldNodes,
         (0, _Path.pathToArray)(itemPath),
       );
@@ -1993,7 +2001,10 @@ const defaultTypeResolver = function (value, contextValue, info, abstractType) {
     return value.__typename;
   } // Otherwise, test each possible type.
 
-  const possibleTypes = info.schema.getPossibleTypes(abstractType);
+  const possibleTypes = (0, _getPossibleTypes.getPossibleTypes)(
+    info.schema,
+    abstractType,
+  );
   const promisedIsTypeOfResults = [];
 
   for (let i = 0; i < possibleTypes.length; i++) {

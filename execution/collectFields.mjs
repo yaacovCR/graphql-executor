@@ -8,6 +8,7 @@ import { memoize1 } from '../jsutils/memoize1.mjs';
 import { memoize2 } from '../jsutils/memoize2.mjs';
 import { isAbstractType } from '../type/definition.mjs';
 import { GraphQLDeferDirective } from '../type/directives.mjs';
+import { isSubType } from '../utilities/isSubType.mjs';
 import { getDirectiveValues } from './values.mjs';
 
 /**
@@ -294,7 +295,7 @@ function doesFragmentConditionMatch(schema, fragment, type) {
   }
 
   if (conditionalType && isAbstractType(conditionalType)) {
-    return schema.isSubType(conditionalType, type);
+    return isSubType(schema, conditionalType, type);
   }
 
   return false;
