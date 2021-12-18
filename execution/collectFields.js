@@ -12,6 +12,8 @@ var _memoize = require('../jsutils/memoize1.js');
 
 var _memoize2 = require('../jsutils/memoize2.js');
 
+var _definition = require('../type/definition.js');
+
 var _directives = require('../type/directives.js');
 
 var _values = require('./values.js');
@@ -307,7 +309,7 @@ function doesFragmentConditionMatch(schema, fragment, type) {
     return true;
   }
 
-  if (conditionalType && (0, _graphql.isAbstractType)(conditionalType)) {
+  if (conditionalType && (0, _definition.isAbstractType)(conditionalType)) {
     return schema.isSubType(conditionalType, type);
   }
 

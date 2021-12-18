@@ -2,11 +2,11 @@ import {
   GraphQLIncludeDirective,
   GraphQLSkipDirective,
   Kind,
-  isAbstractType,
   typeFromAST,
 } from 'graphql';
 import { memoize1 } from '../jsutils/memoize1.mjs';
 import { memoize2 } from '../jsutils/memoize2.mjs';
+import { isAbstractType } from '../type/definition.mjs';
 import { GraphQLDeferDirective } from '../type/directives.mjs';
 import { getDirectiveValues } from './values.mjs';
 
