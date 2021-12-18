@@ -8,14 +8,20 @@ import type {
   NonNullTypeNode,
   TypeNode,
   GraphQLType,
-  GraphQLNamedOutputType,
   GraphQLOutputType,
-  GraphQLNamedInputType,
   GraphQLInputType,
+  GraphQLEnumType,
+  GraphQLInputObjectType,
+  GraphQLScalarType,
+  GraphQLObjectType,
+  GraphQLUnionType,
 } from 'graphql';
-import type { Maybe } from 'graphql/jsutils/Maybe'; // fix pre v16 types
+import type { Maybe } from './jsutils/Maybe.ts'; // fix pre v16 types
 
 declare module 'graphql' {
+  export interface GraphQLInterfaceType {
+    getInterfaces: () => ReadonlyArray<GraphQLInterfaceType>;
+  }
   export function typeFromAST(
     schema: GraphQLSchema,
     typeNode: NamedTypeNode,
@@ -33,8 +39,17 @@ declare module 'graphql' {
     typeNode: TypeNode,
   ): GraphQLType | undefined;
   export function getNamedType(type: undefined | null): void;
-  export function getNamedType(type: GraphQLInputType): GraphQLNamedInputType;
-  export function getNamedType(type: GraphQLOutputType): GraphQLNamedOutputType;
+  export function getNamedType(
+    type: GraphQLInputType,
+  ): GraphQLScalarType | GraphQLEnumType | GraphQLInputObjectType;
+  export function getNamedType(
+    type: GraphQLOutputType,
+  ):
+    | GraphQLScalarType
+    | GraphQLObjectType
+    | GraphQLInterfaceType
+    | GraphQLUnionType
+    | GraphQLEnumType;
   export function getNamedType(type: GraphQLType): GraphQLNamedType;
   export function getNamedType(
     type: Maybe<GraphQLType>,
