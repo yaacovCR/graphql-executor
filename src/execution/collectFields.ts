@@ -23,6 +23,8 @@ import { memoize2 } from '../jsutils/memoize2';
 import { isAbstractType } from '../type/definition';
 import { GraphQLDeferDirective } from '../type/directives';
 
+import { isSubType } from '../utilities/isSubType';
+
 import { getDirectiveValues } from './values';
 
 export interface PatchFields {
@@ -308,7 +310,7 @@ function doesFragmentConditionMatch(
     return true;
   }
   if (conditionalType && isAbstractType(conditionalType)) {
-    return schema.isSubType(conditionalType, type);
+    return isSubType(schema, conditionalType, type);
   }
   return false;
 }

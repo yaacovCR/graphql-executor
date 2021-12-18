@@ -17,12 +17,14 @@ import {
 } from 'graphql';
 
 import { expectJSON } from '../../__testUtils__/expectJSON';
+import { handlePre15 } from '../../__testUtils__/handlePre15';
 
 import { inspect } from '../../jsutils/inspect';
 import { invariant } from '../../jsutils/invariant';
 
 import { executeSync } from '../execute';
 import { getVariableValues } from '../values';
+import { identityFunc } from '../../jsutils/identityFunc';
 
 const TestComplexScalar = new GraphQLScalarType({
   name: 'ComplexScalar',
@@ -34,6 +36,7 @@ const TestComplexScalar = new GraphQLScalarType({
     expect(ast).to.include({ kind: 'StringValue', value: 'SerializedValue' });
     return 'DeserializedValue';
   },
+  serialize: identityFunc, // necessary pre v15
 });
 
 const TestInputObject = new GraphQLInputObjectType({
@@ -701,7 +704,9 @@ describe('Execute: Handles inputs', () => {
         errors: [
           {
             message:
-              'Variable "$value" got invalid value [1, 2, 3]; String cannot represent a non string value: [1, 2, 3]',
+              'Variable "$value" got invalid value [1, 2, 3]; ' +
+              handlePre15('', 'Expected type "String". ') +
+              'String cannot represent a non string value: [1, 2, 3]',
             locations: [{ line: 2, column: 16 }],
           },
         ],
@@ -1020,7 +1025,10 @@ describe('Execute: Handles inputs', () => {
 
     function invalidValueError(value: number, index: number) {
       return {
-        message: `Variable "$input" got invalid value ${value} at "input[${index}]"; String cannot represent a non string value: ${value}`,
+        message:
+          `Variable "$input" got invalid value ${value} at "input[${index}]"; ` +
+          handlePre15('', 'Expected type "String". ') +
+          `String cannot represent a non string value: ${value}`,
         locations: [{ line: 2, column: 14 }],
       };
     }

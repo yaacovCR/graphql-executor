@@ -12,6 +12,8 @@ import {
   parse,
 } from 'graphql';
 
+import { handlePre15 } from '../../__testUtils__/handlePre15';
+
 import { executeSync } from '../execute';
 
 class Dog {
@@ -72,7 +74,8 @@ const LifeType: GraphQLInterfaceType = new GraphQLInterfaceType({
   }),
 });
 
-const MammalType: GraphQLInterfaceType = new GraphQLInterfaceType({
+// cast from plain object necessary pre v15 because of interfaces field
+const interfaceTypeConfig = {
   name: 'Mammal',
   interfaces: [LifeType],
   fields: () => ({
@@ -80,7 +83,10 @@ const MammalType: GraphQLInterfaceType = new GraphQLInterfaceType({
     mother: { type: MammalType },
     father: { type: MammalType },
   }),
-});
+};
+const MammalType: GraphQLInterfaceType = new GraphQLInterfaceType(
+  interfaceTypeConfig,
+);
 
 const DogType: GraphQLObjectType = new GraphQLObjectType({
   name: 'Dog',
@@ -188,14 +194,19 @@ describe('Execute: Union and intersection types', () => {
       }
     `);
 
+    const possibleTypes = handlePre15(
+      [{ name: 'Dog' }, { name: 'Cat' }, { name: 'Person' }],
+      [{ name: 'Person' }, { name: 'Dog' }, { name: 'Cat' }],
+    );
+
     expect(executeSync({ schema, document })).to.deep.equal({
       data: {
         Named: {
           kind: 'INTERFACE',
           name: 'Named',
           fields: [{ name: 'name' }],
-          interfaces: [],
-          possibleTypes: [{ name: 'Dog' }, { name: 'Cat' }, { name: 'Person' }],
+          interfaces: handlePre15([], null),
+          possibleTypes,
           enumValues: null,
           inputFields: null,
         },
@@ -203,8 +214,8 @@ describe('Execute: Union and intersection types', () => {
           kind: 'INTERFACE',
           name: 'Mammal',
           fields: [{ name: 'progeny' }, { name: 'mother' }, { name: 'father' }],
-          interfaces: [{ name: 'Life' }],
-          possibleTypes: [{ name: 'Dog' }, { name: 'Cat' }, { name: 'Person' }],
+          interfaces: handlePre15([{ name: 'Life' }], null),
+          possibleTypes,
           enumValues: null,
           inputFields: null,
         },

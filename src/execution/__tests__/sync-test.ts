@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
+import type { GraphQLSchemaConfig } from 'graphql';
 import {
   GraphQLObjectType,
   GraphQLSchema,
@@ -10,6 +11,7 @@ import {
 } from 'graphql';
 
 import { expectJSON } from '../../__testUtils__/expectJSON';
+import { handlePre15 } from '../../__testUtils__/handlePre15';
 
 import { graphqlSync } from '../../graphql';
 
@@ -135,7 +137,7 @@ describe('Execute: synchronously when possible', () => {
 
   describe('graphqlSync', () => {
     it('report errors raised during schema validation', () => {
-      const badSchema = new GraphQLSchema({});
+      const badSchema = new GraphQLSchema({} as GraphQLSchemaConfig); // cast necessary pre v15
       const result = graphqlSync({
         schema: badSchema,
         source: '{ __typename }',
@@ -154,7 +156,8 @@ describe('Execute: synchronously when possible', () => {
       expectJSON(result).toDeepEqual({
         errors: [
           {
-            message: 'Syntax Error: Expected Name, found "{".',
+            message:
+              'Syntax Error: Expected Name, found ' + handlePre15('"{".', '{'),
             locations: [{ line: 1, column: 29 }],
           },
         ],

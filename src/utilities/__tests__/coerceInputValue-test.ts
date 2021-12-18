@@ -11,6 +11,10 @@ import {
 } from 'graphql';
 import type { GraphQLInputType } from 'graphql';
 
+import { handlePre15 } from '../../__testUtils__/handlePre15';
+
+import { identityFunc } from '../../jsutils/identityFunc';
+
 import { coerceInputValue } from '../coerceInputValue';
 
 interface CoerceResult {
@@ -90,6 +94,7 @@ describe('coerceInputValue', () => {
         }
         return input.value;
       },
+      serialize: identityFunc, // necessary pre v15
     });
 
     it('returns no error for valid input', () => {
@@ -152,8 +157,10 @@ describe('coerceInputValue', () => {
       const result = coerceValue('foo', TestEnum);
       expectErrors(result).to.deep.equal([
         {
-          error:
+          error: handlePre15(
             'Value "foo" does not exist in "TestEnum" enum. Did you mean the enum value "FOO"?',
+            'Expected type "TestEnum".',
+          ),
           path: [],
           value: 'foo',
         },
@@ -164,7 +171,10 @@ describe('coerceInputValue', () => {
       const result1 = coerceValue(123, TestEnum);
       expectErrors(result1).to.deep.equal([
         {
-          error: 'Enum "TestEnum" cannot represent non-string value: 123.',
+          error: handlePre15(
+            'Enum "TestEnum" cannot represent non-string value: 123.',
+            'Expected type "TestEnum".',
+          ),
           path: [],
           value: 123,
         },
@@ -173,8 +183,10 @@ describe('coerceInputValue', () => {
       const result2 = coerceValue({ field: 'value' }, TestEnum);
       expectErrors(result2).to.deep.equal([
         {
-          error:
+          error: handlePre15(
             'Enum "TestEnum" cannot represent non-string value: { field: "value" }.',
+            'Expected type "TestEnum".',
+          ),
           path: [],
           value: { field: 'value' },
         },
@@ -211,7 +223,9 @@ describe('coerceInputValue', () => {
       const result = coerceValue({ foo: NaN }, TestInputObject);
       expectErrors(result).to.deep.equal([
         {
-          error: 'Int cannot represent non-integer value: NaN',
+          error:
+            handlePre15('', 'Expected type "Int". ') +
+            'Int cannot represent non-integer value: NaN',
           path: ['foo'],
           value: NaN,
         },
@@ -222,12 +236,16 @@ describe('coerceInputValue', () => {
       const result = coerceValue({ foo: 'abc', bar: 'def' }, TestInputObject);
       expectErrors(result).to.deep.equal([
         {
-          error: 'Int cannot represent non-integer value: "abc"',
+          error:
+            handlePre15('', 'Expected type "Int". ') +
+            'Int cannot represent non-integer value: "abc"',
           path: ['foo'],
           value: 'abc',
         },
         {
-          error: 'Int cannot represent non-integer value: "def"',
+          error:
+            handlePre15('', 'Expected type "Int". ') +
+            'Int cannot represent non-integer value: "def"',
           path: ['bar'],
           value: 'def',
         },
@@ -279,7 +297,10 @@ describe('coerceInputValue', () => {
         name: 'TestInputObject',
         fields: {
           foo: {
-            type: new GraphQLScalarType({ name: 'TestScalar' }),
+            type: new GraphQLScalarType({
+              name: 'TestScalar',
+              serialize: identityFunc, // necessary pre v15
+            }),
             defaultValue,
           },
         },
@@ -329,12 +350,16 @@ describe('coerceInputValue', () => {
       const result = coerceValue([1, 'b', true, 4], TestList);
       expectErrors(result).to.deep.equal([
         {
-          error: 'Int cannot represent non-integer value: "b"',
+          error:
+            handlePre15('', 'Expected type "Int". ') +
+            'Int cannot represent non-integer value: "b"',
           path: [1],
           value: 'b',
         },
         {
-          error: 'Int cannot represent non-integer value: true',
+          error:
+            handlePre15('', 'Expected type "Int". ') +
+            'Int cannot represent non-integer value: true',
           path: [2],
           value: true,
         },
@@ -364,7 +389,9 @@ describe('coerceInputValue', () => {
       const result = coerceValue('INVALID', TestList);
       expectErrors(result).to.deep.equal([
         {
-          error: 'Int cannot represent non-integer value: "INVALID"',
+          error:
+            handlePre15('', 'Expected type "Int". ') +
+            'Int cannot represent non-integer value: "INVALID"',
           path: [],
           value: 'INVALID',
         },

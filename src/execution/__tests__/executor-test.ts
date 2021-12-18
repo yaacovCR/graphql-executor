@@ -15,6 +15,7 @@ import {
   Kind,
   parse,
 } from 'graphql';
+import type { GraphQLSchemaConfig } from 'graphql';
 
 import { expectJSON } from '../../__testUtils__/expectJSON';
 
@@ -916,7 +917,9 @@ describe('Execute: Handles basic execution tasks', () => {
   });
 
   it('resolves to an error if schema does not support operation', () => {
-    const schema = new GraphQLSchema({ assumeValid: true });
+    const schema = new GraphQLSchema({
+      assumeValid: true,
+    } as GraphQLSchemaConfig); // cast necessary pre v15
 
     const document = parse(`
       query Q { __typename }
