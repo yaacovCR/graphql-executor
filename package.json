@@ -49,10 +49,6 @@
     "changeset:version": "changeset version && npm install --package-lock-only",
     "changeset:publish": "npm run build:npm && changeset publish"
   },
-  "publishConfig": {
-    "access": "public",
-    "directory": "npmDist"
-  },
   "peerDependencies": {
     "graphql": "^15.0.0 || ^16.0.0"
   },
@@ -79,5 +75,10 @@
     "mocha": "9.1.3",
     "prettier": "2.5.0",
     "typescript": "4.5.2"
+  },
+  "publishConfig": {
+    "access": "public",
+    "directory": "npmDist",
+    "tag": "latest"
   }
 }
