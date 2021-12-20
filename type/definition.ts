@@ -6,6 +6,7 @@ import type {
   GraphQLInterfaceType,
   GraphQLLeafType,
   GraphQLList,
+  GraphQLNamedType,
   GraphQLNonNull,
   GraphQLNullableType,
   GraphQLObjectType,
@@ -154,3 +155,18 @@ function _isWrappingType(type: { [key: string]: any }) {
 export const isWrappingType = memoize1(_isWrappingType) as (type: {
   [key: string]: any;
 }) => type is GraphQLWrappingType;
+
+function _isNamedType(type: { [key: string]: any }) {
+  return (
+    isScalarType(type) ||
+    isObjectType(type) ||
+    isInterfaceType(type) ||
+    isUnionType(type) ||
+    isEnumType(type) ||
+    isInputObjectType(type)
+  );
+}
+
+export const isNamedType = memoize1(_isNamedType) as (type: {
+  [key: string]: any;
+}) => type is GraphQLNamedType;

@@ -47,6 +47,7 @@ import {
   isAbstractType,
   isLeafType,
   isListType,
+  isNamedType,
   isNonNullType,
   isObjectType,
 } from '../type/definition.ts';
@@ -1427,30 +1428,24 @@ export class Executor {
   }
 
   ensureValidRuntimeType(
-    runtimeTypeName: unknown,
+    runtimeTypeOrName: unknown,
     exeContext: ExecutionContext,
     returnType: GraphQLAbstractType,
     fieldNodes: ReadonlyArray<FieldNode>,
     info: GraphQLResolveInfo,
     result: unknown,
   ): GraphQLObjectType {
-    if (runtimeTypeName == null) {
+    if (runtimeTypeOrName == null) {
       throw new GraphQLError(
         `Abstract type "${returnType.name}" must resolve to an Object type at runtime for field "${info.parentType.name}.${info.fieldName}". Either the "${returnType.name}" type should provide a "resolveType" function or each possible type should provide an "isTypeOf" function.`,
         fieldNodes,
       );
-    } // releases before 16.0.0 supported returning `GraphQLObjectType` from `resolveType`
-    // TODO: remove in 17.0.0 release
-
-    if (
-      typeof runtimeTypeName === 'object' &&
-      runtimeTypeName &&
-      isObjectType(runtimeTypeName)
-    ) {
-      throw new GraphQLError(
-        'Support for returning GraphQLObjectType from resolveType was removed in graphql-js@16.0.0 please return type name instead.',
-      );
     }
+
+    const runtimeTypeName =
+      typeof runtimeTypeOrName === 'object' && isNamedType(runtimeTypeOrName)
+        ? runtimeTypeOrName.name
+        : runtimeTypeOrName;
 
     if (typeof runtimeTypeName !== 'string') {
       throw new GraphQLError(
