@@ -105,7 +105,6 @@ function buildPackageJSON() {
 
   delete packageJSON.scripts;
   delete packageJSON.devDependencies;
-  delete packageJSON.publishConfig;
 
   // TODO: move to integration tests
   const publishTag = packageJSON.publishConfig?.tag;
