@@ -83,3 +83,16 @@ function _isWrappingType(type) {
 }
 
 export const isWrappingType = memoize1(_isWrappingType);
+
+function _isNamedType(type) {
+  return (
+    isScalarType(type) ||
+    isObjectType(type) ||
+    isInterfaceType(type) ||
+    isUnionType(type) ||
+    isEnumType(type) ||
+    isInputObjectType(type)
+  );
+}
+
+export const isNamedType = memoize1(_isNamedType);

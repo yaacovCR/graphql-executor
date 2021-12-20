@@ -8,6 +8,7 @@ exports.isWrappingType =
   exports.isScalarType =
   exports.isObjectType =
   exports.isNonNullType =
+  exports.isNamedType =
   exports.isListType =
   exports.isLeafType =
   exports.isInterfaceType =
@@ -114,3 +115,17 @@ function _isWrappingType(type) {
 
 const isWrappingType = (0, _memoize.memoize1)(_isWrappingType);
 exports.isWrappingType = isWrappingType;
+
+function _isNamedType(type) {
+  return (
+    isScalarType(type) ||
+    isObjectType(type) ||
+    isInterfaceType(type) ||
+    isUnionType(type) ||
+    isEnumType(type) ||
+    isInputObjectType(type)
+  );
+}
+
+const isNamedType = (0, _memoize.memoize1)(_isNamedType);
+exports.isNamedType = isNamedType;

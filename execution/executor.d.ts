@@ -474,7 +474,7 @@ export declare class Executor {
     payloadContext: PayloadContext,
   ): PromiseOrValue<ObjMap<unknown>>;
   ensureValidRuntimeType(
-    runtimeTypeName: unknown,
+    runtimeTypeOrName: unknown,
     exeContext: ExecutionContext,
     returnType: GraphQLAbstractType,
     fieldNodes: ReadonlyArray<FieldNode>,

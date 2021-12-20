@@ -63,6 +63,12 @@ Object.defineProperty(exports, 'isListType', {
     return _definition.isListType;
   },
 });
+Object.defineProperty(exports, 'isNamedType', {
+  enumerable: true,
+  get: function () {
+    return _definition.isNamedType;
+  },
+});
 Object.defineProperty(exports, 'isNonNullType', {
   enumerable: true,
   get: function () {

@@ -6,6 +6,7 @@ import type {
   GraphQLInterfaceType,
   GraphQLLeafType,
   GraphQLList,
+  GraphQLNamedType,
   GraphQLNonNull,
   GraphQLObjectType,
   GraphQLOutputType,
@@ -61,3 +62,6 @@ export declare const isAbstractType: (type: {
 export declare const isWrappingType: (type: {
   [key: string]: any;
 }) => type is GraphQLWrappingType;
+export declare const isNamedType: (type: {
+  [key: string]: any;
+}) => type is GraphQLNamedType;
