@@ -562,7 +562,66 @@ describe('Execute: Handles execution of abstract types', () => {
     });
   });
 
-  it('resolveType on Interface yields useful error', () => {
+  it('resolve Interface type using GraphQLObjectType', async () => {
+    const schema = buildSchema(`
+      type Query {
+        pets: [Pet]
+      }
+
+      interface Pet {
+        name: String
+        }
+
+      type Cat implements Pet {
+        name: String
+        meows: Boolean
+      }
+
+      type Dog implements Pet {
+        name: String
+        woofs: Boolean
+      }
+    `);
+
+    const query = `
+      {
+        pets {
+          name
+          ... on Cat {
+            meows
+          }
+        }
+      }
+    `;
+
+    const rootValue = {
+      pets: [
+        {
+          __typename: 'Cat',
+          name: 'Garfield',
+          meows: false,
+        },
+      ],
+    };
+
+    // FIXME: workaround since we can't inject resolveType into SDL
+    // @ts-expect-error
+    assertInterfaceType(schema.getType('Pet')).resolveType = () =>
+      schema.getType('Cat');
+
+    expect(await executeQuery({ schema, query, rootValue })).to.deep.equal({
+      data: {
+        pets: [
+          {
+            name: 'Garfield',
+            meows: false,
+          },
+        ],
+      },
+    });
+  });
+
+  it('resolve Interface type using __typename on source object', () => {
     const schema = buildSchema(`
       type Query {
         pet: Pet
@@ -629,14 +688,6 @@ describe('Execute: Handles execution of abstract types', () => {
     assertInterfaceType(schema.getType('Pet')).resolveType = () => [];
     expectError({ forTypeName: undefined }).toEqual(
       'Abstract type "Pet" must resolve to an Object type at runtime for field "Query.pet" with value { __typename: undefined }, received "[]".',
-    );
-
-    // FIXME: workaround since we can't inject resolveType into SDL
-    // @ts-expect-error
-    assertInterfaceType(schema.getType('Pet')).resolveType = () =>
-      schema.getType('Cat');
-    expectError({ forTypeName: undefined }).toEqual(
-      'Support for returning GraphQLObjectType from resolveType was removed in graphql-js@16.0.0 please return type name instead.',
     );
   });
 });

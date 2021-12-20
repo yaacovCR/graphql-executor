@@ -12,6 +12,7 @@ export {
   isEnumType,
   isInputObjectType,
   isListType,
+  isNamedType,
   isNonNullType,
   isInputType,
   isLeafType,
