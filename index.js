@@ -21,12 +21,6 @@ Object.defineProperty(exports, 'GraphQLStreamDirective', {
     return _index.GraphQLStreamDirective;
   },
 });
-Object.defineProperty(exports, 'assertSchema', {
-  enumerable: true,
-  get: function () {
-    return _index.assertSchema;
-  },
-});
 Object.defineProperty(exports, 'createSourceEventStream', {
   enumerable: true,
   get: function () {
@@ -57,94 +51,10 @@ Object.defineProperty(exports, 'executeSync', {
     return _index2.executeSync;
   },
 });
-Object.defineProperty(exports, 'isAbstractType', {
-  enumerable: true,
-  get: function () {
-    return _index.isAbstractType;
-  },
-});
-Object.defineProperty(exports, 'isEnumType', {
-  enumerable: true,
-  get: function () {
-    return _index.isEnumType;
-  },
-});
 Object.defineProperty(exports, 'isGraphQLError', {
   enumerable: true,
   get: function () {
     return _index3.isGraphQLError;
-  },
-});
-Object.defineProperty(exports, 'isInputObjectType', {
-  enumerable: true,
-  get: function () {
-    return _index.isInputObjectType;
-  },
-});
-Object.defineProperty(exports, 'isInputType', {
-  enumerable: true,
-  get: function () {
-    return _index.isInputType;
-  },
-});
-Object.defineProperty(exports, 'isInterfaceType', {
-  enumerable: true,
-  get: function () {
-    return _index.isInterfaceType;
-  },
-});
-Object.defineProperty(exports, 'isLeafType', {
-  enumerable: true,
-  get: function () {
-    return _index.isLeafType;
-  },
-});
-Object.defineProperty(exports, 'isListType', {
-  enumerable: true,
-  get: function () {
-    return _index.isListType;
-  },
-});
-Object.defineProperty(exports, 'isNamedType', {
-  enumerable: true,
-  get: function () {
-    return _index.isNamedType;
-  },
-});
-Object.defineProperty(exports, 'isNonNullType', {
-  enumerable: true,
-  get: function () {
-    return _index.isNonNullType;
-  },
-});
-Object.defineProperty(exports, 'isObjectType', {
-  enumerable: true,
-  get: function () {
-    return _index.isObjectType;
-  },
-});
-Object.defineProperty(exports, 'isScalarType', {
-  enumerable: true,
-  get: function () {
-    return _index.isScalarType;
-  },
-});
-Object.defineProperty(exports, 'isSchema', {
-  enumerable: true,
-  get: function () {
-    return _index.isSchema;
-  },
-});
-Object.defineProperty(exports, 'isUnionType', {
-  enumerable: true,
-  get: function () {
-    return _index.isUnionType;
-  },
-});
-Object.defineProperty(exports, 'isWrappingType', {
-  enumerable: true,
-  get: function () {
-    return _index.isWrappingType;
   },
 });
 
