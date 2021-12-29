@@ -353,13 +353,11 @@ describe('Subscription Initialization Phase', () => {
 
     // @ts-expect-error (schema must not be null)
     expect(() => executeSync({ schema: null, document })).to.throw(
-      'Expected null to be a GraphQL schema.',
+      'Must provide schema.',
     );
 
     // @ts-expect-error
-    expect(() => executeSync({ document })).to.throw(
-      'Expected undefined to be a GraphQL schema.',
-    );
+    expect(() => executeSync({ document })).to.throw('Must provide schema.');
 
     // @ts-expect-error (document must not be null)
     expect(() => executeSync({ schema, document: null })).to.throw(

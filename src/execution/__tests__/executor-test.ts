@@ -43,9 +43,7 @@ describe('Execute: Handles basic execution tasks', () => {
     const document = parse('{ field }');
 
     // @ts-expect-error
-    expect(() => executeSync({ document })).to.throw(
-      'Expected undefined to be a GraphQL schema.',
-    );
+    expect(() => executeSync({ document })).to.throw('Must provide schema.');
   });
 
   it('throws on invalid variables', () => {

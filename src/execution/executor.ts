@@ -57,8 +57,6 @@ import {
   isObjectType,
 } from '../type/definition';
 
-import { assertSchema } from '../type/schema';
-
 import { isSubType } from '../utilities/isSubType';
 import { getPossibleTypes } from '../utilities/getPossibleTypes';
 
@@ -454,7 +452,7 @@ export class Executor {
     devAssert(document, 'Must provide document.');
 
     // Schema must be provided.
-    assertSchema(schema);
+    devAssert(schema, 'Must provide schema.');
 
     // Variables, if provided, must be an object.
     devAssert(
