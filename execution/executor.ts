@@ -51,7 +51,6 @@ import {
   isNonNullType,
   isObjectType,
 } from '../type/definition.ts';
-import { assertSchema } from '../type/schema.ts';
 import { isSubType } from '../utilities/isSubType.ts';
 import { getPossibleTypes } from '../utilities/getPossibleTypes.ts';
 import {
@@ -455,7 +454,7 @@ export class Executor {
   ): void {
     document || devAssert(false, 'Must provide document.'); // Schema must be provided.
 
-    assertSchema(schema); // Variables, if provided, must be an object.
+    schema || devAssert(false, 'Must provide schema.'); // Variables, if provided, must be an object.
 
     rawVariableValues == null ||
       isObjectLike(rawVariableValues) ||
