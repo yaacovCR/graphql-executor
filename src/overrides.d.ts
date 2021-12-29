@@ -1,12 +1,5 @@
 import type {
-  GraphQLNonNull,
-  GraphQLList,
   GraphQLNamedType,
-  GraphQLSchema,
-  ListTypeNode,
-  NamedTypeNode,
-  NonNullTypeNode,
-  TypeNode,
   GraphQLType,
   GraphQLOutputType,
   GraphQLInputType,
@@ -20,25 +13,15 @@ import type {
 
 import type { Maybe } from './jsutils/Maybe';
 
-// fix pre v16 types
-declare module 'graphql' {
-  export function typeFromAST(
-    schema: GraphQLSchema,
-    typeNode: NamedTypeNode,
-  ): GraphQLNamedType | undefined;
-  export function typeFromAST(
-    schema: GraphQLSchema,
-    typeNode: ListTypeNode,
-  ): GraphQLList<any> | undefined;
-  export function typeFromAST(
-    schema: GraphQLSchema,
-    typeNode: NonNullTypeNode,
-  ): GraphQLNonNull<any> | undefined;
-  export function typeFromAST(
-    schema: GraphQLSchema,
-    typeNode: TypeNode,
-  ): GraphQLType | undefined;
+import type { ExecutorSchema } from './execution/executorSchema';
 
+declare module 'graphql' {
+  // supplement GraphQLResolveInfo with executorSchema instance
+  interface GraphQLResolveInfo {
+    executorSchema: ExecutorSchema;
+  }
+
+  // fix pre v16 types
   export function getNamedType(type: undefined | null): void;
   export function getNamedType(
     type: GraphQLInputType,
