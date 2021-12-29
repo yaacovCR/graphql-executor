@@ -14,14 +14,12 @@ import type {
   GraphQLInputObjectType,
   GraphQLScalarType,
   GraphQLObjectType,
+  GraphQLInterfaceType,
   GraphQLUnionType,
 } from 'graphql';
 import type { Maybe } from './jsutils/Maybe.ts'; // fix pre v16 types
 
 declare module 'graphql' {
-  export interface GraphQLInterfaceType {
-    getInterfaces: () => ReadonlyArray<GraphQLInterfaceType>;
-  }
   export function typeFromAST(
     schema: GraphQLSchema,
     typeNode: NamedTypeNode,
