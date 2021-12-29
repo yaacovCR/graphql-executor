@@ -3,23 +3,6 @@ export {
   /** Directives for defer/stream support */
   GraphQLDeferDirective,
   GraphQLStreamDirective,
-  /** Predicates */
-  isSchema,
-  isScalarType,
-  isObjectType,
-  isInterfaceType,
-  isUnionType,
-  isEnumType,
-  isInputObjectType,
-  isListType,
-  isNamedType,
-  isNonNullType,
-  isInputType,
-  isLeafType,
-  isAbstractType,
-  isWrappingType,
-  /** Assertions */
-  assertSchema,
 } from './type/index.ts';
 /** Execute GraphQL queries. */
 
