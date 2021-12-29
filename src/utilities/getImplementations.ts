@@ -20,7 +20,11 @@ function _getImplementationsMap(schema: GraphQLSchema) {
       'getInterfaces' in namedType
     ) {
       // Store implementations by interface.
-      for (const iface of namedType.getInterfaces()) {
+      for (const iface of (
+        namedType as {
+          getInterfaces: () => ReadonlyArray<GraphQLInterfaceType>;
+        }
+      ).getInterfaces()) {
         if (isInterfaceType(iface)) {
           let implementations = implementationsMap[iface.name];
           // TODO: add test
