@@ -42,8 +42,6 @@ var _isGraphQLError = require('../error/isGraphQLError.js');
 
 var _definition = require('../type/definition.js');
 
-var _schema = require('../type/schema.js');
-
 var _isSubType = require('../utilities/isSubType.js');
 
 var _getPossibleTypes = require('../utilities/getPossibleTypes.js');
@@ -312,7 +310,7 @@ class Executor {
   assertValidExecutionArguments(schema, document, rawVariableValues) {
     document || (0, _devAssert.devAssert)(false, 'Must provide document.'); // Schema must be provided.
 
-    (0, _schema.assertSchema)(schema); // Variables, if provided, must be an object.
+    schema || (0, _devAssert.devAssert)(false, 'Must provide schema.'); // Variables, if provided, must be an object.
 
     rawVariableValues == null ||
       (0, _isObjectLike.isObjectLike)(rawVariableValues) ||

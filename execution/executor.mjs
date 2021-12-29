@@ -44,7 +44,6 @@ import {
   isNonNullType,
   isObjectType,
 } from '../type/definition.mjs';
-import { assertSchema } from '../type/schema.mjs';
 import { isSubType } from '../utilities/isSubType.mjs';
 import { getPossibleTypes } from '../utilities/getPossibleTypes.mjs';
 import {
@@ -327,7 +326,7 @@ export class Executor {
   assertValidExecutionArguments(schema, document, rawVariableValues) {
     document || devAssert(false, 'Must provide document.'); // Schema must be provided.
 
-    assertSchema(schema); // Variables, if provided, must be an object.
+    schema || devAssert(false, 'Must provide schema.'); // Variables, if provided, must be an object.
 
     rawVariableValues == null ||
       isObjectLike(rawVariableValues) ||
