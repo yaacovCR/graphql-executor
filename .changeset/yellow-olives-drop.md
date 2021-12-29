@@ -10,6 +10,4 @@ New predicates are introduced that rely on Symbol.toStringTag (or error names) t
 
 Field/type resolvers and isTypeOf functions that are passed GraphQL type system entities and use native graphql-js predicates will still encounter cross-realm errors.
 
-The new predicates are exported for convenience. Note that only the predicates actually necessary for execution are included within the change. Additional predicates are not included, but could be added on request.
-
 Cross-realm execution can be avoided by end-users by simply calling the original isSchema predicate from graphql-js.
