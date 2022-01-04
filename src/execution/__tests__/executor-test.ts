@@ -23,6 +23,7 @@ import { inspect } from '../../jsutils/inspect';
 import { invariant } from '../../jsutils/invariant';
 
 import { execute, executeSync } from '../execute';
+import { toExecutorSchema } from '../toExecutorSchema';
 
 describe('Execute: Handles basic execution tasks', () => {
   it('throws if no document is provided', () => {
@@ -244,12 +245,19 @@ describe('Execute: Handles basic execution tasks', () => {
       },
     });
     const schema = new GraphQLSchema({ query: testType });
+    const executorSchema = toExecutorSchema(schema);
 
     const document = parse('query ($var: String) { result: test }');
     const rootValue = { root: 'val' };
     const variableValues = { var: 'abc' };
 
-    executeSync({ schema, document, rootValue, variableValues });
+    executeSync({
+      schema,
+      executorSchema,
+      document,
+      rootValue,
+      variableValues,
+    });
 
     expect(resolvedInfo).to.have.all.keys(
       'fieldName',
@@ -258,6 +266,7 @@ describe('Execute: Handles basic execution tasks', () => {
       'parentType',
       'path',
       'schema',
+      'executorSchema',
       'fragments',
       'rootValue',
       'operation',
@@ -272,6 +281,7 @@ describe('Execute: Handles basic execution tasks', () => {
       returnType: GraphQLString,
       parentType: testType,
       schema,
+      executorSchema,
       rootValue,
       operation,
     });
@@ -931,7 +941,7 @@ describe('Execute: Handles basic execution tasks', () => {
       data: null,
       errors: [
         {
-          message: 'Schema does not define the required query root type.',
+          message: 'Schema is not configured to execute query operation.',
           locations: [{ line: 2, column: 7 }],
         },
       ],
@@ -943,7 +953,7 @@ describe('Execute: Handles basic execution tasks', () => {
       data: null,
       errors: [
         {
-          message: 'Schema is not configured for mutations.',
+          message: 'Schema is not configured to execute mutation operation.',
           locations: [{ line: 3, column: 7 }],
         },
       ],
@@ -960,7 +970,8 @@ describe('Execute: Handles basic execution tasks', () => {
       data: null,
       errors: [
         {
-          message: 'Schema is not configured for subscriptions.',
+          message:
+            'Schema is not configured to execute subscription operation.',
           locations: [{ line: 4, column: 7 }],
         },
       ],

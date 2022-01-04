@@ -8,6 +8,8 @@ import {
   GraphQLEnumType,
   GraphQLScalarType,
   GraphQLInputObjectType,
+  GraphQLObjectType,
+  GraphQLSchema,
 } from 'graphql';
 import type { GraphQLInputType } from 'graphql';
 
@@ -15,7 +17,106 @@ import { handlePre15 } from '../../__testUtils__/handlePre15';
 
 import { identityFunc } from '../../jsutils/identityFunc';
 
+import { toExecutorSchema } from '../../execution/toExecutorSchema';
+
 import { coerceInputValue } from '../coerceInputValue';
+
+const TestNonNull = new GraphQLNonNull(GraphQLInt);
+const TestScalar = new GraphQLScalarType({
+  name: 'TestScalar',
+  parseValue(input: any) {
+    if (input.error != null) {
+      throw new Error(input.error);
+    }
+    return input.value;
+  },
+  serialize: identityFunc, // necessary pre v15
+});
+const TestEnum = new GraphQLEnumType({
+  name: 'TestEnum',
+  values: {
+    FOO: { value: 'InternalFoo' },
+    BAR: { value: 123456789 },
+  },
+});
+const TestInputObject = new GraphQLInputObjectType({
+  name: 'TestInputObject',
+  fields: {
+    foo: { type: new GraphQLNonNull(GraphQLInt) },
+    bar: { type: GraphQLInt },
+  },
+});
+const TestList = new GraphQLList(GraphQLInt);
+const TestNestedList = new GraphQLList(new GraphQLList(GraphQLInt));
+const PassThroughScalar = new GraphQLScalarType({
+  name: 'PassThroughScalar',
+  serialize: identityFunc, // necessary pre v15
+});
+const makeTestInputObject = (suffix: string, defaultValue: any) =>
+  new GraphQLInputObjectType({
+    name: 'TestInputObject' + suffix,
+    fields: {
+      foo: {
+        type: PassThroughScalar,
+        defaultValue,
+      },
+    },
+  });
+const testInputObjectWithDefaultInt = makeTestInputObject('WithDefaultInt', 7);
+const testInputObjectWithDefaultNull = makeTestInputObject(
+  'WithDefaultNull',
+  null,
+);
+const testInputObjectWithDefaultNaN = makeTestInputObject(
+  'WithDefaultNaN',
+  NaN,
+);
+const TestListOfObjects = new GraphQLList(
+  new GraphQLInputObjectType({
+    name: 'TestObjectWithLength',
+    fields: {
+      length: { type: GraphQLInt },
+    },
+  }),
+);
+const TestListOfNonNullInt = new GraphQLList(new GraphQLNonNull(GraphQLInt));
+const TestNonNullInt = new GraphQLNonNull(GraphQLInt);
+
+const query = new GraphQLObjectType({
+  fields: {
+    test: {
+      args: {
+        testNonNull: { type: TestNonNull },
+        testScalar: {
+          type: TestScalar,
+        },
+        testEnum: {
+          type: TestEnum,
+        },
+        testInputObject: { type: TestInputObject },
+        testList: {
+          type: TestList,
+        },
+        testNestedList: {
+          type: TestNestedList,
+        },
+        testInputObjectWithDefaultInt: { type: testInputObjectWithDefaultInt },
+        testInputObjectWithDefaultNull: {
+          type: testInputObjectWithDefaultNull,
+        },
+        testInputObjectWithDefaultNaN: { type: testInputObjectWithDefaultNaN },
+        testListOfObjects: { type: TestListOfObjects },
+        testNonNullInt: { type: TestNonNullInt },
+        testListOfNonNullInt: { type: TestListOfNonNullInt },
+      },
+      type: GraphQLInt,
+    },
+  },
+  name: 'Query',
+});
+
+const schema = new GraphQLSchema({ query });
+const executorSchema = toExecutorSchema(schema);
 
 interface CoerceResult {
   value: unknown;
@@ -34,6 +135,7 @@ function coerceValue(
 ): CoerceResult {
   const errors: Array<CoerceError> = [];
   const value = coerceInputValue(
+    executorSchema,
     inputValue,
     type,
     (path, invalidValue, error) => {
@@ -55,8 +157,6 @@ function expectErrors(result: CoerceResult) {
 
 describe('coerceInputValue', () => {
   describe('for GraphQLNonNull', () => {
-    const TestNonNull = new GraphQLNonNull(GraphQLInt);
-
     it('returns no error for non-null value', () => {
       const result = coerceValue(1, TestNonNull);
       expectValue(result).to.equal(1);
@@ -86,17 +186,6 @@ describe('coerceInputValue', () => {
   });
 
   describe('for GraphQLScalar', () => {
-    const TestScalar = new GraphQLScalarType({
-      name: 'TestScalar',
-      parseValue(input: any) {
-        if (input.error != null) {
-          throw new Error(input.error);
-        }
-        return input.value;
-      },
-      serialize: identityFunc, // necessary pre v15
-    });
-
     it('returns no error for valid input', () => {
       const result = coerceValue({ value: 1 }, TestScalar);
       expectValue(result).to.equal(1);
@@ -137,14 +226,6 @@ describe('coerceInputValue', () => {
   });
 
   describe('for GraphQLEnum', () => {
-    const TestEnum = new GraphQLEnumType({
-      name: 'TestEnum',
-      values: {
-        FOO: { value: 'InternalFoo' },
-        BAR: { value: 123456789 },
-      },
-    });
-
     it('returns no error for a known enum name', () => {
       const fooResult = coerceValue('FOO', TestEnum);
       expectValue(fooResult).to.equal('InternalFoo');
@@ -195,14 +276,6 @@ describe('coerceInputValue', () => {
   });
 
   describe('for GraphQLInputObject', () => {
-    const TestInputObject = new GraphQLInputObjectType({
-      name: 'TestInputObject',
-      fields: {
-        foo: { type: new GraphQLNonNull(GraphQLInt) },
-        bar: { type: GraphQLInt },
-      },
-    });
-
     it('returns no error for a valid input', () => {
       const result = coerceValue({ foo: 123 }, TestInputObject);
       expectValue(result).to.deep.equal({ foo: 123 });
@@ -292,44 +365,28 @@ describe('coerceInputValue', () => {
   });
 
   describe('for GraphQLInputObject with default value', () => {
-    const makeTestInputObject = (defaultValue: any) =>
-      new GraphQLInputObjectType({
-        name: 'TestInputObject',
-        fields: {
-          foo: {
-            type: new GraphQLScalarType({
-              name: 'TestScalar',
-              serialize: identityFunc, // necessary pre v15
-            }),
-            defaultValue,
-          },
-        },
-      });
-
     it('returns no errors for valid input value', () => {
-      const result = coerceValue({ foo: 5 }, makeTestInputObject(7));
+      const result = coerceValue({ foo: 5 }, testInputObjectWithDefaultInt);
       expectValue(result).to.deep.equal({ foo: 5 });
     });
 
     it('returns object with default value', () => {
-      const result = coerceValue({}, makeTestInputObject(7));
+      const result = coerceValue({}, testInputObjectWithDefaultInt);
       expectValue(result).to.deep.equal({ foo: 7 });
     });
 
     it('returns null as value', () => {
-      const result = coerceValue({}, makeTestInputObject(null));
+      const result = coerceValue({}, testInputObjectWithDefaultNull);
       expectValue(result).to.deep.equal({ foo: null });
     });
 
     it('returns NaN as value', () => {
-      const result = coerceValue({}, makeTestInputObject(NaN));
+      const result = coerceValue({}, testInputObjectWithDefaultNaN);
       expectValue(result).to.have.property('foo').that.satisfy(Number.isNaN);
     });
   });
 
   describe('for GraphQLList', () => {
-    const TestList = new GraphQLList(GraphQLInt);
-
     it('returns no error for a valid input', () => {
       const result = coerceValue([1, 2, 3], TestList);
       expectValue(result).to.deep.equal([1, 2, 3]);
@@ -372,15 +429,6 @@ describe('coerceInputValue', () => {
     });
 
     it('returns a list for a non-list object value', () => {
-      const TestListOfObjects = new GraphQLList(
-        new GraphQLInputObjectType({
-          name: 'TestObject',
-          fields: {
-            length: { type: GraphQLInt },
-          },
-        }),
-      );
-
       const result = coerceValue({ length: 100500 }, TestListOfObjects);
       expectValue(result).to.deep.equal([{ length: 100500 }]);
     });
@@ -405,8 +453,6 @@ describe('coerceInputValue', () => {
   });
 
   describe('for nested GraphQLList', () => {
-    const TestNestedList = new GraphQLList(new GraphQLList(GraphQLInt));
-
     it('returns no error for a valid input', () => {
       const result = coerceValue([[1], [2, 3]], TestNestedList);
       expectValue(result).to.deep.equal([[1], [2, 3]]);
@@ -436,7 +482,7 @@ describe('coerceInputValue', () => {
   describe('with default onError', () => {
     it('throw error without path', () => {
       expect(() =>
-        coerceInputValue(null, new GraphQLNonNull(GraphQLInt)),
+        coerceInputValue(executorSchema, null, TestNonNullInt),
       ).to.throw(
         'Invalid value null: Expected non-nullable type "Int!" not to be null.',
       );
@@ -444,10 +490,7 @@ describe('coerceInputValue', () => {
 
     it('throw error with path', () => {
       expect(() =>
-        coerceInputValue(
-          [null],
-          new GraphQLList(new GraphQLNonNull(GraphQLInt)),
-        ),
+        coerceInputValue(executorSchema, [null], TestListOfNonNullInt),
       ).to.throw(
         'Invalid value null at "value[0]": Expected non-nullable type "Int!" not to be null.',
       );

@@ -10,9 +10,15 @@ import {
   GraphQLSchema,
   GraphQLString,
   parse,
+  specifiedDirectives,
 } from 'graphql';
 
 import { isAsyncIterable } from '../../jsutils/isAsyncIterable';
+
+import {
+  GraphQLDeferDirective,
+  GraphQLStreamDirective,
+} from '../../type/directives';
 
 import { execute } from '../execute';
 import { expectJSON } from '../../__testUtils__/expectJSON';
@@ -81,7 +87,12 @@ async function complete(
   opts?: { enableDeferStream?: boolean },
 ) {
   const enableDeferStream = opts?.enableDeferStream ?? true;
-  const schema = new GraphQLSchema({ query });
+  const schema = new GraphQLSchema({
+    query,
+    directives: enableDeferStream
+      ? [...specifiedDirectives, GraphQLDeferDirective, GraphQLStreamDirective]
+      : [...specifiedDirectives],
+  });
 
   const result = await execute({
     schema,

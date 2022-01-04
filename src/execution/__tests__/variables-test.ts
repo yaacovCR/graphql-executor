@@ -21,10 +21,11 @@ import { handlePre15 } from '../../__testUtils__/handlePre15';
 
 import { inspect } from '../../jsutils/inspect';
 import { invariant } from '../../jsutils/invariant';
+import { identityFunc } from '../../jsutils/identityFunc';
 
+import { toExecutorSchema } from '../toExecutorSchema';
 import { executeSync } from '../execute';
 import { getVariableValues } from '../values';
-import { identityFunc } from '../../jsutils/identityFunc';
 
 const TestComplexScalar = new GraphQLScalarType({
   name: 'ComplexScalar',
@@ -123,6 +124,7 @@ const TestType = new GraphQLObjectType({
 });
 
 const schema = new GraphQLSchema({ query: TestType });
+const executorSchema = toExecutorSchema(schema);
 
 function executeQuery(
   query: string,
@@ -1034,7 +1036,11 @@ describe('Execute: Handles inputs', () => {
     }
 
     it('return all errors by default', () => {
-      const result = getVariableValues(schema, variableDefinitions, inputValue);
+      const result = getVariableValues(
+        executorSchema,
+        variableDefinitions,
+        inputValue,
+      );
 
       expectJSON(result).toDeepEqual({
         errors: [
@@ -1047,7 +1053,7 @@ describe('Execute: Handles inputs', () => {
 
     it('when maxErrors is equal to number of errors', () => {
       const result = getVariableValues(
-        schema,
+        executorSchema,
         variableDefinitions,
         inputValue,
         { maxErrors: 3 },
@@ -1064,7 +1070,7 @@ describe('Execute: Handles inputs', () => {
 
     it('when maxErrors is less than number of errors', () => {
       const result = getVariableValues(
-        schema,
+        executorSchema,
         variableDefinitions,
         inputValue,
         { maxErrors: 2 },

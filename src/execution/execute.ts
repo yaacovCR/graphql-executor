@@ -4,11 +4,14 @@ import { isAsyncIterable } from '../jsutils/isAsyncIterable';
 import { devAssert } from '../jsutils/devAssert';
 
 import type {
-  ExecutionArgs,
+  ExecutorArgs,
+  ExecutorExecutionArgs,
   ExecutionResult,
   AsyncExecutionResult,
 } from './executor';
 import { Executor } from './executor';
+
+export interface ExecutionArgs extends ExecutorArgs, ExecutorExecutionArgs {}
 
 /**
  * Implements the "Executing requests" section of the GraphQL specification.
@@ -31,7 +34,7 @@ export function execute(
     'graphql@16 dropped long-deprecated support for positional arguments, please pass an object instead.',
   );
 
-  const executor = new Executor();
+  const executor = new Executor(args);
   return executor.execute(args);
 }
 

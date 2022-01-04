@@ -4,6 +4,7 @@
   "exclude": [
     "src/**/index.ts",
     "src/**/*-fuzz.ts",
+    "src/execution/executorSchema.ts",
     "src/overrides.d.ts",
     "src/jsutils/Maybe.ts",
     "src/jsutils/ObjMap.ts",

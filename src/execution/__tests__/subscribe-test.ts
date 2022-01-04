@@ -9,6 +9,7 @@ import {
   GraphQLSchema,
   GraphQLString,
   parse,
+  specifiedDirectives,
 } from 'graphql';
 
 import { expectJSON } from '../../__testUtils__/expectJSON';
@@ -18,6 +19,11 @@ import { handlePre15 } from '../../__testUtils__/handlePre15';
 
 import { invariant } from '../../jsutils/invariant';
 import { isAsyncIterable } from '../../jsutils/isAsyncIterable';
+
+import {
+  GraphQLDeferDirective,
+  GraphQLStreamDirective,
+} from '../../type/directives';
 
 import { execute, executeSync } from '../execute';
 import { Executor } from '../executor';
@@ -85,6 +91,11 @@ const emailSchema = new GraphQLSchema({
       },
     },
   }),
+  directives: [
+    ...specifiedDirectives,
+    GraphQLDeferDirective,
+    GraphQLStreamDirective,
+  ],
 });
 
 function createSubscription(
@@ -376,7 +387,8 @@ describe('Subscription Initialization Phase', () => {
     expectJSON(result).toDeepEqual({
       errors: [
         {
-          message: 'Schema is not configured for subscriptions.',
+          message:
+            'Schema is not configured to execute subscription operation.',
           locations: [{ line: 1, column: 1 }],
         },
       ],
@@ -458,7 +470,7 @@ describe('Subscription Initialization Phase', () => {
       const result = await execute({ schema, document });
 
       expectJSON(
-        await new Executor().createSourceEventStream({ schema, document }),
+        await new Executor({ schema }).createSourceEventStream({ document }),
       ).toDeepEqual(result);
       return result;
     }
@@ -536,8 +548,7 @@ describe('Subscription Initialization Phase', () => {
     );
 
     expectJSON(
-      await new Executor().createSourceEventStream({
-        schema,
+      await new Executor({ schema }).createSourceEventStream({
         document,
         variableValues,
       }),
