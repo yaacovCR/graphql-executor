@@ -1,5 +1,52 @@
 # graphql-executor
 
+## 0.0.12
+
+### Patch Changes
+
+- d93aa9a2: Add graphql-js v14 support
+- 832b8afb: Introduce the `ExecutorSchema` interface
+
+  `graphql-executor` "upgrades" `GraphQLSchema` objects created with `graphql-js` v14 and v15 to a `graphql-js` v16-compatibile version by providing utility functions that analyze the schema and provide all the necessary metadata. This change introduces the the `ExecutorSchema` interface so that clients can explicitly perform this schema preparation step.
+
+  The included (memoized) `toExectorSchema` utility function generates an `ExecutorSchema` from a `GraphQLSchema` object and is called implicitly if only a `GraphQLSchema` is passed to the executor. Using the new `executorSchema` option, however, a pre-specified `ExecutorSchema` instance can be used. In this case, the `GraphQLSchema` passed via the `schema` option is never used by `graphql-executor` and only required so that it can be passed through to resolvers via the `info` argument.
+
+  The `ExecutorSchema` is also passed to resolvers within an `executorSchema` property added to the `info` argument (using TypeScript interface merging). This property is populated both when the `ExecutorSchema` is provided explicitly and when it is generated from the `GraphQLSchema`.
+
+  BREAKING CHANGE:
+
+  The `Executor` class is now instantiated with an configuration object containing a `schema` of type `GraphQLSchema` and an optional `executorSchema` of type `ExecutorSchema`. Previously, the executor was instantiated without any parameters.
+
+  NOTE:
+
+  When the executor is instantiated with both a `schema` and an `executorSchema`:
+
+  1. `graphql-executor` does not validate the `schema` or `executorSchema`.
+  2. `graphql-executor` does not check whether the `executorSchema` matches the `schema`.
+  3. `graphql-executor` does not utilize the `schema` in any way except to pass its value to resolvers as a property of the `info` argument.
+
+- ac0430a1: remove createSourceEventStream function export
+
+  BREAKING CHANGE: access to createSourceEventStream is still possible in advanced cases, but now only via an explicitly created instance of the internal Executor class.
+
+- d06133c6: Skip schema validation prior to first use.
+
+  Schemas can (and should!) still be validated when and where appropriate using the dedicated graphql-js validateSchema method.
+
+  graphql-js validates previously unvalidated schemas prior to the first execution. The validation step is skipped by graphql-js if and only if the schema was created with the `assumeValid` option, which essentially triggers a faux validation run that produces no errors.
+
+  graphql-executor now simply does not automatically validate schemas, preferring to require servers to explicitly validate schemas when and where appropriate, just as document validation is a distinct, explicit step.
+
+- ecc37585: Allow cross-realm execution
+
+  This is made possible by avoiding instanceof checks within the executor proper.
+
+  New predicates are introduced that rely on Symbol.toStringTag (or error names) to identify objects from other realms.
+
+  Field/type resolvers and isTypeOf functions that are passed GraphQL type system entities and use native graphql-js predicates will still encounter cross-realm errors.
+
+  Cross-realm execution can be avoided by end-users by simply calling the original isSchema predicate from graphql-js.
+
 ## 0.0.11
 
 ### Patch Changes
