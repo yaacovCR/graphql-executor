@@ -20,7 +20,7 @@ import { invariant } from '../../jsutils/invariant';
 import { isAsyncIterable } from '../../jsutils/isAsyncIterable';
 
 import { execute, executeSync } from '../execute';
-import { createSourceEventStream } from '../createSourceEventStream';
+import { Executor } from '../executor';
 
 import { SimplePubSub } from './simplePubSub';
 
@@ -457,9 +457,9 @@ describe('Subscription Initialization Phase', () => {
       const document = parse('subscription { foo }');
       const result = await execute({ schema, document });
 
-      expectJSON(await createSourceEventStream(schema, document)).toDeepEqual(
-        result,
-      );
+      expectJSON(
+        await new Executor().createSourceEventStream({ schema, document }),
+      ).toDeepEqual(result);
       return result;
     }
 
@@ -536,13 +536,11 @@ describe('Subscription Initialization Phase', () => {
     );
 
     expectJSON(
-      await createSourceEventStream(
+      await new Executor().createSourceEventStream({
         schema,
         document,
-        undefined,
-        undefined,
         variableValues,
-      ),
+      }),
     ).toDeepEqual(expectedResult);
   });
 });
