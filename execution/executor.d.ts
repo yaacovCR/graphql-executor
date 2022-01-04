@@ -20,6 +20,7 @@ import type { ObjMap } from '../jsutils/ObjMap';
 import type { PromiseOrValue } from '../jsutils/PromiseOrValue';
 import type { Maybe } from '../jsutils/Maybe';
 import type { Push, Stop } from '../jsutils/repeater';
+import type { ExecutorSchema } from './executorSchema';
 import type { FieldsAndPatches, PatchFields } from './collectFields';
 /**
  * Terminology
@@ -42,12 +43,8 @@ import type { FieldsAndPatches, PatchFields } from './collectFields';
  */
 /**
  * Data that must be available at all points during query execution.
- *
- * Namely, schema of the type system that is currently executing,
- * and the fragments defined in the query document
  */
 interface ExecutionContext {
-  schema: GraphQLSchema;
   fragments: ObjMap<FragmentDefinitionNode>;
   rootValue: unknown;
   contextValue: unknown;
@@ -80,8 +77,11 @@ interface Publisher {
   push: Push<ExecutionPatchResult>;
   stop: Stop;
 }
-export interface ExecutionArgs {
+export interface ExecutorArgs {
   schema: GraphQLSchema;
+  executorSchema?: ExecutorSchema;
+}
+export interface ExecutorExecutionArgs {
   document: DocumentNode;
   rootValue?: unknown;
   contextValue?: unknown;
@@ -187,11 +187,14 @@ export declare class Executor {
   ) => {
     [argument: string]: unknown;
   };
+  private _schema;
+  private _executorSchema;
+  constructor(executorArgs: ExecutorArgs);
   /**
    * Implements the "Executing requests" section of the spec.
    */
   execute(
-    args: ExecutionArgs,
+    args: ExecutorExecutionArgs,
   ): PromiseOrValue<
     ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   >;
@@ -224,7 +227,7 @@ export declare class Executor {
    * "Supporting Subscriptions at Scale" information in the GraphQL specification.
    */
   createSourceEventStream(
-    args: ExecutionArgs,
+    args: ExecutorExecutionArgs,
   ): Promise<AsyncIterable<unknown> | ExecutionResult>;
   executeImpl(
     exeContext: ExecutionContext,
@@ -288,7 +291,6 @@ export declare class Executor {
    * improper use of the GraphQL library.
    */
   assertValidExecutionArguments(
-    schema: GraphQLSchema,
     document: DocumentNode,
     rawVariableValues: Maybe<{
       readonly [variable: string]: unknown;
@@ -312,7 +314,7 @@ export declare class Executor {
    * cannot be created.
    */
   buildExecutionContext(
-    args: ExecutionArgs,
+    args: ExecutorExecutionArgs,
   ): ReadonlyArray<GraphQLError> | ExecutionContext;
   /**
    * Constructs a perPayload ExecutionContext object from an initial
@@ -330,7 +332,6 @@ export declare class Executor {
     fieldsExecutor: FieldsExecutor,
   ): PromiseOrValue<ObjMap<unknown> | null>;
   parseOperationRoot(
-    schema: GraphQLSchema,
     fragments: ObjMap<FragmentDefinitionNode>,
     variableValues: {
       [variable: string]: unknown;
@@ -503,7 +504,6 @@ export declare class Executor {
   ): PromiseOrValue<ObjMap<unknown>>;
   ensureValidRuntimeType(
     runtimeTypeOrName: unknown,
-    exeContext: ExecutionContext,
     returnType: GraphQLAbstractType,
     fieldNodes: ReadonlyArray<FieldNode>,
     info: GraphQLResolveInfo,
@@ -545,7 +545,6 @@ export declare class Executor {
    *
    */
   getFieldDef(
-    schema: GraphQLSchema,
     parentType: GraphQLObjectType,
     fieldNode: FieldNode,
   ): Maybe<GraphQLField<unknown, unknown>>;

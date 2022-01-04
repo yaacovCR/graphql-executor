@@ -18,7 +18,6 @@ import {
   SchemaMetaFieldDef,
   TypeMetaFieldDef,
   TypeNameMetaFieldDef,
-  getOperationRootType,
   locatedError,
 } from 'graphql';
 import { GraphQLStreamDirective } from '../type/directives.mjs';
@@ -36,16 +35,7 @@ import { resolveAfterAll } from '../jsutils/resolveAfterAll.mjs';
 import { Repeater } from '../jsutils/repeater.mjs';
 import { toError } from '../jsutils/toError.mjs';
 import { isGraphQLError } from '../error/isGraphQLError.mjs';
-import {
-  isAbstractType,
-  isLeafType,
-  isListType,
-  isNamedType,
-  isNonNullType,
-  isObjectType,
-} from '../type/definition.mjs';
-import { isSubType } from '../utilities/isSubType.mjs';
-import { getPossibleTypes } from '../utilities/getPossibleTypes.mjs';
+import { toExecutorSchema } from './toExecutorSchema.mjs';
 import {
   getVariableValues,
   getArgumentValues as _getArgumentValues,
@@ -79,9 +69,6 @@ import { flattenAsyncIterable } from './flattenAsyncIterable.mjs';
 
 /**
  * Data that must be available at all points during query execution.
- *
- * Namely, schema of the type system that is currently executing,
- * and the fragments defined in the query document
  */
 
 /**
@@ -98,15 +85,25 @@ import { flattenAsyncIterable } from './flattenAsyncIterable.mjs';
  * @internal
  */
 export class Executor {
-  constructor() {
+  /**
+   * A memoized collection of relevant subfields with regard to the return
+   * type. Memoizing ensures the subfields are not repeatedly calculated, which
+   * saves overhead when resolving lists of values.
+   */
+
+  /**
+   * A memoized collection of field argument values.
+   * Memoizing ensures the subfields are not repeatedly calculated, which
+   * saves overhead when resolving lists of values.
+   */
+  constructor(executorArgs) {
     _defineProperty(
       this,
       'collectSubfields',
       memoize3((exeContext, returnType, fieldNodes) => {
-        const { schema, fragments, variableValues, disableIncremental } =
-          exeContext;
+        const { fragments, variableValues, disableIncremental } = exeContext;
         return _collectSubfields(
-          schema,
+          this._executorSchema,
           fragments,
           variableValues,
           returnType,
@@ -120,7 +117,7 @@ export class Executor {
       this,
       'getArgumentValues',
       memoize3((def, node, variableValues) =>
-        _getArgumentValues(def, node, variableValues),
+        _getArgumentValues(this._executorSchema, def, node, variableValues),
       ),
     );
 
@@ -135,31 +132,40 @@ export class Executor {
             (_fieldDef$resolverKey = fieldDef[resolverKey]) !== null &&
             _fieldDef$resolverKey !== void 0
               ? _fieldDef$resolverKey
-              : defaultResolver; // Build a JS object of arguments from the field.arguments AST, using the
+              : defaultResolver;
+          const { contextValue, variableValues } = exeContext; // Build a JS object of arguments from the field.arguments AST, using the
           // variables scope to fulfill any variable references.
 
           const args = this.getArgumentValues(
             fieldDef,
             fieldNodes[0],
-            exeContext.variableValues,
+            variableValues,
           ); // The resolve function's optional third argument is a context value that
           // is provided to every resolve function within an execution. It is commonly
           // used to represent an authenticated user, or request-specific caches.
 
-          const contextValue = exeContext.contextValue;
           return resolveFn(source, args, contextValue, info);
         },
     );
-  }
 
+    const { schema, executorSchema } = executorArgs; // Schema must be provided.
+
+    schema || devAssert(false, 'Must provide schema.');
+    this._schema = schema;
+    this._executorSchema =
+      executorSchema !== null && executorSchema !== void 0
+        ? executorSchema
+        : toExecutorSchema(schema);
+  }
   /**
    * Implements the "Executing requests" section of the spec.
    */
+
   execute(args) {
     const exeContext = this.buildExecutionContext(args); // If a valid execution context cannot be created due to incorrect arguments,
     // a "Response" with only errors is returned.
 
-    if (!('schema' in exeContext)) {
+    if (!('fragments' in exeContext)) {
       return {
         errors: exeContext,
       };
@@ -200,7 +206,7 @@ export class Executor {
     const exeContext = this.buildExecutionContext(args); // If a valid execution context cannot be created due to incorrect arguments,
     // a "Response" with only errors is returned.
 
-    if (!('schema' in exeContext)) {
+    if (!('fragments' in exeContext)) {
       return {
         errors: exeContext,
       };
@@ -351,10 +357,8 @@ export class Executor {
    * improper use of the GraphQL library.
    */
 
-  assertValidExecutionArguments(schema, document, rawVariableValues) {
-    document || devAssert(false, 'Must provide document.'); // Schema must be provided.
-
-    schema || devAssert(false, 'Must provide schema.'); // Variables, if provided, must be an object.
+  assertValidExecutionArguments(document, rawVariableValues) {
+    document || devAssert(false, 'Must provide document.'); // Variables, if provided, must be an object.
 
     rawVariableValues == null ||
       isObjectLike(rawVariableValues) ||
@@ -375,7 +379,6 @@ export class Executor {
     var _definition$name, _operation$variableDe;
 
     const {
-      schema,
       document,
       rootValue,
       contextValue,
@@ -389,7 +392,7 @@ export class Executor {
     } = args; // If arguments are missing or incorrectly typed, this is an internal
     // developer mistake which should throw an error.
 
-    this.assertValidExecutionArguments(schema, document, rawVariableValues);
+    this.assertValidExecutionArguments(document, rawVariableValues);
     let operation;
     const fragments = Object.create(null);
 
@@ -442,7 +445,7 @@ export class Executor {
         ? _operation$variableDe
         : [];
     const coercedVariableValues = getVariableValues(
-      schema,
+      this._executorSchema,
       variableDefinitions,
       rawVariableValues !== null && rawVariableValues !== void 0
         ? rawVariableValues
@@ -461,7 +464,6 @@ export class Executor {
         ? fieldResolver
         : defaultFieldResolver;
     return {
-      schema,
       fragments,
       rootValue,
       contextValue,
@@ -530,7 +532,6 @@ export class Executor {
 
   executeRootFields(exeContext, fieldsExecutor) {
     const {
-      schema,
       fragments,
       rootValue,
       operation,
@@ -542,7 +543,6 @@ export class Executor {
       rootType,
       fieldsAndPatches: { fields, patches },
     } = this.parseOperationRoot(
-      schema,
       fragments,
       variableValues,
       operation,
@@ -568,18 +568,18 @@ export class Executor {
     return result;
   }
 
-  parseOperationRoot(
-    schema,
-    fragments,
-    variableValues,
-    operation,
-    disableIncremental,
-  ) {
-    // TODO: replace getOperationRootType with schema.getRootType
-    // after pre-v16 is dropped
-    const rootType = getOperationRootType(schema, operation);
+  parseOperationRoot(fragments, variableValues, operation, disableIncremental) {
+    const rootType = this._executorSchema.getRootType(operation.operation);
+
+    if (rootType == null) {
+      throw new GraphQLError(
+        `Schema is not configured to execute ${operation.operation} operation.`,
+        operation,
+      );
+    }
+
     const fieldsAndPatches = collectFields(
-      schema,
+      this._executorSchema,
       fragments,
       variableValues,
       rootType,
@@ -689,11 +689,7 @@ export class Executor {
     path,
     payloadContext,
   ) {
-    const fieldDef = this.getFieldDef(
-      exeContext.schema,
-      parentType,
-      fieldNodes[0],
-    );
+    const fieldDef = this.getFieldDef(parentType, fieldNodes[0]);
 
     if (!fieldDef) {
       return;
@@ -780,7 +776,8 @@ export class Executor {
       returnType: fieldDef.type,
       parentType,
       path,
-      schema: exeContext.schema,
+      schema: this._schema,
+      executorSchema: this._executorSchema,
       fragments: exeContext.fragments,
       rootValue: exeContext.rootValue,
       operation: exeContext.operation,
@@ -791,7 +788,7 @@ export class Executor {
   handleFieldError(error, returnType, errors) {
     // If the field type is non-nullable, then it is resolved without any
     // protection from errors, however it still properly locates the error.
-    if (isNonNullType(returnType)) {
+    if (this._executorSchema.isNonNullType(returnType)) {
       throw error;
     } // Otherwise, error protection is applied, logging the error and resolving
     // a null value for this field if one is encountered.
@@ -836,7 +833,7 @@ export class Executor {
     } // If field type is NonNull, complete for inner type, and throw field error
     // if result is null.
 
-    if (isNonNullType(returnType)) {
+    if (this._executorSchema.isNonNullType(returnType)) {
       const completed = this.completeValue(
         exeContext,
         returnType.ofType,
@@ -860,7 +857,7 @@ export class Executor {
       return null;
     } // If field type is List, complete each item in the list with the inner type
 
-    if (isListType(returnType)) {
+    if (this._executorSchema.isListType(returnType)) {
       return this.completeListValue(
         exeContext,
         returnType,
@@ -873,12 +870,12 @@ export class Executor {
     } // If field type is a leaf type, Scalar or Enum, serialize to a valid value,
     // returning null if serialization is not possible.
 
-    if (isLeafType(returnType)) {
+    if (this._executorSchema.isLeafType(returnType)) {
       return this.completeLeafValue(returnType, result);
     } // If field type is an abstract type, Interface or Union, determine the
     // runtime Object type and complete for that type.
 
-    if (isAbstractType(returnType)) {
+    if (this._executorSchema.isAbstractType(returnType)) {
       return this.completeAbstractValue(
         exeContext,
         returnType,
@@ -890,7 +887,7 @@ export class Executor {
       );
     } // If field type is Object, execute and complete all sub-selections.
 
-    if (isObjectType(returnType)) {
+    if (this._executorSchema.isObjectType(returnType)) {
       return this.completeObjectValue(
         exeContext,
         returnType,
@@ -970,6 +967,7 @@ export class Executor {
     // safe to only check the first fieldNode for the stream directive
 
     const stream = getDirectiveValues(
+      this._executorSchema,
       GraphQLStreamDirective,
       fieldNodes[0],
       exeContext.variableValues,
@@ -1262,7 +1260,6 @@ export class Executor {
           exeContext,
           this.ensureValidRuntimeType(
             resolvedRuntimeType,
-            exeContext,
             returnType,
             fieldNodes,
             info,
@@ -1281,7 +1278,6 @@ export class Executor {
       exeContext,
       this.ensureValidRuntimeType(
         runtimeType,
-        exeContext,
         returnType,
         fieldNodes,
         info,
@@ -1297,7 +1293,6 @@ export class Executor {
 
   ensureValidRuntimeType(
     runtimeTypeOrName,
-    exeContext,
     returnType,
     fieldNodes,
     info,
@@ -1311,7 +1306,8 @@ export class Executor {
     }
 
     const runtimeTypeName =
-      typeof runtimeTypeOrName === 'object' && isNamedType(runtimeTypeOrName)
+      typeof runtimeTypeOrName === 'object' &&
+      this._executorSchema.isNamedType(runtimeTypeOrName)
         ? runtimeTypeOrName.name
         : runtimeTypeOrName;
 
@@ -1322,7 +1318,7 @@ export class Executor {
       );
     }
 
-    const runtimeType = exeContext.schema.getType(runtimeTypeName);
+    const runtimeType = this._executorSchema.getNamedType(runtimeTypeName);
 
     if (runtimeType == null) {
       throw new GraphQLError(
@@ -1331,14 +1327,14 @@ export class Executor {
       );
     }
 
-    if (!isObjectType(runtimeType)) {
+    if (!this._executorSchema.isObjectType(runtimeType)) {
       throw new GraphQLError(
         `Abstract type "${returnType.name}" was resolved to a non-object type "${runtimeTypeName}".`,
         fieldNodes,
       );
     }
 
-    if (!isSubType(exeContext.schema, returnType, runtimeType)) {
+    if (!this._executorSchema.isSubType(returnType, runtimeType)) {
       throw new GraphQLError(
         `Runtime Object type "${runtimeType.name}" is not a possible type for "${returnType.name}".`,
         fieldNodes,
@@ -1451,17 +1447,17 @@ export class Executor {
    *
    */
 
-  getFieldDef(schema, parentType, fieldNode) {
+  getFieldDef(parentType, fieldNode) {
     const fieldName = fieldNode.name.value;
 
     if (
       fieldName === SchemaMetaFieldDef.name &&
-      schema.getQueryType() === parentType
+      this._executorSchema.getRootType('query') === parentType
     ) {
       return SchemaMetaFieldDef;
     } else if (
       fieldName === TypeMetaFieldDef.name &&
-      schema.getQueryType() === parentType
+      this._executorSchema.getRootType('query') === parentType
     ) {
       return TypeMetaFieldDef;
     } else if (fieldName === TypeNameMetaFieldDef.name) {
@@ -1544,7 +1540,6 @@ export class Executor {
 
   async executeSubscriptionRootField(exeContext) {
     const {
-      schema,
       fragments,
       rootValue,
       operation,
@@ -1555,14 +1550,13 @@ export class Executor {
       rootType,
       fieldsAndPatches: { fields },
     } = this.parseOperationRoot(
-      schema,
       fragments,
       variableValues,
       operation,
       disableIncremental,
     );
     const [responseName, fieldNodes] = [...fields.entries()][0];
-    const fieldDef = this.getFieldDef(schema, rootType, fieldNodes[0]);
+    const fieldDef = this.getFieldDef(rootType, fieldNodes[0]);
 
     if (!fieldDef) {
       const fieldName = fieldNodes[0].name.value;
@@ -2021,7 +2015,7 @@ export const defaultTypeResolver = function (
     return value.__typename;
   } // Otherwise, test each possible type.
 
-  const possibleTypes = getPossibleTypes(info.schema, abstractType);
+  const possibleTypes = info.executorSchema.getPossibleTypes(abstractType);
   const promisedIsTypeOfResults = [];
 
   for (let i = 0; i < possibleTypes.length; i++) {

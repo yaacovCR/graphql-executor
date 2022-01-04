@@ -12,11 +12,7 @@ var _memoize = require('../jsutils/memoize1.js');
 
 var _memoize2 = require('../jsutils/memoize2.js');
 
-var _definition = require('../type/definition.js');
-
 var _directives = require('../type/directives.js');
-
-var _isSubType = require('../utilities/isSubType.js');
 
 var _values = require('./values.js');
 
@@ -30,7 +26,7 @@ var _values = require('./values.js');
  * @internal
  */
 function collectFields(
-  schema,
+  executorSchema,
   fragments,
   variableValues,
   runtimeType,
@@ -40,7 +36,7 @@ function collectFields(
   const fields = new Map();
   const patches = [];
   collectFieldsImpl(
-    schema,
+    executorSchema,
     fragments,
     variableValues,
     runtimeType,
@@ -67,7 +63,7 @@ function collectFields(
  */
 
 function collectSubfields(
-  schema,
+  executorSchema,
   fragments,
   variableValues,
   returnType,
@@ -85,7 +81,7 @@ function collectSubfields(
   for (const node of fieldNodes) {
     if (node.selectionSet) {
       collectFieldsImpl(
-        schema,
+        executorSchema,
         fragments,
         variableValues,
         returnType,
@@ -102,7 +98,7 @@ function collectSubfields(
 }
 
 function collectFieldsImpl(
-  schema,
+  executorSchema,
   fragments,
   variableValues,
   runtimeType,
@@ -115,7 +111,7 @@ function collectFieldsImpl(
   for (const selection of selectionSet.selections) {
     switch (selection.kind) {
       case _graphql.Kind.FIELD: {
-        if (!shouldIncludeNode(variableValues, selection)) {
+        if (!shouldIncludeNode(executorSchema, variableValues, selection)) {
           continue;
         }
 
@@ -133,18 +129,23 @@ function collectFieldsImpl(
 
       case _graphql.Kind.INLINE_FRAGMENT: {
         if (
-          !shouldIncludeNode(variableValues, selection) ||
-          !doesFragmentConditionMatch(schema, selection, runtimeType)
+          !shouldIncludeNode(executorSchema, variableValues, selection) ||
+          !doesFragmentConditionMatch(executorSchema, selection, runtimeType)
         ) {
           continue;
         }
 
-        const defer = getDeferValues(variableValues, selection, ignoreDefer);
+        const defer = getDeferValues(
+          executorSchema,
+          variableValues,
+          selection,
+          ignoreDefer,
+        );
 
         if (defer) {
           const patchFields = new Map();
           collectFieldsImpl(
-            schema,
+            executorSchema,
             fragments,
             variableValues,
             runtimeType,
@@ -160,7 +161,7 @@ function collectFieldsImpl(
           });
         } else {
           collectFieldsImpl(
-            schema,
+            executorSchema,
             fragments,
             variableValues,
             runtimeType,
@@ -178,11 +179,16 @@ function collectFieldsImpl(
       case _graphql.Kind.FRAGMENT_SPREAD: {
         const fragName = selection.name.value;
 
-        if (!shouldIncludeNode(variableValues, selection)) {
+        if (!shouldIncludeNode(executorSchema, variableValues, selection)) {
           continue;
         }
 
-        const defer = getDeferValues(variableValues, selection, ignoreDefer);
+        const defer = getDeferValues(
+          executorSchema,
+          variableValues,
+          selection,
+          ignoreDefer,
+        );
 
         if (visitedFragmentNames.has(fragName) && !defer) {
           continue;
@@ -192,7 +198,7 @@ function collectFieldsImpl(
 
         if (
           !fragment ||
-          !doesFragmentConditionMatch(schema, fragment, runtimeType)
+          !doesFragmentConditionMatch(executorSchema, fragment, runtimeType)
         ) {
           continue;
         }
@@ -202,7 +208,7 @@ function collectFieldsImpl(
         if (defer) {
           const patchFields = new Map();
           collectFieldsImpl(
-            schema,
+            executorSchema,
             fragments,
             variableValues,
             runtimeType,
@@ -218,7 +224,7 @@ function collectFieldsImpl(
           });
         } else {
           collectFieldsImpl(
-            schema,
+            executorSchema,
             fragments,
             variableValues,
             runtimeType,
@@ -241,12 +247,13 @@ function collectFieldsImpl(
  * not disabled by the "if" argument.
  */
 
-function getDeferValues(variableValues, node, ignoreDefer) {
+function getDeferValues(executorSchema, variableValues, node, ignoreDefer) {
   if (ignoreDefer) {
     return;
   }
 
   const defer = (0, _values.getDirectiveValues)(
+    executorSchema,
     _directives.GraphQLDeferDirective,
     node,
     variableValues,
@@ -269,8 +276,9 @@ function getDeferValues(variableValues, node, ignoreDefer) {
  * directives, where `@skip` has higher precedence than `@include`.
  */
 
-function shouldIncludeNode(variableValues, node) {
+function shouldIncludeNode(executorSchema, variableValues, node) {
   const skip = (0, _values.getDirectiveValues)(
+    executorSchema,
     _graphql.GraphQLSkipDirective,
     node,
     variableValues,
@@ -281,6 +289,7 @@ function shouldIncludeNode(variableValues, node) {
   }
 
   const include = (0, _values.getDirectiveValues)(
+    executorSchema,
     _graphql.GraphQLIncludeDirective,
     node,
     variableValues,
@@ -298,21 +307,21 @@ function shouldIncludeNode(variableValues, node) {
  * Determines if a fragment is applicable to the given type.
  */
 
-function doesFragmentConditionMatch(schema, fragment, type) {
+function doesFragmentConditionMatch(executorSchema, fragment, type) {
   const typeConditionNode = fragment.typeCondition;
 
   if (!typeConditionNode) {
     return true;
   }
 
-  const conditionalType = (0, _graphql.typeFromAST)(schema, typeConditionNode);
+  const conditionalType = executorSchema.getType(typeConditionNode);
 
   if (conditionalType === type) {
     return true;
   }
 
-  if (conditionalType && (0, _definition.isAbstractType)(conditionalType)) {
-    return (0, _isSubType.isSubType)(schema, conditionalType, type);
+  if (conditionalType && executorSchema.isAbstractType(conditionalType)) {
+    return executorSchema.isSubType(conditionalType, type);
   }
 
   return false;

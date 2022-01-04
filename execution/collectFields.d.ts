@@ -2,11 +2,11 @@ import type {
   FieldNode,
   FragmentDefinitionNode,
   GraphQLObjectType,
-  GraphQLSchema,
   SelectionSetNode,
 } from 'graphql';
 import type { Maybe } from '../jsutils/Maybe';
 import type { ObjMap } from '../jsutils/ObjMap';
+import type { ExecutorSchema } from './executorSchema';
 export interface PatchFields {
   label?: string;
   fields: Map<string, ReadonlyArray<FieldNode>>;
@@ -25,7 +25,7 @@ export interface FieldsAndPatches {
  * @internal
  */
 export declare function collectFields(
-  schema: GraphQLSchema,
+  executorSchema: ExecutorSchema,
   fragments: ObjMap<FragmentDefinitionNode>,
   variableValues: {
     [variable: string]: unknown;
@@ -45,7 +45,7 @@ export declare function collectFields(
  * @internal
  */
 export declare function collectSubfields(
-  schema: GraphQLSchema,
+  executorSchema: ExecutorSchema,
   fragments: ObjMap<FragmentDefinitionNode>,
   variableValues: {
     [variable: string]: unknown;

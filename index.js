@@ -51,6 +51,12 @@ Object.defineProperty(exports, 'isGraphQLError', {
     return _index3.isGraphQLError;
   },
 });
+Object.defineProperty(exports, 'toExecutorSchema', {
+  enumerable: true,
+  get: function () {
+    return _index2.toExecutorSchema;
+  },
+});
 
 var _index = require('./type/index.js');
 

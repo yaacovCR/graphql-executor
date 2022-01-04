@@ -3,12 +3,12 @@ import type {
   FieldNode,
   GraphQLDirective,
   GraphQLField,
-  GraphQLSchema,
   VariableDefinitionNode,
 } from 'graphql';
 import { GraphQLError } from 'graphql';
 import type { ObjMap } from '../jsutils/ObjMap';
 import type { Maybe } from '../jsutils/Maybe';
+import type { ExecutorSchema } from './executorSchema';
 declare type CoercedVariableValues =
   | {
       errors: ReadonlyArray<GraphQLError>;
@@ -32,7 +32,7 @@ declare type CoercedVariableValues =
  * @internal
  */
 export declare function getVariableValues(
-  schema: GraphQLSchema,
+  executorSchema: ExecutorSchema,
   varDefNodes: ReadonlyArray<VariableDefinitionNode>,
   inputs: {
     readonly [variable: string]: unknown;
@@ -52,6 +52,7 @@ export declare function getVariableValues(
  * @internal
  */
 export declare function getArgumentValues(
+  executorSchema: ExecutorSchema,
   def: GraphQLField<unknown, unknown> | GraphQLDirective,
   node: FieldNode | DirectiveNode,
   variableValues?: Maybe<ObjMap<unknown>>,
@@ -70,6 +71,7 @@ export declare function getArgumentValues(
  * Object prototype.
  */
 export declare function getDirectiveValues(
+  executorSchema: ExecutorSchema,
   directiveDef: GraphQLDirective,
   node: {
     readonly directives?: ReadonlyArray<DirectiveNode>;

@@ -31,7 +31,7 @@ function execute(args) {
       false,
       'graphql@16 dropped long-deprecated support for positional arguments, please pass an object instead.',
     );
-  const executor = new _executor.Executor();
+  const executor = new _executor.Executor(args);
   return executor.execute(args);
 }
 /**

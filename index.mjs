@@ -12,6 +12,7 @@ export {
   defaultTypeResolver,
   execute,
   executeSync,
+  toExecutorSchema,
 } from './execution/index.mjs';
 /** Operate on GraphQL errors. */
 

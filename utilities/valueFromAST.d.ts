@@ -1,6 +1,7 @@
 import type { GraphQLInputType, ValueNode } from 'graphql';
 import type { ObjMap } from '../jsutils/ObjMap';
 import type { Maybe } from '../jsutils/Maybe';
+import type { ExecutorSchema } from '../execution/executorSchema';
 /**
  * Produces a JavaScript value given a GraphQL Value AST.
  *
@@ -22,6 +23,7 @@ import type { Maybe } from '../jsutils/Maybe';
  *
  */
 export declare function valueFromAST(
+  executorSchema: ExecutorSchema,
   valueNode: Maybe<ValueNode>,
   type: GraphQLInputType,
   variables?: Maybe<ObjMap<unknown>>,

@@ -13,8 +13,6 @@ var _inspect = require('../jsutils/inspect.js');
 
 var _invariant = require('../jsutils/invariant.js');
 
-var _definition = require('../type/definition.js');
-
 /**
  * Produces a JavaScript value given a GraphQL Value AST.
  *
@@ -35,7 +33,7 @@ var _definition = require('../type/definition.js');
  * | NullValue            | null          |
  *
  */
-function valueFromAST(valueNode, type, variables) {
+function valueFromAST(executorSchema, valueNode, type, variables) {
   if (!valueNode) {
     // When there is no node, then there is also no value.
     // Importantly, this is different from returning the value null.
@@ -52,7 +50,7 @@ function valueFromAST(valueNode, type, variables) {
 
     const variableValue = variables[variableName];
 
-    if (variableValue === null && (0, _definition.isNonNullType)(type)) {
+    if (variableValue === null && executorSchema.isNonNullType(type)) {
       return; // Invalid: intentionally return no value.
     } // Note: This does no further checking that this variable is correct.
     // This assumes that this query has been validated and the variable
@@ -61,12 +59,12 @@ function valueFromAST(valueNode, type, variables) {
     return variableValue;
   }
 
-  if ((0, _definition.isNonNullType)(type)) {
+  if (executorSchema.isNonNullType(type)) {
     if (valueNode.kind === _graphql.Kind.NULL) {
       return; // Invalid: intentionally return no value.
     }
 
-    return valueFromAST(valueNode, type.ofType, variables);
+    return valueFromAST(executorSchema, valueNode, type.ofType, variables);
   }
 
   if (valueNode.kind === _graphql.Kind.NULL) {
@@ -74,7 +72,7 @@ function valueFromAST(valueNode, type, variables) {
     return null;
   }
 
-  if ((0, _definition.isListType)(type)) {
+  if (executorSchema.isListType(type)) {
     const itemType = type.ofType;
 
     if (valueNode.kind === _graphql.Kind.LIST) {
@@ -84,13 +82,18 @@ function valueFromAST(valueNode, type, variables) {
         if (isMissingVariable(itemNode, variables)) {
           // If an array contains a missing variable, it is either coerced to
           // null or if the item type is non-null, it considered invalid.
-          if ((0, _definition.isNonNullType)(itemType)) {
+          if (executorSchema.isNonNullType(itemType)) {
             return; // Invalid: intentionally return no value.
           }
 
           coercedValues.push(null);
         } else {
-          const itemValue = valueFromAST(itemNode, itemType, variables);
+          const itemValue = valueFromAST(
+            executorSchema,
+            itemNode,
+            itemType,
+            variables,
+          );
 
           if (itemValue === undefined) {
             return; // Invalid: intentionally return no value.
@@ -103,7 +106,12 @@ function valueFromAST(valueNode, type, variables) {
       return coercedValues;
     }
 
-    const coercedValue = valueFromAST(valueNode, itemType, variables);
+    const coercedValue = valueFromAST(
+      executorSchema,
+      valueNode,
+      itemType,
+      variables,
+    );
 
     if (coercedValue === undefined) {
       return; // Invalid: intentionally return no value.
@@ -112,7 +120,7 @@ function valueFromAST(valueNode, type, variables) {
     return [coercedValue];
   }
 
-  if ((0, _definition.isInputObjectType)(type)) {
+  if (executorSchema.isInputObjectType(type)) {
     if (valueNode.kind !== _graphql.Kind.OBJECT) {
       return; // Invalid: intentionally return no value.
     }
@@ -129,14 +137,19 @@ function valueFromAST(valueNode, type, variables) {
       if (!fieldNode || isMissingVariable(fieldNode.value, variables)) {
         if (field.defaultValue !== undefined) {
           coercedObj[field.name] = field.defaultValue;
-        } else if ((0, _definition.isNonNullType)(field.type)) {
+        } else if (executorSchema.isNonNullType(field.type)) {
           return; // Invalid: intentionally return no value.
         }
 
         continue;
       }
 
-      const fieldValue = valueFromAST(fieldNode.value, field.type, variables);
+      const fieldValue = valueFromAST(
+        executorSchema,
+        fieldNode.value,
+        field.type,
+        variables,
+      );
 
       if (fieldValue === undefined) {
         return; // Invalid: intentionally return no value.
@@ -148,7 +161,7 @@ function valueFromAST(valueNode, type, variables) {
     return coercedObj;
   }
 
-  if ((0, _definition.isLeafType)(type)) {
+  if (executorSchema.isLeafType(type)) {
     // Scalars and Enums fulfill parsing a literal value via parseLiteral().
     // Invalid values represent a failure to parse correctly, in which case
     // no value is returned.

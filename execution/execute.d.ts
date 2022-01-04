@@ -1,9 +1,11 @@
 import type { PromiseOrValue } from '../jsutils/PromiseOrValue';
 import type {
-  ExecutionArgs,
+  ExecutorArgs,
+  ExecutorExecutionArgs,
   ExecutionResult,
   AsyncExecutionResult,
 } from './executor';
+export interface ExecutionArgs extends ExecutorArgs, ExecutorExecutionArgs {}
 /**
  * Implements the "Executing requests" section of the GraphQL specification.
  *
