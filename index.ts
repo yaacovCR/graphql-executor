@@ -13,7 +13,6 @@ export {
   defaultTypeResolver,
   execute,
   executeSync,
-  createSourceEventStream,
 } from './execution/index.ts';
 /** Operate on GraphQL errors. */
 
