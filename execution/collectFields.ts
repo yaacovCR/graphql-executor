@@ -3,23 +3,16 @@ import type {
   FragmentDefinitionNode,
   FragmentSpreadNode,
   GraphQLObjectType,
-  GraphQLSchema,
   InlineFragmentNode,
   SelectionSetNode,
 } from 'graphql';
-import {
-  GraphQLIncludeDirective,
-  GraphQLSkipDirective,
-  Kind,
-  typeFromAST,
-} from 'graphql';
+import { GraphQLIncludeDirective, GraphQLSkipDirective, Kind } from 'graphql';
 import type { Maybe } from '../jsutils/Maybe.ts';
 import type { ObjMap } from '../jsutils/ObjMap.ts';
 import { memoize1 } from '../jsutils/memoize1.ts';
 import { memoize2 } from '../jsutils/memoize2.ts';
-import { isAbstractType } from '../type/definition.ts';
 import { GraphQLDeferDirective } from '../type/directives.ts';
-import { isSubType } from '../utilities/isSubType.ts';
+import type { ExecutorSchema } from './executorSchema.ts';
 import { getDirectiveValues } from './values.ts';
 export interface PatchFields {
   label?: string;
@@ -40,7 +33,7 @@ export interface FieldsAndPatches {
  */
 
 export function collectFields(
-  schema: GraphQLSchema,
+  executorSchema: ExecutorSchema,
   fragments: ObjMap<FragmentDefinitionNode>,
   variableValues: {
     [variable: string]: unknown;
@@ -52,7 +45,7 @@ export function collectFields(
   const fields = new Map();
   const patches: Array<PatchFields> = [];
   collectFieldsImpl(
-    schema,
+    executorSchema,
     fragments,
     variableValues,
     runtimeType,
@@ -79,7 +72,7 @@ export function collectFields(
  */
 
 export function collectSubfields(
-  schema: GraphQLSchema,
+  executorSchema: ExecutorSchema,
   fragments: ObjMap<FragmentDefinitionNode>,
   variableValues: {
     [variable: string]: unknown;
@@ -99,7 +92,7 @@ export function collectSubfields(
   for (const node of fieldNodes) {
     if (node.selectionSet) {
       collectFieldsImpl(
-        schema,
+        executorSchema,
         fragments,
         variableValues,
         returnType,
@@ -116,7 +109,7 @@ export function collectSubfields(
 }
 
 function collectFieldsImpl(
-  schema: GraphQLSchema,
+  executorSchema: ExecutorSchema,
   fragments: ObjMap<FragmentDefinitionNode>,
   variableValues: {
     [variable: string]: unknown;
@@ -131,7 +124,7 @@ function collectFieldsImpl(
   for (const selection of selectionSet.selections) {
     switch (selection.kind) {
       case Kind.FIELD: {
-        if (!shouldIncludeNode(variableValues, selection)) {
+        if (!shouldIncludeNode(executorSchema, variableValues, selection)) {
           continue;
         }
 
@@ -149,18 +142,23 @@ function collectFieldsImpl(
 
       case Kind.INLINE_FRAGMENT: {
         if (
-          !shouldIncludeNode(variableValues, selection) ||
-          !doesFragmentConditionMatch(schema, selection, runtimeType)
+          !shouldIncludeNode(executorSchema, variableValues, selection) ||
+          !doesFragmentConditionMatch(executorSchema, selection, runtimeType)
         ) {
           continue;
         }
 
-        const defer = getDeferValues(variableValues, selection, ignoreDefer);
+        const defer = getDeferValues(
+          executorSchema,
+          variableValues,
+          selection,
+          ignoreDefer,
+        );
 
         if (defer) {
           const patchFields = new Map();
           collectFieldsImpl(
-            schema,
+            executorSchema,
             fragments,
             variableValues,
             runtimeType,
@@ -176,7 +174,7 @@ function collectFieldsImpl(
           });
         } else {
           collectFieldsImpl(
-            schema,
+            executorSchema,
             fragments,
             variableValues,
             runtimeType,
@@ -194,11 +192,16 @@ function collectFieldsImpl(
       case Kind.FRAGMENT_SPREAD: {
         const fragName = selection.name.value;
 
-        if (!shouldIncludeNode(variableValues, selection)) {
+        if (!shouldIncludeNode(executorSchema, variableValues, selection)) {
           continue;
         }
 
-        const defer = getDeferValues(variableValues, selection, ignoreDefer);
+        const defer = getDeferValues(
+          executorSchema,
+          variableValues,
+          selection,
+          ignoreDefer,
+        );
 
         if (visitedFragmentNames.has(fragName) && !defer) {
           continue;
@@ -208,7 +211,7 @@ function collectFieldsImpl(
 
         if (
           !fragment ||
-          !doesFragmentConditionMatch(schema, fragment, runtimeType)
+          !doesFragmentConditionMatch(executorSchema, fragment, runtimeType)
         ) {
           continue;
         }
@@ -218,7 +221,7 @@ function collectFieldsImpl(
         if (defer) {
           const patchFields = new Map();
           collectFieldsImpl(
-            schema,
+            executorSchema,
             fragments,
             variableValues,
             runtimeType,
@@ -234,7 +237,7 @@ function collectFieldsImpl(
           });
         } else {
           collectFieldsImpl(
-            schema,
+            executorSchema,
             fragments,
             variableValues,
             runtimeType,
@@ -258,6 +261,7 @@ function collectFieldsImpl(
  */
 
 function getDeferValues(
+  executorSchema: ExecutorSchema,
   variableValues: {
     [variable: string]: unknown;
   },
@@ -272,7 +276,12 @@ function getDeferValues(
     return;
   }
 
-  const defer = getDirectiveValues(GraphQLDeferDirective, node, variableValues);
+  const defer = getDirectiveValues(
+    executorSchema,
+    GraphQLDeferDirective,
+    node,
+    variableValues,
+  );
 
   if (!defer) {
     return;
@@ -292,18 +301,25 @@ function getDeferValues(
  */
 
 function shouldIncludeNode(
+  executorSchema: ExecutorSchema,
   variableValues: {
     [variable: string]: unknown;
   },
   node: FragmentSpreadNode | FieldNode | InlineFragmentNode,
 ): boolean {
-  const skip = getDirectiveValues(GraphQLSkipDirective, node, variableValues);
+  const skip = getDirectiveValues(
+    executorSchema,
+    GraphQLSkipDirective,
+    node,
+    variableValues,
+  );
 
   if (skip?.if === true) {
     return false;
   }
 
   const include = getDirectiveValues(
+    executorSchema,
     GraphQLIncludeDirective,
     node,
     variableValues,
@@ -320,7 +336,7 @@ function shouldIncludeNode(
  */
 
 function doesFragmentConditionMatch(
-  schema: GraphQLSchema,
+  executorSchema: ExecutorSchema,
   fragment: FragmentDefinitionNode | InlineFragmentNode,
   type: GraphQLObjectType,
 ): boolean {
@@ -330,14 +346,14 @@ function doesFragmentConditionMatch(
     return true;
   }
 
-  const conditionalType = typeFromAST(schema, typeConditionNode);
+  const conditionalType = executorSchema.getType(typeConditionNode);
 
   if (conditionalType === type) {
     return true;
   }
 
-  if (conditionalType && isAbstractType(conditionalType)) {
-    return isSubType(schema, conditionalType, type);
+  if (conditionalType && executorSchema.isAbstractType(conditionalType)) {
+    return executorSchema.isSubType(conditionalType, type);
   }
 
   return false;

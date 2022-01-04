@@ -6,13 +6,21 @@ export {
 } from './type/index.ts';
 /** Execute GraphQL queries. */
 
-export type { ExecutionArgs } from './execution/index.ts';
+export type {
+  ExecutionArgs,
+  ExecutorArgs,
+  ExecutorExecutionArgs,
+  ExecutorSchema,
+  GraphQLNullableInputType,
+  GraphQLNullableOutputType,
+} from './execution/index.ts';
 export {
   Executor,
   defaultFieldResolver,
   defaultTypeResolver,
   execute,
   executeSync,
+  toExecutorSchema,
 } from './execution/index.ts';
 /** Operate on GraphQL errors. */
 

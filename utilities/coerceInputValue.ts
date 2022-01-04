@@ -10,12 +10,7 @@ import { printPathArray } from '../jsutils/printPathArray.ts';
 import { addPath, pathToArray } from '../jsutils/Path.ts';
 import { isIterableObject } from '../jsutils/isIterableObject.ts';
 import { isGraphQLError } from '../error/isGraphQLError.ts';
-import {
-  isInputObjectType,
-  isLeafType,
-  isListType,
-  isNonNullType,
-} from '../type/definition.ts';
+import type { ExecutorSchema } from '../execution/executorSchema.ts';
 type OnErrorCB = (
   path: ReadonlyArray<string | number>,
   invalidValue: unknown,
@@ -26,11 +21,18 @@ type OnErrorCB = (
  */
 
 export function coerceInputValue(
+  executorSchema: ExecutorSchema,
   inputValue: unknown,
   type: GraphQLInputType,
   onError: OnErrorCB = defaultOnError,
 ): unknown {
-  return coerceInputValueImpl(inputValue, type, onError, undefined);
+  return coerceInputValueImpl(
+    executorSchema,
+    inputValue,
+    type,
+    onError,
+    undefined,
+  );
 }
 
 function defaultOnError(
@@ -49,14 +51,21 @@ function defaultOnError(
 }
 
 function coerceInputValueImpl(
+  executorSchema: ExecutorSchema,
   inputValue: unknown,
   type: GraphQLInputType,
   onError: OnErrorCB,
   path: Path | undefined,
 ): unknown {
-  if (isNonNullType(type)) {
+  if (executorSchema.isNonNullType(type)) {
     if (inputValue != null) {
-      return coerceInputValueImpl(inputValue, type.ofType, onError, path);
+      return coerceInputValueImpl(
+        executorSchema,
+        inputValue,
+        type.ofType,
+        onError,
+        path,
+      );
     }
 
     onError(
@@ -74,20 +83,28 @@ function coerceInputValueImpl(
     return null;
   }
 
-  if (isListType(type)) {
+  if (executorSchema.isListType(type)) {
     const itemType = type.ofType;
 
     if (isIterableObject(inputValue)) {
       return Array.from(inputValue, (itemValue, index) => {
         const itemPath = addPath(path, index, undefined);
-        return coerceInputValueImpl(itemValue, itemType, onError, itemPath);
+        return coerceInputValueImpl(
+          executorSchema,
+          itemValue,
+          itemType,
+          onError,
+          itemPath,
+        );
       });
     } // Lists accept a non-list value as a list of one.
 
-    return [coerceInputValueImpl(inputValue, itemType, onError, path)];
+    return [
+      coerceInputValueImpl(executorSchema, inputValue, itemType, onError, path),
+    ];
   }
 
-  if (isInputObjectType(type)) {
+  if (executorSchema.isInputObjectType(type)) {
     if (!isObjectLike(inputValue)) {
       onError(
         pathToArray(path),
@@ -106,7 +123,7 @@ function coerceInputValueImpl(
       if (fieldValue === undefined) {
         if (field.defaultValue !== undefined) {
           coercedValue[field.name] = field.defaultValue;
-        } else if (isNonNullType(field.type)) {
+        } else if (executorSchema.isNonNullType(field.type)) {
           const typeStr = inspect(field.type);
           onError(
             pathToArray(path),
@@ -121,6 +138,7 @@ function coerceInputValueImpl(
       }
 
       coercedValue[field.name] = coerceInputValueImpl(
+        executorSchema,
         fieldValue,
         field.type,
         onError,
@@ -148,7 +166,7 @@ function coerceInputValueImpl(
     return coercedValue;
   }
 
-  if (isLeafType(type)) {
+  if (executorSchema.isLeafType(type)) {
     let parseResult; // Scalars and Enums determine if a input value is valid via parseValue(),
     // which can throw to indicate failure. If it throws, maintain a reference
     // to the original error.
@@ -156,6 +174,9 @@ function coerceInputValueImpl(
     try {
       parseResult = type.parseValue(inputValue);
     } catch (error) {
+      // TODO: add test
+
+      /* c8 ignore next 2 */
       if (isGraphQLError(error)) {
         onError(pathToArray(path), inputValue, error);
       } else {
