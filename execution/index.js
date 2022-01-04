@@ -9,12 +9,6 @@ Object.defineProperty(exports, 'Executor', {
     return _executor.Executor;
   },
 });
-Object.defineProperty(exports, 'createSourceEventStream', {
-  enumerable: true,
-  get: function () {
-    return _createSourceEventStream.createSourceEventStream;
-  },
-});
 Object.defineProperty(exports, 'defaultFieldResolver', {
   enumerable: true,
   get: function () {
@@ -51,5 +45,3 @@ var _Path = require('../jsutils/Path.js');
 var _executor = require('./executor.js');
 
 var _execute = require('./execute.js');
-
-var _createSourceEventStream = require('./createSourceEventStream.js');

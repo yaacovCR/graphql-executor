@@ -21,12 +21,6 @@ Object.defineProperty(exports, 'GraphQLStreamDirective', {
     return _index.GraphQLStreamDirective;
   },
 });
-Object.defineProperty(exports, 'createSourceEventStream', {
-  enumerable: true,
-  get: function () {
-    return _index2.createSourceEventStream;
-  },
-});
 Object.defineProperty(exports, 'defaultFieldResolver', {
   enumerable: true,
   get: function () {

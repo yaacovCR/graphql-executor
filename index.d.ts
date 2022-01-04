@@ -12,7 +12,6 @@ export {
   defaultTypeResolver,
   execute,
   executeSync,
-  createSourceEventStream,
 } from './execution/index';
 /** Operate on GraphQL errors. */
 export { isGraphQLError } from './error/index';

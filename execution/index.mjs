@@ -5,4 +5,3 @@ export {
   defaultTypeResolver,
 } from './executor.mjs';
 export { execute, executeSync } from './execute.mjs';
-export { createSourceEventStream } from './createSourceEventStream.mjs';

@@ -10,4 +10,3 @@ export type {
   AsyncExecutionResult,
 } from './executor';
 export { execute, executeSync } from './execute';
-export { createSourceEventStream } from './createSourceEventStream';
