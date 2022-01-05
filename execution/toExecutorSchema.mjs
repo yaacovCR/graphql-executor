@@ -54,26 +54,56 @@ function _isNonNullType(type) {
   return Object.prototype.toString.call(type) === '[object GraphQLNonNull]';
 }
 
-function _toExecutorSchema(schema) {
-  const listTypes = new Set();
-  const nonNullTypes = new Set();
-  const namedTypes = new Set();
-  const inputTypes = new Set();
-  const leafTypes = new Set();
-  const abstractTypes = new Set();
-  const objectTypes = new Set();
-  const inputObjectTypes = new Set();
-  const rootTypeTreeNode = {
-    [Kind.NAMED_TYPE]: new Map(),
-  };
-  const subTypesMap = new Map();
-  const possibleTypesMap = new Map();
+class TypeTree {
+  constructor() {
+    this._rootNode = {
+      [Kind.NAMED_TYPE]: new Map(),
+    };
+    this.typeStrings = new Set();
+  }
 
-  function addTypeToTypeTree(
-    originalType,
-    type = originalType,
-    node = rootTypeTreeNode,
-  ) {
+  add(type) {
+    this._add(type, this._rootNode);
+
+    this.typeStrings.add(type.toString());
+  }
+
+  get(typeNode) {
+    return this._get(typeNode, this._rootNode);
+  }
+
+  _get(typeNode, node) {
+    switch (typeNode.kind) {
+      case Kind.LIST_TYPE: {
+        const listNode = node[Kind.LIST_TYPE]; // this never happens because the ExecutorSchema adds all possible types
+
+        /* c8 ignore next 3 */
+
+        if (!listNode) {
+          return;
+        }
+
+        return this._get(typeNode.type, listNode);
+      }
+
+      case Kind.NON_NULL_TYPE: {
+        const nonNullNode = node[Kind.NON_NULL_TYPE]; // this never happens because the ExecutorSchema adds all possible types
+
+        /* c8 ignore next 3 */
+
+        if (!nonNullNode) {
+          return;
+        }
+
+        return this._get(typeNode.type, nonNullNode);
+      }
+
+      case Kind.NAMED_TYPE:
+        return node[Kind.NAMED_TYPE].get(typeNode.name.value);
+    }
+  }
+
+  _add(originalType, node, type = originalType) {
     if (_isListType(type)) {
       let listTypeNode = node[Kind.LIST_TYPE];
 
@@ -83,7 +113,7 @@ function _toExecutorSchema(schema) {
         };
       }
 
-      addTypeToTypeTree(originalType, type.ofType, listTypeNode);
+      this._add(originalType, listTypeNode, type.ofType);
     } else if (_isNonNullType(type)) {
       let nonNullTypeNode = node[Kind.NON_NULL_TYPE];
 
@@ -93,10 +123,33 @@ function _toExecutorSchema(schema) {
         };
       }
 
-      addTypeToTypeTree(originalType, type.ofType, nonNullTypeNode);
+      this._add(originalType, nonNullTypeNode, type.ofType);
     } else {
       node[Kind.NAMED_TYPE].set(type.name, originalType);
     }
+  }
+}
+
+function _toExecutorSchema(schema) {
+  const listTypes = new Set();
+  const nonNullTypes = new Set();
+  const namedTypes = new Set();
+  const inputTypes = new Set();
+  const leafTypes = new Set();
+  const abstractTypes = new Set();
+  const objectTypes = new Set();
+  const inputObjectTypes = new Set();
+  const typeTree = new TypeTree();
+  const subTypesMap = new Map();
+  const possibleTypesMap = new Map();
+
+  function addOutputType(type) {
+    typeTree.add(type);
+  }
+
+  function addInputType(type) {
+    inputTypes.add(type);
+    typeTree.add(type);
   }
 
   function processType(type) {
@@ -112,14 +165,13 @@ function _toExecutorSchema(schema) {
     } else if (_isObjectType(type) && !namedTypes.has(type)) {
       namedTypes.add(type);
       objectTypes.add(type);
-      addTypeToTypeTree(type);
+      addOutputType(type);
 
       for (const field of Object.values(type.getFields())) {
         processType(field.type);
 
         for (const arg of field.args) {
-          inputTypes.add(arg.type);
-          addTypeToTypeTree(arg.type);
+          addInputType(arg.type);
           processType(arg.type);
         }
       }
@@ -146,16 +198,15 @@ function _toExecutorSchema(schema) {
     } else if (_isInterfaceType(type) && !namedTypes.has(type)) {
       namedTypes.add(type);
       abstractTypes.add(type);
-      addTypeToTypeTree(type);
+      addOutputType(type);
 
       for (const field of Object.values(type.getFields())) {
         processType(field.type); // TODO: add test
 
-        /* c8 ignore next 5 */
+        /* c8 ignore next 4 */
 
         for (const arg of field.args) {
-          inputTypes.add(arg.type);
-          addTypeToTypeTree(arg.type);
+          addInputType(arg.type);
           processType(arg.type);
         }
       } // NOTE: pre-v15 compatibility
@@ -176,7 +227,7 @@ function _toExecutorSchema(schema) {
     } else if (_isUnionType(type) && !namedTypes.has(type)) {
       namedTypes.add(type);
       abstractTypes.add(type);
-      addTypeToTypeTree(type);
+      addOutputType(type);
       let subTypes = subTypesMap.get(type);
 
       if (!subTypes) {
@@ -204,8 +255,7 @@ function _toExecutorSchema(schema) {
       inputObjectTypes.add(type);
 
       for (const field of Object.values(type.getFields())) {
-        inputTypes.add(field.type);
-        addTypeToTypeTree(field.type);
+        addInputType(field.type);
         processType(field.type);
       }
     }
@@ -227,8 +277,7 @@ function _toExecutorSchema(schema) {
     processType(fieldDef.type);
 
     for (const arg of fieldDef.args) {
-      inputTypes.add(arg.type);
-      addTypeToTypeTree(arg.type);
+      addInputType(arg.type);
       processType(arg.type);
     }
   }
@@ -236,7 +285,7 @@ function _toExecutorSchema(schema) {
   for (const directive of [...schema.getDirectives()]) {
     for (const arg of directive.args) {
       inputTypes.add(arg.type);
-      addTypeToTypeTree(arg.type);
+      addInputType(arg.type);
       processType(arg.type);
     }
   }
@@ -283,19 +332,8 @@ function _toExecutorSchema(schema) {
       : undefined;
   }
 
-  function getType(typeNode, typeTreeNode = rootTypeTreeNode) {
-    switch (typeNode.kind) {
-      case Kind.LIST_TYPE: {
-        return getType(typeNode.type, typeTreeNode[Kind.LIST_TYPE]);
-      }
-
-      case Kind.NON_NULL_TYPE: {
-        return getType(typeNode.type, typeTreeNode[Kind.NON_NULL_TYPE]);
-      }
-
-      case Kind.NAMED_TYPE:
-        return typeTreeNode[Kind.NAMED_TYPE].get(typeNode.name.value);
-    }
+  function getType(typeNode) {
+    return typeTree.get(typeNode);
   }
 
   function getRootType(operation) {
