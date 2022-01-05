@@ -1,5 +1,13 @@
 # graphql-executor
 
+## 0.0.13
+
+### Patch Changes
+
+- 6151cdbf: Add all valid input types to ExecutorSchema
+
+  Variables can define ad-hoc input types not present in schema by adding non-null wrappers.
+
 ## 0.0.12
 
 ### Patch Changes
