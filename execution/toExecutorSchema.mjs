@@ -1,4 +1,6 @@
 import {
+  GraphQLList,
+  GraphQLNonNull,
   Kind,
   SchemaMetaFieldDef,
   TypeMetaFieldDef,
@@ -72,6 +74,10 @@ class TypeTree {
     return this._get(typeNode, this._rootNode);
   }
 
+  has(typeString) {
+    return this.typeStrings.has(typeString);
+  }
+
   _get(typeNode, node) {
     switch (typeNode.kind) {
       case Kind.LIST_TYPE: {
@@ -128,6 +134,25 @@ class TypeTree {
       node[Kind.NAMED_TYPE].set(type.name, originalType);
     }
   }
+}
+
+function getPossibleInputTypes(type) {
+  if (_isListType(type)) {
+    return [
+      ...getPossibleInputTypes(type.ofType).map(
+        (possibleType) => new GraphQLList(possibleType),
+      ),
+      ...getPossibleInputTypes(type.ofType).map(
+        (possibleType) => new GraphQLNonNull(new GraphQLList(possibleType)),
+      ),
+    ];
+  }
+
+  if (_isNonNullType(type)) {
+    return [...getPossibleInputTypes(type.ofType)];
+  }
+
+  return [new GraphQLNonNull(type), type];
 }
 
 function _toExecutorSchema(schema) {
@@ -287,6 +312,19 @@ function _toExecutorSchema(schema) {
       inputTypes.add(arg.type);
       addInputType(arg.type);
       processType(arg.type);
+    }
+  } // add all possible input types to schema
+  // as variables can add non-null wrappers to input types defined in schema
+
+  for (const inputType of inputTypes.values()) {
+    const possibleInputTypes = getPossibleInputTypes(inputType);
+
+    for (const possibleInputType of possibleInputTypes) {
+      const typeString = possibleInputType.toString();
+
+      if (!typeTree.has(typeString)) {
+        addInputType(possibleInputType);
+      }
     }
   }
 
