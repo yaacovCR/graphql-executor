@@ -104,6 +104,81 @@ interface TypeTreeNode {
   [Kind.NAMED_TYPE]: Map<string, GraphQLType>;
 }
 
+class TypeTree {
+  private _rootNode: TypeTreeNode;
+  private typeStrings: Set<string>;
+
+  constructor() {
+    this._rootNode = {
+      [Kind.NAMED_TYPE]: new Map(),
+    };
+    this.typeStrings = new Set();
+  }
+
+  add(type: GraphQLType): void {
+    this._add(type, this._rootNode);
+    this.typeStrings.add(type.toString());
+  }
+
+  get(typeNode: TypeNode): GraphQLType | undefined {
+    return this._get(typeNode, this._rootNode);
+  }
+
+  private _get(
+    typeNode: TypeNode,
+    node: TypeTreeNode,
+  ): GraphQLType | undefined {
+    switch (typeNode.kind) {
+      case Kind.LIST_TYPE: {
+        const listNode = node[Kind.LIST_TYPE];
+        // this never happens because the ExecutorSchema adds all possible types
+        /* c8 ignore next 3 */
+        if (!listNode) {
+          return;
+        }
+        return this._get(typeNode.type, listNode);
+      }
+      case Kind.NON_NULL_TYPE: {
+        const nonNullNode = node[Kind.NON_NULL_TYPE];
+        // this never happens because the ExecutorSchema adds all possible types
+        /* c8 ignore next 3 */
+        if (!nonNullNode) {
+          return;
+        }
+        return this._get(typeNode.type, nonNullNode);
+      }
+      case Kind.NAMED_TYPE:
+        return node[Kind.NAMED_TYPE].get(typeNode.name.value);
+    }
+  }
+
+  private _add(
+    originalType: GraphQLType,
+    node: TypeTreeNode,
+    type = originalType,
+  ): void {
+    if (_isListType(type)) {
+      let listTypeNode = node[Kind.LIST_TYPE];
+      if (!listTypeNode) {
+        listTypeNode = node[Kind.LIST_TYPE] = {
+          [Kind.NAMED_TYPE]: new Map(),
+        };
+      }
+      this._add(originalType, listTypeNode, type.ofType);
+    } else if (_isNonNullType(type)) {
+      let nonNullTypeNode = node[Kind.NON_NULL_TYPE];
+      if (!nonNullTypeNode) {
+        nonNullTypeNode = node[Kind.NON_NULL_TYPE] = {
+          [Kind.NAMED_TYPE]: new Map(),
+        };
+      }
+      this._add(originalType, nonNullTypeNode, type.ofType);
+    } else {
+      node[Kind.NAMED_TYPE].set((type as GraphQLNamedType).name, originalType);
+    }
+  }
+}
+
 function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
   const listTypes: Set<GraphQLList<GraphQLType>> = new Set();
   const nonNullTypes: Set<GraphQLNonNull<GraphQLNullableType>> = new Set();
@@ -113,9 +188,7 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
   const abstractTypes: Set<GraphQLAbstractType> = new Set();
   const objectTypes: Set<GraphQLObjectType> = new Set();
   const inputObjectTypes: Set<GraphQLInputObjectType> = new Set();
-  const rootTypeTreeNode: TypeTreeNode = {
-    [Kind.NAMED_TYPE]: new Map(),
-  };
+  const typeTree = new TypeTree();
   const subTypesMap: Map<
     GraphQLAbstractType,
     Set<GraphQLObjectType | GraphQLInterfaceType>
@@ -125,30 +198,13 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
     Array<GraphQLObjectType>
   > = new Map();
 
-  function addTypeToTypeTree(
-    originalType: GraphQLType,
-    type = originalType,
-    node = rootTypeTreeNode,
-  ) {
-    if (_isListType(type)) {
-      let listTypeNode = node[Kind.LIST_TYPE];
-      if (!listTypeNode) {
-        listTypeNode = node[Kind.LIST_TYPE] = {
-          [Kind.NAMED_TYPE]: new Map(),
-        };
-      }
-      addTypeToTypeTree(originalType, type.ofType, listTypeNode);
-    } else if (_isNonNullType(type)) {
-      let nonNullTypeNode = node[Kind.NON_NULL_TYPE];
-      if (!nonNullTypeNode) {
-        nonNullTypeNode = node[Kind.NON_NULL_TYPE] = {
-          [Kind.NAMED_TYPE]: new Map(),
-        };
-      }
-      addTypeToTypeTree(originalType, type.ofType, nonNullTypeNode);
-    } else {
-      node[Kind.NAMED_TYPE].set((type as GraphQLNamedType).name, originalType);
-    }
+  function addOutputType(type: GraphQLOutputType) {
+    typeTree.add(type);
+  }
+
+  function addInputType(type: GraphQLInputType) {
+    inputTypes.add(type);
+    typeTree.add(type);
   }
 
   function processType(type: GraphQLType) {
@@ -164,12 +220,11 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
     } else if (_isObjectType(type) && !namedTypes.has(type)) {
       namedTypes.add(type);
       objectTypes.add(type);
-      addTypeToTypeTree(type);
+      addOutputType(type);
       for (const field of Object.values(type.getFields())) {
         processType(field.type);
         for (const arg of field.args) {
-          inputTypes.add(arg.type);
-          addTypeToTypeTree(arg.type);
+          addInputType(arg.type);
           processType(arg.type);
         }
       }
@@ -191,14 +246,13 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
     } else if (_isInterfaceType(type) && !namedTypes.has(type)) {
       namedTypes.add(type);
       abstractTypes.add(type);
-      addTypeToTypeTree(type);
+      addOutputType(type);
       for (const field of Object.values(type.getFields())) {
         processType(field.type);
         // TODO: add test
-        /* c8 ignore next 5 */
+        /* c8 ignore next 4 */
         for (const arg of field.args) {
-          inputTypes.add(arg.type);
-          addTypeToTypeTree(arg.type);
+          addInputType(arg.type);
           processType(arg.type);
         }
       }
@@ -221,7 +275,7 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
     } else if (_isUnionType(type) && !namedTypes.has(type)) {
       namedTypes.add(type);
       abstractTypes.add(type);
-      addTypeToTypeTree(type);
+      addOutputType(type);
       let subTypes = subTypesMap.get(type);
       if (!subTypes) {
         subTypes = new Set();
@@ -244,8 +298,7 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
       namedTypes.add(type);
       inputObjectTypes.add(type);
       for (const field of Object.values(type.getFields())) {
-        inputTypes.add(field.type);
-        addTypeToTypeTree(field.type);
+        addInputType(field.type);
         processType(field.type);
       }
     }
@@ -266,8 +319,7 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
   ]) {
     processType(fieldDef.type);
     for (const arg of fieldDef.args) {
-      inputTypes.add(arg.type);
-      addTypeToTypeTree(arg.type);
+      addInputType(arg.type);
       processType(arg.type);
     }
   }
@@ -275,7 +327,7 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
   for (const directive of [...schema.getDirectives()]) {
     for (const arg of directive.args) {
       inputTypes.add(arg.type);
-      addTypeToTypeTree(arg.type);
+      addInputType(arg.type);
       processType(arg.type);
     }
   }
@@ -341,20 +393,8 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
     return schema.getType(typeName) ?? undefined;
   }
 
-  function getType(
-    typeNode: TypeNode,
-    typeTreeNode = rootTypeTreeNode,
-  ): GraphQLType | undefined {
-    switch (typeNode.kind) {
-      case Kind.LIST_TYPE: {
-        return getType(typeNode.type, typeTreeNode[Kind.LIST_TYPE]);
-      }
-      case Kind.NON_NULL_TYPE: {
-        return getType(typeNode.type, typeTreeNode[Kind.NON_NULL_TYPE]);
-      }
-      case Kind.NAMED_TYPE:
-        return typeTreeNode[Kind.NAMED_TYPE].get(typeNode.name.value);
-    }
+  function getType(typeNode: TypeNode): GraphQLType | undefined {
+    return typeTree.get(typeNode);
   }
 
   function getRootType(
