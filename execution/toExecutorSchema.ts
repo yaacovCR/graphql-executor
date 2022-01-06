@@ -382,7 +382,6 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
 
   for (const directive of [...schema.getDirectives()]) {
     for (const arg of directive.args) {
-      inputTypes.add(arg.type);
       addInputType(arg.type);
       processType(arg.type);
     }
@@ -397,6 +396,7 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
 
       if (!typeTree.has(typeString)) {
         addInputType(possibleInputType);
+        processType(possibleInputType);
       }
     }
   }
