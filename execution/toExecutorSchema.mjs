@@ -309,7 +309,6 @@ function _toExecutorSchema(schema) {
 
   for (const directive of [...schema.getDirectives()]) {
     for (const arg of directive.args) {
-      inputTypes.add(arg.type);
       addInputType(arg.type);
       processType(arg.type);
     }
@@ -324,6 +323,7 @@ function _toExecutorSchema(schema) {
 
       if (!typeTree.has(typeString)) {
         addInputType(possibleInputType);
+        processType(possibleInputType);
       }
     }
   }
