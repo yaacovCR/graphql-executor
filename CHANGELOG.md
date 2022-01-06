@@ -1,5 +1,13 @@
 # graphql-executor
 
+## 0.0.14
+
+### Patch Changes
+
+- 01118639: Fix ExecutorSchema isNonNullType method
+
+  Client documents may wrap input types with non-nullable wrapper types not present in the schema. The ExecutorSchema should recognize these non-nullable types as such.
+
 ## 0.0.13
 
 ### Patch Changes
