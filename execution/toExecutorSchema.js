@@ -139,24 +139,78 @@ class TypeTree {
   }
 }
 
-function getPossibleInputTypes(type) {
-  if (_isListType(type)) {
-    return [
-      ...getPossibleInputTypes(type.ofType).map(
-        (possibleType) => new _graphql.GraphQLList(possibleType),
-      ),
-      ...getPossibleInputTypes(type.ofType).map(
-        (possibleType) =>
-          new _graphql.GraphQLNonNull(new _graphql.GraphQLList(possibleType)),
-      ),
-    ];
+function getInputTypeInfo(type, wrapper) {
+  if (!_isNonNullType(type) && !_isListType(type)) {
+    return {
+      nonNullListWrappers: [],
+      nonNull: _isNonNullType(wrapper),
+      namedType: type,
+    };
   }
+
+  const inputTypeInfo = getInputTypeInfo(type.ofType, type);
 
   if (_isNonNullType(type)) {
-    return [...getPossibleInputTypes(type.ofType)];
+    return inputTypeInfo;
   }
 
-  return [new _graphql.GraphQLNonNull(type), type];
+  inputTypeInfo.nonNullListWrappers.push(_isNonNullType(wrapper));
+  return inputTypeInfo;
+}
+
+function getPossibleSequences(nonNullListWrappers) {
+  if (!nonNullListWrappers.length) {
+    return [[]];
+  }
+
+  const nonNull = nonNullListWrappers.pop();
+
+  if (nonNull) {
+    return getPossibleSequences(nonNullListWrappers).map((sequence) => [
+      true,
+      ...sequence,
+    ]);
+  }
+
+  return [
+    ...getPossibleSequences(nonNullListWrappers).map((sequence) => [
+      true,
+      ...sequence,
+    ]),
+    ...getPossibleSequences(nonNullListWrappers).map((sequence) => [
+      false,
+      ...sequence,
+    ]),
+  ];
+}
+
+function inputTypesFromSequences(sequences, inputType) {
+  return sequences.map((sequence) =>
+    sequence.reduce((acc, nonNull) => {
+      let wrapped = new _graphql.GraphQLList(acc);
+
+      if (nonNull) {
+        wrapped = new _graphql.GraphQLNonNull(wrapped);
+      }
+
+      return wrapped;
+    }, inputType),
+  );
+}
+
+function getPossibleInputTypes(type) {
+  const { nonNullListWrappers, nonNull, namedType } = getInputTypeInfo(type);
+  const sequences = getPossibleSequences(nonNullListWrappers);
+  const wrapped = new _graphql.GraphQLNonNull(namedType);
+
+  if (nonNull) {
+    return inputTypesFromSequences(sequences, wrapped);
+  }
+
+  return [
+    ...inputTypesFromSequences(sequences, namedType),
+    ...inputTypesFromSequences(sequences, wrapped),
+  ];
 }
 
 function _toExecutorSchema(schema) {
