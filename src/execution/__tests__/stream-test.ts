@@ -182,12 +182,12 @@ const query = new GraphQLObjectType({
 async function complete(
   document: DocumentNode,
   rootValue: unknown = {},
-  opts?: { enableDeferStream?: boolean },
+  opts?: { enableIncremental?: boolean },
 ) {
-  const enableDeferStream = opts?.enableDeferStream ?? true;
+  const enableIncremental = opts?.enableIncremental ?? true;
   const schema = new GraphQLSchema({
     query,
-    directives: enableDeferStream
+    directives: enableIncremental
       ? [...specifiedDirectives, GraphQLDeferDirective, GraphQLStreamDirective]
       : [...specifiedDirectives],
   });
@@ -195,7 +195,7 @@ async function complete(
     schema,
     document,
     rootValue,
-    disableIncremental: !enableDeferStream,
+    enableIncremental,
   });
 
   if (isAsyncIterable(result)) {
@@ -234,7 +234,7 @@ async function completeAsync(document: DocumentNode, numCalls: number) {
 describe('Execute: stream directive', () => {
   it('Should ignore @stream if not enabled', async () => {
     const document = parse('{ scalarList @stream(initialCount: 1) }');
-    const result = await complete(document, {}, { enableDeferStream: false });
+    const result = await complete(document, {}, { enableIncremental: false });
 
     expectJSON(result).toDeepEqual({
       data: {
