@@ -14,7 +14,9 @@ var _directives = require('../type/directives.js');
 
 var _inspect = require('../jsutils/inspect.js');
 
-var _memoize = require('../jsutils/memoize3.js');
+var _memoize = require('../jsutils/memoize2.js');
+
+var _memoize2 = require('../jsutils/memoize3.js');
 
 var _invariant = require('../jsutils/invariant.js');
 
@@ -89,11 +91,16 @@ class Executor {
    * Memoizing ensures the subfields are not repeatedly calculated, which
    * saves overhead when resolving lists of values.
    */
+
+  /**
+   * A memoized method that looks up the field given a parent type
+   * and an array of field nodes.
+   */
   constructor(executorArgs) {
     _defineProperty(
       this,
       'collectSubfields',
-      (0, _memoize.memoize3)((exeContext, returnType, fieldNodes) => {
+      (0, _memoize2.memoize3)((exeContext, returnType, fieldNodes) => {
         const { fragments, variableValues, enableIncremental } = exeContext;
         return (0, _collectFields.collectSubfields)(
           this._executorSchema,
@@ -109,13 +116,21 @@ class Executor {
     _defineProperty(
       this,
       'getArgumentValues',
-      (0, _memoize.memoize3)((def, node, variableValues) =>
+      (0, _memoize2.memoize3)((def, node, variableValues) =>
         (0, _values.getArgumentValues)(
           this._executorSchema,
           def,
           node,
           variableValues,
         ),
+      ),
+    );
+
+    _defineProperty(
+      this,
+      'getFieldDef',
+      (0, _memoize.memoize2)((parentType, fieldNodes) =>
+        this._getFieldDef(parentType, fieldNodes),
       ),
     );
 
@@ -693,7 +708,7 @@ class Executor {
     path,
     payloadContext,
   ) {
-    const fieldDef = this.getFieldDef(parentType, fieldNodes[0]);
+    const fieldDef = this.getFieldDef(parentType, fieldNodes);
 
     if (!fieldDef) {
       return;
@@ -1455,8 +1470,8 @@ class Executor {
    *
    */
 
-  getFieldDef(parentType, fieldNode) {
-    const fieldName = fieldNode.name.value;
+  _getFieldDef(parentType, fieldNodes) {
+    const fieldName = fieldNodes[0].name.value;
 
     if (
       fieldName === _graphql.SchemaMetaFieldDef.name &&
@@ -1567,7 +1582,7 @@ class Executor {
       enableIncremental,
     );
     const [responseName, fieldNodes] = [...fields.entries()][0];
-    const fieldDef = this.getFieldDef(rootType, fieldNodes[0]);
+    const fieldDef = this.getFieldDef(rootType, fieldNodes);
 
     if (!fieldDef) {
       const fieldName = fieldNodes[0].name.value;

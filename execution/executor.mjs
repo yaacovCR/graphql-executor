@@ -22,6 +22,7 @@ import {
 } from 'graphql';
 import { GraphQLStreamDirective } from '../type/directives.mjs';
 import { inspect } from '../jsutils/inspect.mjs';
+import { memoize2 } from '../jsutils/memoize2.mjs';
 import { memoize3 } from '../jsutils/memoize3.mjs';
 import { invariant } from '../jsutils/invariant.mjs';
 import { devAssert } from '../jsutils/devAssert.mjs';
@@ -96,6 +97,11 @@ export class Executor {
    * Memoizing ensures the subfields are not repeatedly calculated, which
    * saves overhead when resolving lists of values.
    */
+
+  /**
+   * A memoized method that looks up the field given a parent type
+   * and an array of field nodes.
+   */
   constructor(executorArgs) {
     _defineProperty(
       this,
@@ -118,6 +124,14 @@ export class Executor {
       'getArgumentValues',
       memoize3((def, node, variableValues) =>
         _getArgumentValues(this._executorSchema, def, node, variableValues),
+      ),
+    );
+
+    _defineProperty(
+      this,
+      'getFieldDef',
+      memoize2((parentType, fieldNodes) =>
+        this._getFieldDef(parentType, fieldNodes),
       ),
     );
 
@@ -689,7 +703,7 @@ export class Executor {
     path,
     payloadContext,
   ) {
-    const fieldDef = this.getFieldDef(parentType, fieldNodes[0]);
+    const fieldDef = this.getFieldDef(parentType, fieldNodes);
 
     if (!fieldDef) {
       return;
@@ -1447,8 +1461,8 @@ export class Executor {
    *
    */
 
-  getFieldDef(parentType, fieldNode) {
-    const fieldName = fieldNode.name.value;
+  _getFieldDef(parentType, fieldNodes) {
+    const fieldName = fieldNodes[0].name.value;
 
     if (
       fieldName === SchemaMetaFieldDef.name &&
@@ -1556,7 +1570,7 @@ export class Executor {
       enableIncremental,
     );
     const [responseName, fieldNodes] = [...fields.entries()][0];
-    const fieldDef = this.getFieldDef(rootType, fieldNodes[0]);
+    const fieldDef = this.getFieldDef(rootType, fieldNodes);
 
     if (!fieldDef) {
       const fieldName = fieldNodes[0].name.value;

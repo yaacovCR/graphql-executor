@@ -187,6 +187,14 @@ export declare class Executor {
   ) => {
     [argument: string]: unknown;
   };
+  /**
+   * A memoized method that looks up the field given a parent type
+   * and an array of field nodes.
+   */
+  getFieldDef: (
+    a1: GraphQLObjectType<any, any>,
+    a2: readonly FieldNode[],
+  ) => Maybe<GraphQLField<unknown, unknown, any>>;
   private _schema;
   private _executorSchema;
   constructor(executorArgs: ExecutorArgs);
@@ -544,9 +552,9 @@ export declare class Executor {
    * require mutating type definitions, which would cause issues.
    *
    */
-  getFieldDef(
+  _getFieldDef(
     parentType: GraphQLObjectType,
-    fieldNode: FieldNode,
+    fieldNodes: ReadonlyArray<FieldNode>,
   ): Maybe<GraphQLField<unknown, unknown>>;
   /**
    * Implements the "Subscribe" algorithm described in the GraphQL specification.
