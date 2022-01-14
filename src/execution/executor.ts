@@ -33,6 +33,7 @@ import type { PromiseOrValue } from '../jsutils/PromiseOrValue';
 import type { Maybe } from '../jsutils/Maybe';
 import type { Push, Stop } from '../jsutils/repeater';
 import { inspect } from '../jsutils/inspect';
+import { memoize2 } from '../jsutils/memoize2';
 import { memoize3 } from '../jsutils/memoize3';
 import { invariant } from '../jsutils/invariant';
 import { devAssert } from '../jsutils/devAssert';
@@ -246,6 +247,15 @@ export class Executor {
       node: FieldNode,
       variableValues: ObjMap<unknown>,
     ) => _getArgumentValues(this._executorSchema, def, node, variableValues),
+  );
+
+  /**
+   * A memoized method that looks up the field given a parent type
+   * and an array of field nodes.
+   */
+  getFieldDef = memoize2(
+    (parentType: GraphQLObjectType, fieldNodes: ReadonlyArray<FieldNode>) =>
+      this._getFieldDef(parentType, fieldNodes),
   );
 
   private _schema: GraphQLSchema;
@@ -832,7 +842,7 @@ export class Executor {
     path: Path,
     payloadContext: PayloadContext,
   ): PromiseOrValue<unknown> {
-    const fieldDef = this.getFieldDef(parentType, fieldNodes[0]);
+    const fieldDef = this.getFieldDef(parentType, fieldNodes);
     if (!fieldDef) {
       return;
     }
@@ -1619,11 +1629,11 @@ export class Executor {
    * require mutating type definitions, which would cause issues.
    *
    */
-  getFieldDef(
+  _getFieldDef(
     parentType: GraphQLObjectType,
-    fieldNode: FieldNode,
+    fieldNodes: ReadonlyArray<FieldNode>,
   ): Maybe<GraphQLField<unknown, unknown>> {
-    const fieldName = fieldNode.name.value;
+    const fieldName = fieldNodes[0].name.value;
 
     if (
       fieldName === SchemaMetaFieldDef.name &&
@@ -1742,7 +1752,7 @@ export class Executor {
     );
 
     const [responseName, fieldNodes] = [...fields.entries()][0];
-    const fieldDef = this.getFieldDef(rootType, fieldNodes[0]);
+    const fieldDef = this.getFieldDef(rootType, fieldNodes);
 
     if (!fieldDef) {
       const fieldName = fieldNodes[0].name.value;
