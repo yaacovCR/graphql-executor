@@ -55,7 +55,7 @@ interface ExecutionContext {
   fieldResolver: GraphQLFieldResolver<any, any>;
   typeResolver: GraphQLTypeResolver<any, any>;
   forceQueryAlgorithm: boolean;
-  disableIncremental: boolean;
+  enableIncremental: boolean;
   resolveField: FieldResolver;
   rootPayloadContext: PayloadContext;
   iterators: Set<AsyncIterator<unknown>>;
@@ -93,7 +93,7 @@ export interface ExecutorExecutionArgs {
   typeResolver?: Maybe<GraphQLTypeResolver<any, any>>;
   subscribeFieldResolver?: Maybe<GraphQLFieldResolver<any, any>>;
   forceQueryAlgorithm?: Maybe<boolean>;
-  disableIncremental?: Maybe<boolean>;
+  enableIncremental?: Maybe<boolean>;
 }
 /**
  * The result of GraphQL execution.
@@ -337,7 +337,7 @@ export declare class Executor {
       [variable: string]: unknown;
     },
     operation: OperationDefinitionNode,
-    disableIncremental: boolean,
+    enableIncremental: boolean,
   ): {
     rootType: GraphQLObjectType;
     fieldsAndPatches: FieldsAndPatches;

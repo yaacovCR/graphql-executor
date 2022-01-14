@@ -94,14 +94,14 @@ class Executor {
       this,
       'collectSubfields',
       (0, _memoize.memoize3)((exeContext, returnType, fieldNodes) => {
-        const { fragments, variableValues, disableIncremental } = exeContext;
+        const { fragments, variableValues, enableIncremental } = exeContext;
         return (0, _collectFields.collectSubfields)(
           this._executorSchema,
           fragments,
           variableValues,
           returnType,
           fieldNodes,
-          disableIncremental,
+          !enableIncremental,
         );
       }),
     );
@@ -386,7 +386,7 @@ class Executor {
       typeResolver,
       subscribeFieldResolver,
       forceQueryAlgorithm,
-      disableIncremental,
+      enableIncremental,
     } = args; // If arguments are missing or incorrectly typed, this is an internal
     // developer mistake which should throw an error.
 
@@ -478,10 +478,10 @@ class Executor {
         forceQueryAlgorithm !== null && forceQueryAlgorithm !== void 0
           ? forceQueryAlgorithm
           : false,
-      disableIncremental:
-        disableIncremental !== null && disableIncremental !== void 0
-          ? disableIncremental
-          : false,
+      enableIncremental:
+        enableIncremental !== null && enableIncremental !== void 0
+          ? enableIncremental
+          : true,
       resolveField:
         operation.operation === 'subscription' && !forceQueryAlgorithm
           ? this.buildFieldResolver(
@@ -536,7 +536,7 @@ class Executor {
       rootValue,
       operation,
       variableValues,
-      disableIncremental,
+      enableIncremental,
       rootPayloadContext,
     } = exeContext;
     const {
@@ -546,7 +546,7 @@ class Executor {
       fragments,
       variableValues,
       operation,
-      disableIncremental,
+      enableIncremental,
     );
     const path = undefined;
     const result = fieldsExecutor(
@@ -568,7 +568,7 @@ class Executor {
     return result;
   }
 
-  parseOperationRoot(fragments, variableValues, operation, disableIncremental) {
+  parseOperationRoot(fragments, variableValues, operation, enableIncremental) {
     const rootType = this._executorSchema.getRootType(operation.operation);
 
     if (rootType == null) {
@@ -584,7 +584,7 @@ class Executor {
       variableValues,
       rootType,
       operation.selectionSet,
-      disableIncremental,
+      !enableIncremental,
     );
     return {
       rootType,
@@ -965,7 +965,7 @@ class Executor {
    */
 
   getStreamValues(exeContext, fieldNodes) {
-    if (exeContext.disableIncremental) {
+    if (!exeContext.enableIncremental) {
       return;
     } // validation only allows equivalent streams on multiple fields, so it is
     // safe to only check the first fieldNode for the stream directive
@@ -1555,7 +1555,7 @@ class Executor {
       rootValue,
       operation,
       variableValues,
-      disableIncremental,
+      enableIncremental,
     } = exeContext;
     const {
       rootType,
@@ -1564,7 +1564,7 @@ class Executor {
       fragments,
       variableValues,
       operation,
-      disableIncremental,
+      enableIncremental,
     );
     const [responseName, fieldNodes] = [...fields.entries()][0];
     const fieldDef = this.getFieldDef(rootType, fieldNodes[0]);
