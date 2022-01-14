@@ -92,7 +92,7 @@ interface ExecutionContext {
   fieldResolver: GraphQLFieldResolver<any, any>;
   typeResolver: GraphQLTypeResolver<any, any>;
   forceQueryAlgorithm: boolean;
-  disableIncremental: boolean;
+  enableIncremental: boolean;
   resolveField: FieldResolver;
   rootPayloadContext: PayloadContext;
   iterators: Set<AsyncIterator<unknown>>;
@@ -130,7 +130,7 @@ export interface ExecutorExecutionArgs {
   typeResolver?: Maybe<GraphQLTypeResolver<any, any>>;
   subscribeFieldResolver?: Maybe<GraphQLFieldResolver<any, any>>;
   forceQueryAlgorithm?: Maybe<boolean>;
-  disableIncremental?: Maybe<boolean>;
+  enableIncremental?: Maybe<boolean>;
 }
 /**
  * The result of GraphQL execution.
@@ -214,14 +214,14 @@ export class Executor {
       returnType: GraphQLObjectType,
       fieldNodes: ReadonlyArray<FieldNode>,
     ) => {
-      const { fragments, variableValues, disableIncremental } = exeContext;
+      const { fragments, variableValues, enableIncremental } = exeContext;
       return _collectSubfields(
         this._executorSchema,
         fragments,
         variableValues,
         returnType,
         fieldNodes,
-        disableIncremental,
+        !enableIncremental,
       );
     },
   );
@@ -536,7 +536,7 @@ export class Executor {
       typeResolver,
       subscribeFieldResolver,
       forceQueryAlgorithm,
-      disableIncremental,
+      enableIncremental,
     } = args; // If arguments are missing or incorrectly typed, this is an internal
     // developer mistake which should throw an error.
 
@@ -607,7 +607,7 @@ export class Executor {
       fieldResolver: defaultResolveFieldValueFn,
       typeResolver: typeResolver ?? defaultTypeResolver,
       forceQueryAlgorithm: forceQueryAlgorithm ?? false,
-      disableIncremental: disableIncremental ?? false,
+      enableIncremental: enableIncremental ?? true,
       resolveField:
         operation.operation === 'subscription' && !forceQueryAlgorithm
           ? this.buildFieldResolver(
@@ -665,7 +665,7 @@ export class Executor {
       rootValue,
       operation,
       variableValues,
-      disableIncremental,
+      enableIncremental,
       rootPayloadContext,
     } = exeContext;
     const {
@@ -675,7 +675,7 @@ export class Executor {
       fragments,
       variableValues,
       operation,
-      disableIncremental,
+      enableIncremental,
     );
     const path = undefined;
     const result = fieldsExecutor(
@@ -703,7 +703,7 @@ export class Executor {
       [variable: string]: unknown;
     },
     operation: OperationDefinitionNode,
-    disableIncremental: boolean,
+    enableIncremental: boolean,
   ): {
     rootType: GraphQLObjectType;
     fieldsAndPatches: FieldsAndPatches;
@@ -723,7 +723,7 @@ export class Executor {
       variableValues,
       rootType,
       operation.selectionSet,
-      disableIncremental,
+      !enableIncremental,
     );
     return {
       rootType,
@@ -1124,7 +1124,7 @@ export class Executor {
         initialCount?: number;
         label?: string;
       } {
-    if (exeContext.disableIncremental) {
+    if (!exeContext.enableIncremental) {
       return;
     } // validation only allows equivalent streams on multiple fields, so it is
     // safe to only check the first fieldNode for the stream directive
@@ -1718,7 +1718,7 @@ export class Executor {
       rootValue,
       operation,
       variableValues,
-      disableIncremental,
+      enableIncremental,
     } = exeContext;
     const {
       rootType,
@@ -1727,7 +1727,7 @@ export class Executor {
       fragments,
       variableValues,
       operation,
-      disableIncremental,
+      enableIncremental,
     );
     const [responseName, fieldNodes] = [...fields.entries()][0];
     const fieldDef = this.getFieldDef(rootType, fieldNodes[0]);
