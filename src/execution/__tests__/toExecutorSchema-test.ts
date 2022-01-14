@@ -1,8 +1,14 @@
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
-import type { GraphQLNonNull, NamedTypeNode, NonNullTypeNode } from 'graphql';
+import type {
+  GraphQLNonNull,
+  ListTypeNode,
+  NamedTypeNode,
+  NonNullTypeNode,
+} from 'graphql';
 import {
+  GraphQLList,
   GraphQLInputObjectType,
   GraphQLObjectType,
   GraphQLSchema,
@@ -24,11 +30,19 @@ describe('ExecutorSchema:', () => {
   const query = new GraphQLObjectType({
     name: 'Query',
     fields: {
-      field: {
+      fieldWithInputArg: {
         type: GraphQLString,
         args: {
           arg: {
             type: input,
+          },
+        },
+      },
+      fieldWithListInputArg: {
+        type: GraphQLString,
+        args: {
+          arg: {
+            type: new GraphQLList(input),
           },
         },
       },
@@ -86,5 +100,24 @@ describe('ExecutorSchema:', () => {
     expect(executorSchema.isNonNullType(type)).to.equal(true);
     expect(executorSchema.isInputType(type)).to.equal(true);
     expect((type as GraphQLNonNull<any>).ofType).to.equal(input);
+  });
+
+  it('allows retrieving list input types defined in schema', () => {
+    const executorSchema = toExecutorSchema(schema);
+    const listTypeNode: ListTypeNode = {
+      kind: Kind.LIST_TYPE,
+      type: {
+        kind: Kind.NAMED_TYPE,
+        name: {
+          kind: Kind.NAME,
+          value: 'Input',
+        },
+      },
+    };
+    const type = executorSchema.getType(listTypeNode);
+    expect(type).to.not.equal(undefined);
+    expect(executorSchema.isListType(type)).to.equal(true);
+    expect(executorSchema.isInputType(type)).to.equal(true);
+    expect((type as GraphQLList<any>).ofType).to.equal(input);
   });
 });
