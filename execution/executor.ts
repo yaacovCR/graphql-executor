@@ -30,6 +30,7 @@ import type { PromiseOrValue } from '../jsutils/PromiseOrValue.ts';
 import type { Maybe } from '../jsutils/Maybe.ts';
 import type { Push, Stop } from '../jsutils/repeater.ts';
 import { inspect } from '../jsutils/inspect.ts';
+import { memoize2 } from '../jsutils/memoize2.ts';
 import { memoize3 } from '../jsutils/memoize3.ts';
 import { invariant } from '../jsutils/invariant.ts';
 import { devAssert } from '../jsutils/devAssert.ts';
@@ -237,6 +238,15 @@ export class Executor {
       node: FieldNode,
       variableValues: ObjMap<unknown>,
     ) => _getArgumentValues(this._executorSchema, def, node, variableValues),
+  );
+  /**
+   * A memoized method that looks up the field given a parent type
+   * and an array of field nodes.
+   */
+
+  getFieldDef = memoize2(
+    (parentType: GraphQLObjectType, fieldNodes: ReadonlyArray<FieldNode>) =>
+      this._getFieldDef(parentType, fieldNodes),
   );
   private _schema: GraphQLSchema;
   private _executorSchema: ExecutorSchema;
@@ -834,7 +844,7 @@ export class Executor {
     path: Path,
     payloadContext: PayloadContext,
   ): PromiseOrValue<unknown> {
-    const fieldDef = this.getFieldDef(parentType, fieldNodes[0]);
+    const fieldDef = this.getFieldDef(parentType, fieldNodes);
 
     if (!fieldDef) {
       return;
@@ -1608,11 +1618,11 @@ export class Executor {
    *
    */
 
-  getFieldDef(
+  _getFieldDef(
     parentType: GraphQLObjectType,
-    fieldNode: FieldNode,
+    fieldNodes: ReadonlyArray<FieldNode>,
   ): Maybe<GraphQLField<unknown, unknown>> {
-    const fieldName = fieldNode.name.value;
+    const fieldName = fieldNodes[0].name.value;
 
     if (
       fieldName === SchemaMetaFieldDef.name &&
@@ -1730,7 +1740,7 @@ export class Executor {
       enableIncremental,
     );
     const [responseName, fieldNodes] = [...fields.entries()][0];
-    const fieldDef = this.getFieldDef(rootType, fieldNodes[0]);
+    const fieldDef = this.getFieldDef(rootType, fieldNodes);
 
     if (!fieldDef) {
       const fieldName = fieldNodes[0].name.value;
