@@ -1,5 +1,17 @@
 # graphql-executor
 
+## 0.0.15
+
+### Patch Changes
+
+- 672a7433: use enableIncremental instead of disableIncremental
+
+  with default of true rather than of false.
+
+  enable-type option flags may be easier to reason about.
+
+- 6b973083: refactor toExecutorSchema to add only necessary input types
+
 ## 0.0.14
 
 ### Patch Changes
