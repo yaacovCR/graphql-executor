@@ -13,6 +13,9 @@ import type {
   OperationDefinitionNode,
   FieldNode,
   FragmentDefinitionNode,
+  SelectionSetNode,
+  FragmentSpreadNode,
+  InlineFragmentNode,
 } from 'graphql';
 import { GraphQLError } from 'graphql';
 import type { Path } from '../jsutils/Path';
@@ -21,7 +24,6 @@ import type { PromiseOrValue } from '../jsutils/PromiseOrValue';
 import type { Maybe } from '../jsutils/Maybe';
 import type { Push, Stop } from '../jsutils/repeater';
 import type { ExecutorSchema } from './executorSchema';
-import type { FieldsAndPatches, PatchFields } from './collectFields';
 /**
  * Terminology
  *
@@ -76,6 +78,14 @@ interface IncrementalResult {
 interface Publisher {
   push: Push<ExecutionPatchResult>;
   stop: Stop;
+}
+export interface PatchFields {
+  label?: string;
+  fields: Map<string, ReadonlyArray<FieldNode>>;
+}
+export interface FieldsAndPatches {
+  fields: Map<string, ReadonlyArray<FieldNode>>;
+  patches: Array<PatchFields>;
 }
 export interface ExecutorArgs {
   schema: GraphQLSchema;
@@ -195,6 +205,16 @@ export declare class Executor {
     a1: GraphQLObjectType<any, any>,
     a2: readonly FieldNode[],
   ) => Maybe<GraphQLField<unknown, unknown, any>>;
+  /**
+   * Creates a field list, memoizing so that functions operating on the
+   * field list can be memoized.
+   */
+  createFieldList: (a1: FieldNode) => FieldNode[];
+  /**
+   * Appends to a field list, memoizing so that functions operating on the
+   * field list can be memoized.
+   */
+  updateFieldList: (a1: FieldNode[], a2: FieldNode) => FieldNode[];
   private _schema;
   private _executorSchema;
   constructor(executorArgs: ExecutorArgs);
@@ -664,6 +684,86 @@ export declare class Executor {
     path: Path | undefined,
     label?: string,
   ): ExecutionPatchResult;
+  /**
+   * Given a selectionSet, collects all of the fields and returns them.
+   *
+   * CollectFields requires the "runtime type" of an object. For a field that
+   * returns an Interface or Union type, the "runtime type" will be the actual
+   * object type returned by that field.
+   */
+  collectFields(
+    fragments: ObjMap<FragmentDefinitionNode>,
+    variableValues: {
+      [variable: string]: unknown;
+    },
+    runtimeType: GraphQLObjectType,
+    selectionSet: SelectionSetNode,
+    enableIncremental?: boolean,
+  ): FieldsAndPatches;
+  /**
+   * Given an array of field nodes, collects all of the subfields of the passed
+   * in fields, and returns them at the end.
+   *
+   * CollectSubFields requires the "return type" of an object. For a field that
+   * returns an Interface or Union type, the "return type" will be the actual
+   * object type returned by that field.
+   *
+   * @internal
+   */
+  _collectSubfields(
+    exeContext: ExecutionContext,
+    returnType: GraphQLObjectType,
+    fieldNodes: ReadonlyArray<FieldNode>,
+  ): FieldsAndPatches;
+  collectFieldsImpl(
+    fragments: ObjMap<FragmentDefinitionNode>,
+    variableValues: {
+      [variable: string]: unknown;
+    },
+    runtimeType: GraphQLObjectType,
+    selectionSet: SelectionSetNode,
+    fields: Map<string, Array<FieldNode>>,
+    patches: Array<PatchFields>,
+    visitedFragmentNames: Set<string>,
+    enableIncremental: boolean,
+  ): void;
+  /**
+   * Returns an object containing the `@defer` arguments if a field should be
+   * deferred based on the experimental flag, defer directive present and
+   * not disabled by the "if" argument.
+   */
+  getDeferValues(
+    variableValues: {
+      [variable: string]: unknown;
+    },
+    node: FragmentSpreadNode | InlineFragmentNode,
+    enableIncremental: boolean,
+  ):
+    | undefined
+    | {
+        label?: string;
+      };
+  /**
+   * Determines if a field should be included based on the `@include` and `@skip`
+   * directives, where `@skip` has higher precedence than `@include`.
+   */
+  shouldIncludeNode(
+    variableValues: {
+      [variable: string]: unknown;
+    },
+    node: FragmentSpreadNode | FieldNode | InlineFragmentNode,
+  ): boolean;
+  /**
+   * Determines if a fragment is applicable to the given type.
+   */
+  doesFragmentConditionMatch(
+    fragment: FragmentDefinitionNode | InlineFragmentNode,
+    type: GraphQLObjectType,
+  ): boolean;
+  /**
+   * Implements the logic to compute the key of a given field's entry
+   */
+  getFieldEntryKey(node: FieldNode): string;
 }
 /**
  * If a resolve function is not given, then a default resolve behavior is used

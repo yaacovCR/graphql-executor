@@ -14,9 +14,11 @@ var _directives = require('../type/directives.js');
 
 var _inspect = require('../jsutils/inspect.js');
 
-var _memoize = require('../jsutils/memoize2.js');
+var _memoize = require('../jsutils/memoize1.js');
 
-var _memoize2 = require('../jsutils/memoize3.js');
+var _memoize2 = require('../jsutils/memoize2.js');
+
+var _memoize3 = require('../jsutils/memoize3.js');
 
 var _invariant = require('../jsutils/invariant.js');
 
@@ -45,8 +47,6 @@ var _isGraphQLError = require('../error/isGraphQLError.js');
 var _toExecutorSchema = require('./toExecutorSchema.js');
 
 var _values = require('./values.js');
-
-var _collectFields = require('./collectFields.js');
 
 var _mapAsyncIterable = require('./mapAsyncIterable.js');
 
@@ -96,27 +96,29 @@ class Executor {
    * A memoized method that looks up the field given a parent type
    * and an array of field nodes.
    */
+
+  /**
+   * Creates a field list, memoizing so that functions operating on the
+   * field list can be memoized.
+   */
+
+  /**
+   * Appends to a field list, memoizing so that functions operating on the
+   * field list can be memoized.
+   */
   constructor(executorArgs) {
     _defineProperty(
       this,
       'collectSubfields',
-      (0, _memoize2.memoize3)((exeContext, returnType, fieldNodes) => {
-        const { fragments, variableValues, enableIncremental } = exeContext;
-        return (0, _collectFields.collectSubfields)(
-          this._executorSchema,
-          fragments,
-          variableValues,
-          returnType,
-          fieldNodes,
-          !enableIncremental,
-        );
-      }),
+      (0, _memoize3.memoize3)((exeContext, returnType, fieldNodes) =>
+        this._collectSubfields(exeContext, returnType, fieldNodes),
+      ),
     );
 
     _defineProperty(
       this,
       'getArgumentValues',
-      (0, _memoize2.memoize3)((def, node, variableValues) =>
+      (0, _memoize3.memoize3)((def, node, variableValues) =>
         (0, _values.getArgumentValues)(
           this._executorSchema,
           def,
@@ -129,9 +131,21 @@ class Executor {
     _defineProperty(
       this,
       'getFieldDef',
-      (0, _memoize.memoize2)((parentType, fieldNodes) =>
+      (0, _memoize2.memoize2)((parentType, fieldNodes) =>
         this._getFieldDef(parentType, fieldNodes),
       ),
+    );
+
+    _defineProperty(
+      this,
+      'createFieldList',
+      (0, _memoize.memoize1)((node) => [node]),
+    );
+
+    _defineProperty(
+      this,
+      'updateFieldList',
+      (0, _memoize2.memoize2)((fieldList, node) => [...fieldList, node]),
     );
 
     _defineProperty(
@@ -593,13 +607,12 @@ class Executor {
       );
     }
 
-    const fieldsAndPatches = (0, _collectFields.collectFields)(
-      this._executorSchema,
+    const fieldsAndPatches = this.collectFields(
       fragments,
       variableValues,
       rootType,
       operation.selectionSet,
-      !enableIncremental,
+      enableIncremental,
     );
     return {
       rootType,
@@ -1997,6 +2010,309 @@ class Executor {
     }
 
     return value;
+  }
+  /**
+   * Given a selectionSet, collects all of the fields and returns them.
+   *
+   * CollectFields requires the "runtime type" of an object. For a field that
+   * returns an Interface or Union type, the "runtime type" will be the actual
+   * object type returned by that field.
+   */
+
+  collectFields(
+    fragments,
+    variableValues,
+    runtimeType,
+    selectionSet,
+    enableIncremental = true,
+  ) {
+    const fields = new Map();
+    const patches = [];
+    this.collectFieldsImpl(
+      fragments,
+      variableValues,
+      runtimeType,
+      selectionSet,
+      fields,
+      patches,
+      new Set(),
+      enableIncremental,
+    );
+    return {
+      fields,
+      patches,
+    };
+  }
+  /**
+   * Given an array of field nodes, collects all of the subfields of the passed
+   * in fields, and returns them at the end.
+   *
+   * CollectSubFields requires the "return type" of an object. For a field that
+   * returns an Interface or Union type, the "return type" will be the actual
+   * object type returned by that field.
+   *
+   * @internal
+   */
+
+  _collectSubfields(exeContext, returnType, fieldNodes) {
+    const subFieldNodes = new Map();
+    const visitedFragmentNames = new Set();
+    const subPatches = [];
+    const subFieldsAndPatches = {
+      fields: subFieldNodes,
+      patches: subPatches,
+    };
+    const { fragments, variableValues, enableIncremental } = exeContext;
+
+    for (const node of fieldNodes) {
+      if (node.selectionSet) {
+        this.collectFieldsImpl(
+          fragments,
+          variableValues,
+          returnType,
+          node.selectionSet,
+          subFieldNodes,
+          subPatches,
+          visitedFragmentNames,
+          enableIncremental,
+        );
+      }
+    }
+
+    return subFieldsAndPatches;
+  }
+
+  collectFieldsImpl(
+    fragments,
+    variableValues,
+    runtimeType,
+    selectionSet,
+    fields,
+    patches,
+    visitedFragmentNames,
+    enableIncremental,
+  ) {
+    for (const selection of selectionSet.selections) {
+      switch (selection.kind) {
+        case _graphql.Kind.FIELD: {
+          if (!this.shouldIncludeNode(variableValues, selection)) {
+            continue;
+          }
+
+          const name = this.getFieldEntryKey(selection);
+          const fieldList = fields.get(name);
+
+          if (fieldList !== undefined) {
+            fields.set(name, this.updateFieldList(fieldList, selection));
+          } else {
+            fields.set(name, this.createFieldList(selection));
+          }
+
+          break;
+        }
+
+        case _graphql.Kind.INLINE_FRAGMENT: {
+          if (
+            !this.shouldIncludeNode(variableValues, selection) ||
+            !this.doesFragmentConditionMatch(selection, runtimeType)
+          ) {
+            continue;
+          }
+
+          const defer = this.getDeferValues(
+            variableValues,
+            selection,
+            enableIncremental,
+          );
+
+          if (defer) {
+            const patchFields = new Map();
+            this.collectFieldsImpl(
+              fragments,
+              variableValues,
+              runtimeType,
+              selection.selectionSet,
+              patchFields,
+              patches,
+              visitedFragmentNames,
+              enableIncremental,
+            );
+            patches.push({
+              label: defer.label,
+              fields: patchFields,
+            });
+          } else {
+            this.collectFieldsImpl(
+              fragments,
+              variableValues,
+              runtimeType,
+              selection.selectionSet,
+              fields,
+              patches,
+              visitedFragmentNames,
+              enableIncremental,
+            );
+          }
+
+          break;
+        }
+
+        case _graphql.Kind.FRAGMENT_SPREAD: {
+          const fragName = selection.name.value;
+
+          if (!this.shouldIncludeNode(variableValues, selection)) {
+            continue;
+          }
+
+          const defer = this.getDeferValues(
+            variableValues,
+            selection,
+            enableIncremental,
+          );
+
+          if (visitedFragmentNames.has(fragName) && !defer) {
+            continue;
+          }
+
+          const fragment = fragments[fragName];
+
+          if (
+            !fragment ||
+            !this.doesFragmentConditionMatch(fragment, runtimeType)
+          ) {
+            continue;
+          }
+
+          visitedFragmentNames.add(fragName);
+
+          if (defer) {
+            const patchFields = new Map();
+            this.collectFieldsImpl(
+              fragments,
+              variableValues,
+              runtimeType,
+              fragment.selectionSet,
+              patchFields,
+              patches,
+              visitedFragmentNames,
+              enableIncremental,
+            );
+            patches.push({
+              label: defer.label,
+              fields: patchFields,
+            });
+          } else {
+            this.collectFieldsImpl(
+              fragments,
+              variableValues,
+              runtimeType,
+              fragment.selectionSet,
+              fields,
+              patches,
+              visitedFragmentNames,
+              enableIncremental,
+            );
+          }
+
+          break;
+        }
+      }
+    }
+  }
+  /**
+   * Returns an object containing the `@defer` arguments if a field should be
+   * deferred based on the experimental flag, defer directive present and
+   * not disabled by the "if" argument.
+   */
+
+  getDeferValues(variableValues, node, enableIncremental) {
+    if (!enableIncremental) {
+      return;
+    }
+
+    const defer = (0, _values.getDirectiveValues)(
+      this._executorSchema,
+      _directives.GraphQLDeferDirective,
+      node,
+      variableValues,
+    );
+
+    if (!defer) {
+      return;
+    }
+
+    if (defer.if === false) {
+      return;
+    }
+
+    return {
+      label: typeof defer.label === 'string' ? defer.label : undefined,
+    };
+  }
+  /**
+   * Determines if a field should be included based on the `@include` and `@skip`
+   * directives, where `@skip` has higher precedence than `@include`.
+   */
+
+  shouldIncludeNode(variableValues, node) {
+    const skip = (0, _values.getDirectiveValues)(
+      this._executorSchema,
+      _graphql.GraphQLSkipDirective,
+      node,
+      variableValues,
+    );
+
+    if ((skip === null || skip === void 0 ? void 0 : skip.if) === true) {
+      return false;
+    }
+
+    const include = (0, _values.getDirectiveValues)(
+      this._executorSchema,
+      _graphql.GraphQLIncludeDirective,
+      node,
+      variableValues,
+    );
+
+    if (
+      (include === null || include === void 0 ? void 0 : include.if) === false
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+  /**
+   * Determines if a fragment is applicable to the given type.
+   */
+
+  doesFragmentConditionMatch(fragment, type) {
+    const typeConditionNode = fragment.typeCondition;
+
+    if (!typeConditionNode) {
+      return true;
+    }
+
+    const conditionalType = this._executorSchema.getType(typeConditionNode);
+
+    if (conditionalType === type) {
+      return true;
+    }
+
+    if (
+      conditionalType &&
+      this._executorSchema.isAbstractType(conditionalType)
+    ) {
+      return this._executorSchema.isSubType(conditionalType, type);
+    }
+
+    return false;
+  }
+  /**
+   * Implements the logic to compute the key of a given field's entry
+   */
+
+  getFieldEntryKey(node) {
+    return node.alias ? node.alias.value : node.name.value;
   }
 }
 /**
