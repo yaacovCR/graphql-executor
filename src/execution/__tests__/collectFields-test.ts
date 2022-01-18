@@ -12,7 +12,7 @@ import {
 } from 'graphql';
 
 import { toExecutorSchema } from '../toExecutorSchema';
-import { collectFields } from '../collectFields';
+import { Executor } from '..';
 
 const friendType = new GraphQLObjectType({
   fields: {
@@ -44,6 +44,7 @@ const query = new GraphQLObjectType({
 
 const schema = new GraphQLSchema({ query });
 const executorSchema = toExecutorSchema(schema);
+const executor = new Executor({ schema, executorSchema });
 
 const document = parse(`
 query HeroQuery($skipFirst: Boolean, $skipSecond: Boolean) {
@@ -74,8 +75,7 @@ const fragments = {
 
 describe('collectFields', () => {
   it('memoizes', () => {
-    const { fields: fields1 } = collectFields(
-      executorSchema,
+    const { fields: fields1 } = executor.collectFields(
       fragments,
       {
         skipFirst: false,
@@ -84,8 +84,7 @@ describe('collectFields', () => {
       query,
       selectionSet,
     );
-    const { fields: fields2 } = collectFields(
-      executorSchema,
+    const { fields: fields2 } = executor.collectFields(
       fragments,
       {
         skipFirst: false,
@@ -102,8 +101,7 @@ describe('collectFields', () => {
   });
 
   it('does not yet (?) memoize everything', () => {
-    const { fields: fields1 } = collectFields(
-      executorSchema,
+    const { fields: fields1 } = executor.collectFields(
       fragments,
       {
         skipFirst: true,
@@ -112,8 +110,7 @@ describe('collectFields', () => {
       query,
       selectionSet,
     );
-    const { fields: fields2 } = collectFields(
-      executorSchema,
+    const { fields: fields2 } = executor.collectFields(
       fragments,
       {
         skipFirst: false,
