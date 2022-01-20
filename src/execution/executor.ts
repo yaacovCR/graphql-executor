@@ -88,6 +88,14 @@ import { flattenAsyncIterable } from './flattenAsyncIterable';
  * 3) inline fragment "spreads" e.g. `...on Type { a }`
  */
 
+interface DocumentContext {
+  rootType: GraphQLObjectType;
+  rootFieldsCollector: (
+    variableValues: { [variable: string]: unknown },
+    enableIncremental?: boolean,
+  ) => FieldsAndPatches;
+}
+
 /**
  * Data that must be available at all points during query execution.
  */
@@ -227,6 +235,35 @@ export type FieldResolver = (
  * @internal
  */
 export class Executor {
+  parseDocument = memoize1(
+    (
+      document: DocumentNode,
+    ): {
+      operations: ReadonlyArray<OperationDefinitionNode>;
+      fragments: ObjMap<FragmentDefinitionNode>;
+    } => {
+      const operations: Array<OperationDefinitionNode> = [];
+      const fragments: ObjMap<FragmentDefinitionNode> = Object.create(null);
+      for (const definition of document.definitions) {
+        switch (definition.kind) {
+          case Kind.OPERATION_DEFINITION:
+            operations.push(definition);
+            break;
+          case Kind.FRAGMENT_DEFINITION:
+            fragments[definition.name.value] = definition;
+            break;
+          default:
+          // ignore non-executable definitions
+        }
+      }
+
+      return {
+        operations,
+        fragments,
+      };
+    },
+  );
+
   /**
    * A memoized collection of relevant subfields with regard to the return
    * type. Memoizing ensures the subfields are not repeatedly calculated, which
@@ -234,10 +271,10 @@ export class Executor {
    */
   collectSubfields = memoize3(
     (
-      exeContext: ExecutionContext,
+      fragments: ObjMap<FragmentDefinitionNode>,
       returnType: GraphQLObjectType,
       fieldNodes: ReadonlyArray<FieldNode>,
-    ) => this._collectSubfields(exeContext, returnType, fieldNodes),
+    ) => this._collectSubfields(fragments, returnType, fieldNodes),
   );
 
   /**
@@ -437,7 +474,13 @@ export class Executor {
     let data: PromiseOrValue<ObjMap<unknown> | null>;
 
     try {
-      data = this.executeRootFields(exeContext, fieldsExecutor);
+      const { fragments, operation } = exeContext;
+      const documentContext = this.buildDocumentContext(fragments, operation);
+      const executor = this.buildQueryOrMutationExecutor(
+        documentContext,
+        fieldsExecutor,
+      );
+      data = executor(exeContext);
     } catch (error) {
       exeContext.rootPayloadContext.errors.push(error);
       return this.buildResponse(exeContext, null);
@@ -575,29 +618,21 @@ export class Executor {
     // developer mistake which should throw an error.
     this.assertValidExecutionArguments(document, rawVariableValues);
 
+    const { operations, fragments } = this.parseDocument(document);
+
     let operation: OperationDefinitionNode | undefined;
-    const fragments: ObjMap<FragmentDefinitionNode> = Object.create(null);
-    for (const definition of document.definitions) {
-      switch (definition.kind) {
-        case Kind.OPERATION_DEFINITION:
-          if (operationName == null) {
-            if (operation !== undefined) {
-              return [
-                new GraphQLError(
-                  'Must provide operation name if query contains multiple operations.',
-                ),
-              ];
-            }
-            operation = definition;
-          } else if (definition.name?.value === operationName) {
-            operation = definition;
-          }
-          break;
-        case Kind.FRAGMENT_DEFINITION:
-          fragments[definition.name.value] = definition;
-          break;
-        default:
-        // ignore non-executable definitions
+    for (const definition of operations) {
+      if (operationName == null) {
+        if (operation !== undefined) {
+          return [
+            new GraphQLError(
+              'Must provide operation name if query contains multiple operations.',
+            ),
+          ];
+        }
+        operation = definition;
+      } else if (definition.name?.value === operationName) {
+        operation = definition;
       }
     }
 
@@ -682,62 +717,12 @@ export class Executor {
   }
 
   /**
-   * Executes the root fields specified by the operation.
+   * Builds document context.
    */
-  executeRootFields(
-    exeContext: ExecutionContext,
-    fieldsExecutor: FieldsExecutor,
-  ): PromiseOrValue<ObjMap<unknown> | null> {
-    const {
-      fragments,
-      rootValue,
-      operation,
-      variableValues,
-      enableIncremental,
-      rootPayloadContext,
-    } = exeContext;
-
-    const {
-      rootType,
-      fieldsAndPatches: { fields, patches },
-    } = this.parseOperationRoot(
-      fragments,
-      variableValues,
-      operation,
-      enableIncremental,
-    );
-    const path = undefined;
-
-    const result = fieldsExecutor(
-      exeContext,
-      rootType,
-      rootValue,
-      path,
-      fields,
-      rootPayloadContext,
-    );
-
-    this.addPatches(
-      exeContext,
-      patches,
-      rootType,
-      rootValue,
-      path,
-      rootPayloadContext,
-    );
-
-    return result;
-  }
-
-  parseOperationRoot(
+  buildDocumentContext(
     fragments: ObjMap<FragmentDefinitionNode>,
-    variableValues: { [variable: string]: unknown },
     operation: OperationDefinitionNode,
-    enableIncremental: boolean,
-  ): {
-    rootType: GraphQLObjectType;
-    fieldsAndPatches: FieldsAndPatches;
-  } {
+  ): DocumentContext {
     const rootType = this._executorSchema.getRootType(operation.operation);
     if (rootType == null) {
       throw new GraphQLError(
@@ -746,17 +731,60 @@ export class Executor {
       );
     }
 
-    const fieldsAndPatches = this.collectFields(
+    const rootFieldsCollector = this.collectFields(
       fragments,
-      variableValues,
       rootType,
       operation.selectionSet,
-      enableIncremental,
     );
 
     return {
       rootType,
-      fieldsAndPatches,
+      rootFieldsCollector,
+    };
+  }
+
+  /**
+   * Builds an executor for query or mutation operations.
+   */
+  buildQueryOrMutationExecutor(
+    documentContext: DocumentContext,
+    rootFieldsExecutor: FieldsExecutor,
+  ): (exeContext: ExecutionContext) => PromiseOrValue<ObjMap<unknown> | null> {
+    const { rootType, rootFieldsCollector } = documentContext;
+
+    return (exeContext) => {
+      const {
+        rootValue,
+        variableValues,
+        enableIncremental,
+        rootPayloadContext,
+      } = exeContext;
+
+      const { fields, patches } = rootFieldsCollector(
+        variableValues,
+        enableIncremental,
+      );
+      const path = undefined;
+
+      const result = rootFieldsExecutor(
+        exeContext,
+        rootType,
+        rootValue,
+        path,
+        fields,
+        rootPayloadContext,
+      );
+
+      this.addPatches(
+        exeContext,
+        patches,
+        rootType,
+        rootValue,
+        path,
+        rootPayloadContext,
+      );
+
+      return result;
     };
   }
 
@@ -1614,9 +1642,14 @@ export class Executor {
     result: unknown,
     payloadContext: PayloadContext,
   ): PromiseOrValue<ObjMap<unknown>> {
+    const { fragments, variableValues, enableIncremental } = exeContext;
     // Collect sub-fields to execute to complete this value.
     const { fields: subFieldNodes, patches: subPatches } =
-      this.collectSubfields(exeContext, returnType, fieldNodes);
+      this.collectSubfields(
+        fragments,
+        returnType,
+        fieldNodes,
+      )(variableValues, enableIncremental);
 
     const subFields = this.executeFields(
       exeContext,
@@ -1729,7 +1762,10 @@ export class Executor {
     exeContext: ExecutionContext,
   ): Promise<AsyncIterable<unknown> | ExecutionResult> {
     try {
-      const eventStream = await this.executeSubscriptionRootField(exeContext);
+      const { fragments, operation } = exeContext;
+      const documentContext = this.buildDocumentContext(fragments, operation);
+      const executor = this.buildSubscriptionExecutor(documentContext);
+      const eventStream = await executor(exeContext);
 
       // Assert field returned an event stream, otherwise yield an error.
       if (!isAsyncIterable(eventStream)) {
@@ -1750,63 +1786,53 @@ export class Executor {
     }
   }
 
-  async executeSubscriptionRootField(
-    exeContext: ExecutionContext,
-  ): Promise<unknown> {
-    const {
-      fragments,
-      rootValue,
-      operation,
-      variableValues,
-      enableIncremental,
-    } = exeContext;
+  buildSubscriptionExecutor(
+    documentContext: DocumentContext,
+  ): (exeContext: ExecutionContext) => Promise<unknown> {
+    const { rootType, rootFieldsCollector } = documentContext;
 
-    const {
-      rootType,
-      fieldsAndPatches: { fields },
-    } = this.parseOperationRoot(
-      fragments,
-      variableValues,
-      operation,
-      enableIncremental,
-    );
+    return async (exeContext) => {
+      const { rootValue, variableValues, enableIncremental } = exeContext;
 
-    const [responseName, fieldNodes] = [...fields.entries()][0];
-    const fieldDef = this.getFieldDef(rootType, fieldNodes);
+      const { fields } = rootFieldsCollector(variableValues, enableIncremental);
 
-    if (!fieldDef) {
-      const fieldName = fieldNodes[0].name.value;
-      throw new GraphQLError(
-        `The subscription field "${fieldName}" is not defined.`,
-        fieldNodes,
-      );
-    }
+      const [responseName, fieldNodes] = [...fields.entries()][0];
+      const fieldDef = this.getFieldDef(rootType, fieldNodes);
 
-    const path = addPath(undefined, responseName, rootType.name);
-    const info = this.buildResolveInfo(
-      exeContext,
-      fieldDef,
-      fieldNodes,
-      rootType,
-      path,
-    );
+      if (!fieldDef) {
+        const fieldName = fieldNodes[0].name.value;
+        throw new GraphQLError(
+          `The subscription field "${fieldName}" is not defined.`,
+          fieldNodes,
+        );
+      }
 
-    try {
-      const eventStream = await exeContext.resolveField(
+      const path = addPath(undefined, responseName, rootType.name);
+      const info = this.buildResolveInfo(
         exeContext,
         fieldDef,
-        rootValue,
-        info,
         fieldNodes,
+        rootType,
+        path,
       );
 
-      if (eventStream instanceof Error) {
-        throw eventStream;
+      try {
+        const eventStream = await exeContext.resolveField(
+          exeContext,
+          fieldDef,
+          rootValue,
+          info,
+          fieldNodes,
+        );
+
+        if (eventStream instanceof Error) {
+          throw eventStream;
+        }
+        return eventStream;
+      } catch (error) {
+        throw locatedError(toError(error), fieldNodes, pathToArray(path));
       }
-      return eventStream;
-    } catch (error) {
-      throw locatedError(toError(error), fieldNodes, pathToArray(path));
-    }
+    };
   }
 
   executeSubscriptionEvent(
@@ -2218,24 +2244,28 @@ export class Executor {
    */
   collectFields(
     fragments: ObjMap<FragmentDefinitionNode>,
-    variableValues: { [variable: string]: unknown },
     runtimeType: GraphQLObjectType,
     selectionSet: SelectionSetNode,
-    enableIncremental = true,
-  ): FieldsAndPatches {
-    const fields = new Map();
-    const patches: Array<PatchFields> = [];
-    this.collectFieldsImpl(
-      fragments,
-      variableValues,
-      runtimeType,
-      selectionSet,
-      fields,
-      patches,
-      new Set(),
-      enableIncremental,
-    );
-    return { fields, patches };
+  ): (
+    variableValues: { [variable: string]: unknown },
+    enableIncremental?: boolean,
+  ) => FieldsAndPatches {
+    return (
+      variableValues: { [variable: string]: unknown },
+      enableIncremental = true,
+    ) => {
+      const fields = new Map();
+      const patches: Array<PatchFields> = [];
+      this.collectFieldsImpl(
+        fragments,
+        runtimeType,
+        selectionSet,
+        fields,
+        patches,
+        new Set(),
+      )(variableValues, enableIncremental);
+      return { fields, patches };
+    };
   }
 
   /**
@@ -2249,164 +2279,164 @@ export class Executor {
    * @internal
    */
   _collectSubfields(
-    exeContext: ExecutionContext,
+    fragments: ObjMap<FragmentDefinitionNode>,
     returnType: GraphQLObjectType,
     fieldNodes: ReadonlyArray<FieldNode>,
-  ): FieldsAndPatches {
-    const subFieldNodes = new Map();
-    const visitedFragmentNames = new Set<string>();
+  ): (
+    variableValues: { [variable: string]: unknown },
+    enableIncremental: boolean,
+  ) => FieldsAndPatches {
+    return (
+      variableValues: { [variable: string]: unknown },
+      enableIncremental: boolean,
+    ) => {
+      const subFieldNodes = new Map();
+      const visitedFragmentNames = new Set<string>();
 
-    const subPatches: Array<PatchFields> = [];
-    const subFieldsAndPatches = {
-      fields: subFieldNodes,
-      patches: subPatches,
-    };
+      const subPatches: Array<PatchFields> = [];
+      const subFieldsAndPatches = {
+        fields: subFieldNodes,
+        patches: subPatches,
+      };
 
-    const { fragments, variableValues, enableIncremental } = exeContext;
-
-    for (const node of fieldNodes) {
-      if (node.selectionSet) {
-        this.collectFieldsImpl(
-          fragments,
-          variableValues,
-          returnType,
-          node.selectionSet,
-          subFieldNodes,
-          subPatches,
-          visitedFragmentNames,
-          enableIncremental,
-        );
+      for (const node of fieldNodes) {
+        if (node.selectionSet) {
+          this.collectFieldsImpl(
+            fragments,
+            returnType,
+            node.selectionSet,
+            subFieldNodes,
+            subPatches,
+            visitedFragmentNames,
+          )(variableValues, enableIncremental);
+        }
       }
-    }
-    return subFieldsAndPatches;
+
+      return subFieldsAndPatches;
+    };
   }
 
   collectFieldsImpl(
     fragments: ObjMap<FragmentDefinitionNode>,
-    variableValues: { [variable: string]: unknown },
     runtimeType: GraphQLObjectType,
     selectionSet: SelectionSetNode,
     fields: Map<string, Array<FieldNode>>,
     patches: Array<PatchFields>,
     visitedFragmentNames: Set<string>,
-    enableIncremental: boolean,
-  ): void {
-    for (const selection of selectionSet.selections) {
-      switch (selection.kind) {
-        case Kind.FIELD: {
-          if (!this.shouldIncludeNode(variableValues, selection)) {
-            continue;
+  ): (
+    variableValues: { [variable: string]: unknown },
+    enableIncremental?: boolean,
+  ) => void {
+    return (variableValues, enableIncremental = true) => {
+      for (const selection of selectionSet.selections) {
+        switch (selection.kind) {
+          case Kind.FIELD: {
+            if (!this.shouldIncludeNode(variableValues, selection)) {
+              continue;
+            }
+            const name = this.getFieldEntryKey(selection);
+            const fieldList = fields.get(name);
+            if (fieldList !== undefined) {
+              fields.set(name, this.updateFieldList(fieldList, selection));
+            } else {
+              fields.set(name, this.createFieldList(selection));
+            }
+            break;
           }
-          const name = this.getFieldEntryKey(selection);
-          const fieldList = fields.get(name);
-          if (fieldList !== undefined) {
-            fields.set(name, this.updateFieldList(fieldList, selection));
-          } else {
-            fields.set(name, this.createFieldList(selection));
-          }
-          break;
-        }
-        case Kind.INLINE_FRAGMENT: {
-          if (
-            !this.shouldIncludeNode(variableValues, selection) ||
-            !this.doesFragmentConditionMatch(selection, runtimeType)
-          ) {
-            continue;
-          }
+          case Kind.INLINE_FRAGMENT: {
+            if (
+              !this.shouldIncludeNode(variableValues, selection) ||
+              !this.doesFragmentConditionMatch(selection, runtimeType)
+            ) {
+              continue;
+            }
 
-          const defer = this.getDeferValues(
-            variableValues,
-            selection,
-            enableIncremental,
-          );
-
-          if (defer) {
-            const patchFields = new Map();
-            this.collectFieldsImpl(
-              fragments,
+            const defer = this.getDeferValues(
               variableValues,
-              runtimeType,
-              selection.selectionSet,
-              patchFields,
-              patches,
-              visitedFragmentNames,
+              selection,
               enableIncremental,
             );
-            patches.push({
-              label: defer.label,
-              fields: patchFields,
-            });
-          } else {
-            this.collectFieldsImpl(
-              fragments,
+
+            if (defer) {
+              const patchFields = new Map();
+              this.collectFieldsImpl(
+                fragments,
+                runtimeType,
+                selection.selectionSet,
+                patchFields,
+                patches,
+                visitedFragmentNames,
+              )(variableValues, enableIncremental);
+              patches.push({
+                label: defer.label,
+                fields: patchFields,
+              });
+            } else {
+              this.collectFieldsImpl(
+                fragments,
+                runtimeType,
+                selection.selectionSet,
+                fields,
+                patches,
+                visitedFragmentNames,
+              )(variableValues, enableIncremental);
+            }
+            break;
+          }
+          case Kind.FRAGMENT_SPREAD: {
+            const fragName = selection.name.value;
+
+            if (!this.shouldIncludeNode(variableValues, selection)) {
+              continue;
+            }
+
+            const defer = this.getDeferValues(
               variableValues,
-              runtimeType,
-              selection.selectionSet,
-              fields,
-              patches,
-              visitedFragmentNames,
+              selection,
               enableIncremental,
             );
-          }
-          break;
-        }
-        case Kind.FRAGMENT_SPREAD: {
-          const fragName = selection.name.value;
+            if (visitedFragmentNames.has(fragName) && !defer) {
+              continue;
+            }
 
-          if (!this.shouldIncludeNode(variableValues, selection)) {
-            continue;
-          }
+            const fragment = fragments[fragName];
+            if (
+              !fragment ||
+              !this.doesFragmentConditionMatch(fragment, runtimeType)
+            ) {
+              continue;
+            }
+            visitedFragmentNames.add(fragName);
 
-          const defer = this.getDeferValues(
-            variableValues,
-            selection,
-            enableIncremental,
-          );
-          if (visitedFragmentNames.has(fragName) && !defer) {
-            continue;
+            if (defer) {
+              const patchFields = new Map();
+              this.collectFieldsImpl(
+                fragments,
+                runtimeType,
+                fragment.selectionSet,
+                patchFields,
+                patches,
+                visitedFragmentNames,
+              )(variableValues, enableIncremental);
+              patches.push({
+                label: defer.label,
+                fields: patchFields,
+              });
+            } else {
+              this.collectFieldsImpl(
+                fragments,
+                runtimeType,
+                fragment.selectionSet,
+                fields,
+                patches,
+                visitedFragmentNames,
+              )(variableValues, enableIncremental);
+            }
+            break;
           }
-
-          const fragment = fragments[fragName];
-          if (
-            !fragment ||
-            !this.doesFragmentConditionMatch(fragment, runtimeType)
-          ) {
-            continue;
-          }
-          visitedFragmentNames.add(fragName);
-
-          if (defer) {
-            const patchFields = new Map();
-            this.collectFieldsImpl(
-              fragments,
-              variableValues,
-              runtimeType,
-              fragment.selectionSet,
-              patchFields,
-              patches,
-              visitedFragmentNames,
-              enableIncremental,
-            );
-            patches.push({
-              label: defer.label,
-              fields: patchFields,
-            });
-          } else {
-            this.collectFieldsImpl(
-              fragments,
-              variableValues,
-              runtimeType,
-              fragment.selectionSet,
-              fields,
-              patches,
-              visitedFragmentNames,
-              enableIncremental,
-            );
-          }
-          break;
         }
       }
-    }
+    };
   }
 
   /**

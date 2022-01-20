@@ -77,22 +77,20 @@ describe('collectFields', () => {
   it('memoizes', () => {
     const { fields: fields1 } = executor.collectFields(
       fragments,
-      {
-        skipFirst: false,
-        skipSecond: false,
-      },
       query,
       selectionSet,
-    );
+    )({
+      skipFirst: false,
+      skipSecond: false,
+    });
     const { fields: fields2 } = executor.collectFields(
       fragments,
-      {
-        skipFirst: false,
-        skipSecond: false,
-      },
       query,
       selectionSet,
-    );
+    )({
+      skipFirst: false,
+      skipSecond: false,
+    });
 
     const heroFieldNodes1 = fields1.get('hero');
     const heroFieldNodes2 = fields2.get('hero');
@@ -103,22 +101,20 @@ describe('collectFields', () => {
   it('does not yet (?) memoize everything', () => {
     const { fields: fields1 } = executor.collectFields(
       fragments,
-      {
-        skipFirst: true,
-        skipSecond: false,
-      },
       query,
       selectionSet,
-    );
+    )({
+      skipFirst: true,
+      skipSecond: false,
+    });
     const { fields: fields2 } = executor.collectFields(
       fragments,
-      {
-        skipFirst: false,
-        skipSecond: true,
-      },
       query,
       selectionSet,
-    );
+    )({
+      skipFirst: false,
+      skipSecond: true,
+    });
 
     const heroFieldNodes1 = fields1.get('hero');
     const heroFieldNodes2 = fields2.get('hero');
