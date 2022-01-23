@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
-import type { FragmentDefinitionNode, OperationDefinitionNode } from 'graphql';
+import type { OperationDefinitionNode } from 'graphql';
 import {
   GraphQLID,
   GraphQLList,
@@ -12,7 +12,8 @@ import {
 } from 'graphql';
 
 import { toExecutorSchema } from '../toExecutorSchema';
-import { Executor } from '..';
+import type { ExecutionContext } from '../executor';
+import { Executor } from '../executor';
 
 const friendType = new GraphQLObjectType({
   fields: {
@@ -68,28 +69,23 @@ fragment HeroFragment2 on Query {
 
 const selectionSet = (document.definitions[0] as OperationDefinitionNode)
   .selectionSet;
-const fragments = {
-  HeroFragment1: document.definitions[1] as FragmentDefinitionNode,
-  HeroFragment2: document.definitions[2] as FragmentDefinitionNode,
-};
 
 describe('collectFields', () => {
   it('memoizes', () => {
-    const { fields: fields1 } = executor.collectFields(
-      fragments,
-      {
+    const exeContext = executor.buildExecutionContext({
+      document,
+      variableValues: {
         skipFirst: false,
         skipSecond: false,
       },
+    }) as ExecutionContext;
+    const { fields: fields1 } = executor.collectFields(
+      exeContext,
       query,
       selectionSet,
     );
     const { fields: fields2 } = executor.collectFields(
-      fragments,
-      {
-        skipFirst: false,
-        skipSecond: false,
-      },
+      exeContext,
       query,
       selectionSet,
     );
@@ -101,21 +97,27 @@ describe('collectFields', () => {
   });
 
   it('does not yet (?) memoize everything', () => {
-    const { fields: fields1 } = executor.collectFields(
-      fragments,
-      {
+    const skipFirstExeContext = executor.buildExecutionContext({
+      document,
+      variableValues: {
         skipFirst: true,
         skipSecond: false,
       },
+    }) as ExecutionContext;
+    const { fields: fields1 } = executor.collectFields(
+      skipFirstExeContext,
       query,
       selectionSet,
     );
-    const { fields: fields2 } = executor.collectFields(
-      fragments,
-      {
+    const skipSecondExeContext = executor.buildExecutionContext({
+      document,
+      variableValues: {
         skipFirst: false,
         skipSecond: true,
       },
+    }) as ExecutionContext;
+    const { fields: fields2 } = executor.collectFields(
+      skipSecondExeContext,
       query,
       selectionSet,
     );
