@@ -46,7 +46,7 @@ import type { ExecutorSchema } from './executorSchema';
 /**
  * Data that must be available at all points during query execution.
  */
-interface ExecutionContext {
+export interface ExecutionContext {
   fragments: ObjMap<FragmentDefinitionNode>;
   rootValue: unknown;
   contextValue: unknown;
@@ -58,6 +58,8 @@ interface ExecutionContext {
   typeResolver: GraphQLTypeResolver<any, any>;
   forceQueryAlgorithm: boolean;
   enableIncremental: boolean;
+  getDeferValues: DeferValuesGetter;
+  getStreamValues: StreamValuesGetter;
   resolveField: FieldResolver;
   rootPayloadContext: PayloadContext;
   iterators: Set<AsyncIterator<unknown>>;
@@ -161,6 +163,27 @@ export declare type FieldResolver = (
   info: GraphQLResolveInfo,
   fieldNodes: ReadonlyArray<FieldNode>,
 ) => unknown;
+export declare type DeferValuesGetter = (
+  variableValues: {
+    [variable: string]: unknown;
+  },
+  node: FragmentSpreadNode | InlineFragmentNode,
+) =>
+  | undefined
+  | {
+      label?: string;
+    };
+export declare type StreamValuesGetter = (
+  variableValues: {
+    [variable: string]: unknown;
+  },
+  fieldNodes: ReadonlyArray<FieldNode>,
+) =>
+  | undefined
+  | {
+      initialCount?: number;
+      label?: string;
+    };
 /**
  * Executor class responsible for implementing the Execution section of the GraphQL spec.
  *
@@ -360,12 +383,8 @@ export declare class Executor {
     fieldsExecutor: FieldsExecutor,
   ): PromiseOrValue<ObjMap<unknown> | null>;
   parseOperationRoot(
-    fragments: ObjMap<FragmentDefinitionNode>,
-    variableValues: {
-      [variable: string]: unknown;
-    },
+    exeContext: ExecutionContext,
     operation: OperationDefinitionNode,
-    enableIncremental: boolean,
   ): {
     rootType: GraphQLObjectType;
     fieldsAndPatches: FieldsAndPatches;
@@ -467,8 +486,10 @@ export declare class Executor {
    * streamed based on the experimental flag, stream directive present and
    * not disabled by the "if" argument.
    */
-  getStreamValues(
-    exeContext: ExecutionContext,
+  _getStreamValues(
+    variableValues: {
+      [variable: string]: unknown;
+    },
     fieldNodes: ReadonlyArray<FieldNode>,
   ):
     | undefined
@@ -692,13 +713,9 @@ export declare class Executor {
    * object type returned by that field.
    */
   collectFields(
-    fragments: ObjMap<FragmentDefinitionNode>,
-    variableValues: {
-      [variable: string]: unknown;
-    },
+    exeContext: ExecutionContext,
     runtimeType: GraphQLObjectType,
     selectionSet: SelectionSetNode,
-    enableIncremental?: boolean,
   ): FieldsAndPatches;
   /**
    * Given an array of field nodes, collects all of the subfields of the passed
@@ -716,28 +733,23 @@ export declare class Executor {
     fieldNodes: ReadonlyArray<FieldNode>,
   ): FieldsAndPatches;
   collectFieldsImpl(
-    fragments: ObjMap<FragmentDefinitionNode>,
-    variableValues: {
-      [variable: string]: unknown;
-    },
+    exeContext: ExecutionContext,
     runtimeType: GraphQLObjectType,
     selectionSet: SelectionSetNode,
     fields: Map<string, Array<FieldNode>>,
     patches: Array<PatchFields>,
     visitedFragmentNames: Set<string>,
-    enableIncremental: boolean,
   ): void;
   /**
    * Returns an object containing the `@defer` arguments if a field should be
    * deferred based on the experimental flag, defer directive present and
    * not disabled by the "if" argument.
    */
-  getDeferValues(
+  _getDeferValues(
     variableValues: {
       [variable: string]: unknown;
     },
     node: FragmentSpreadNode | InlineFragmentNode,
-    enableIncremental: boolean,
   ):
     | undefined
     | {
