@@ -91,7 +91,7 @@ import { flattenAsyncIterable } from './flattenAsyncIterable';
 /**
  * Data that must be available at all points during query execution.
  */
-interface ExecutionContext {
+export interface ExecutionContext {
   fragments: ObjMap<FragmentDefinitionNode>;
   rootValue: unknown;
   contextValue: unknown;
@@ -101,6 +101,8 @@ interface ExecutionContext {
   typeResolver: GraphQLTypeResolver<any, any>;
   forceQueryAlgorithm: boolean;
   enableIncremental: boolean;
+  getDeferValues: DeferValuesGetter;
+  getStreamValues: StreamValuesGetter;
   resolveField: FieldResolver;
   rootPayloadContext: PayloadContext;
   iterators: Set<AsyncIterator<unknown>>;
@@ -212,6 +214,21 @@ export type FieldResolver = (
   info: GraphQLResolveInfo,
   fieldNodes: ReadonlyArray<FieldNode>,
 ) => unknown;
+
+export type DeferValuesGetter = (
+  variableValues: { [variable: string]: unknown },
+  node: FragmentSpreadNode | InlineFragmentNode,
+) => undefined | { label?: string };
+
+export type StreamValuesGetter = (
+  variableValues: { [variable: string]: unknown },
+  fieldNodes: ReadonlyArray<FieldNode>,
+) =>
+  | undefined
+  | {
+      initialCount?: number;
+      label?: string;
+    };
 
 /**
  * Executor class responsible for implementing the Execution section of the GraphQL spec.
@@ -625,6 +642,7 @@ export class Executor {
       return coercedVariableValues.errors;
     }
 
+    const enableIncrementalFlagValue = enableIncremental ?? true;
     const defaultResolveFieldValueFn = fieldResolver ?? defaultFieldResolver;
     return {
       fragments,
@@ -635,7 +653,13 @@ export class Executor {
       fieldResolver: defaultResolveFieldValueFn,
       typeResolver: typeResolver ?? defaultTypeResolver,
       forceQueryAlgorithm: forceQueryAlgorithm ?? false,
-      enableIncremental: enableIncremental ?? true,
+      enableIncremental: enableIncrementalFlagValue,
+      getDeferValues: enableIncrementalFlagValue
+        ? this._getDeferValues.bind(this)
+        : () => undefined,
+      getStreamValues: enableIncrementalFlagValue
+        ? this._getStreamValues.bind(this)
+        : () => undefined,
       resolveField:
         operation.operation === 'subscription' && !forceQueryAlgorithm
           ? this.buildFieldResolver(
@@ -688,24 +712,12 @@ export class Executor {
     exeContext: ExecutionContext,
     fieldsExecutor: FieldsExecutor,
   ): PromiseOrValue<ObjMap<unknown> | null> {
-    const {
-      fragments,
-      rootValue,
-      operation,
-      variableValues,
-      enableIncremental,
-      rootPayloadContext,
-    } = exeContext;
+    const { rootValue, operation, rootPayloadContext } = exeContext;
 
     const {
       rootType,
       fieldsAndPatches: { fields, patches },
-    } = this.parseOperationRoot(
-      fragments,
-      variableValues,
-      operation,
-      enableIncremental,
-    );
+    } = this.parseOperationRoot(exeContext, operation);
     const path = undefined;
 
     const result = fieldsExecutor(
@@ -730,10 +742,8 @@ export class Executor {
   }
 
   parseOperationRoot(
-    fragments: ObjMap<FragmentDefinitionNode>,
-    variableValues: { [variable: string]: unknown },
+    exeContext: ExecutionContext,
     operation: OperationDefinitionNode,
-    enableIncremental: boolean,
   ): {
     rootType: GraphQLObjectType;
     fieldsAndPatches: FieldsAndPatches;
@@ -747,11 +757,9 @@ export class Executor {
     }
 
     const fieldsAndPatches = this.collectFields(
-      fragments,
-      variableValues,
+      exeContext,
       rootType,
       operation.selectionSet,
-      enableIncremental,
     );
 
     return {
@@ -1146,8 +1154,8 @@ export class Executor {
    * streamed based on the experimental flag, stream directive present and
    * not disabled by the "if" argument.
    */
-  getStreamValues(
-    exeContext: ExecutionContext,
+  _getStreamValues(
+    variableValues: { [variable: string]: unknown },
     fieldNodes: ReadonlyArray<FieldNode>,
   ):
     | undefined
@@ -1155,16 +1163,13 @@ export class Executor {
         initialCount?: number;
         label?: string;
       } {
-    if (!exeContext.enableIncremental) {
-      return;
-    }
     // validation only allows equivalent streams on multiple fields, so it is
     // safe to only check the first fieldNode for the stream directive
     const stream = getDirectiveValues(
       this._executorSchema,
       GraphQLStreamDirective,
       fieldNodes[0],
-      exeContext.variableValues,
+      variableValues,
     );
 
     if (!stream) {
@@ -1203,7 +1208,10 @@ export class Executor {
     iterator: Iterator<unknown>,
     payloadContext: PayloadContext,
   ): PromiseOrValue<ReadonlyArray<unknown>> {
-    const stream = this.getStreamValues(exeContext, fieldNodes);
+    const stream = exeContext.getStreamValues(
+      exeContext.variableValues,
+      fieldNodes,
+    );
 
     // This is specified as a simple map, however we're optimizing the path
     // where the list contains no Promises by avoiding creating another Promise.
@@ -1271,7 +1279,10 @@ export class Executor {
     iterator: AsyncIterator<unknown>,
     payloadContext: PayloadContext,
   ): Promise<ReadonlyArray<unknown>> {
-    const stream = this.getStreamValues(exeContext, fieldNodes);
+    const stream = exeContext.getStreamValues(
+      exeContext.variableValues,
+      fieldNodes,
+    );
 
     // This is specified as a simple map, however we're optimizing the path
     // where the list contains no Promises by avoiding creating another Promise.
@@ -1753,23 +1764,12 @@ export class Executor {
   async executeSubscriptionRootField(
     exeContext: ExecutionContext,
   ): Promise<unknown> {
-    const {
-      fragments,
-      rootValue,
-      operation,
-      variableValues,
-      enableIncremental,
-    } = exeContext;
+    const { rootValue, operation } = exeContext;
 
     const {
       rootType,
       fieldsAndPatches: { fields },
-    } = this.parseOperationRoot(
-      fragments,
-      variableValues,
-      operation,
-      enableIncremental,
-    );
+    } = this.parseOperationRoot(exeContext, operation);
 
     const [responseName, fieldNodes] = [...fields.entries()][0];
     const fieldDef = this.getFieldDef(rootType, fieldNodes);
@@ -2217,23 +2217,19 @@ export class Executor {
    * object type returned by that field.
    */
   collectFields(
-    fragments: ObjMap<FragmentDefinitionNode>,
-    variableValues: { [variable: string]: unknown },
+    exeContext: ExecutionContext,
     runtimeType: GraphQLObjectType,
     selectionSet: SelectionSetNode,
-    enableIncremental = true,
   ): FieldsAndPatches {
     const fields = new Map();
     const patches: Array<PatchFields> = [];
     this.collectFieldsImpl(
-      fragments,
-      variableValues,
+      exeContext,
       runtimeType,
       selectionSet,
       fields,
       patches,
       new Set(),
-      enableIncremental,
     );
     return { fields, patches };
   }
@@ -2262,19 +2258,15 @@ export class Executor {
       patches: subPatches,
     };
 
-    const { fragments, variableValues, enableIncremental } = exeContext;
-
     for (const node of fieldNodes) {
       if (node.selectionSet) {
         this.collectFieldsImpl(
-          fragments,
-          variableValues,
+          exeContext,
           returnType,
           node.selectionSet,
           subFieldNodes,
           subPatches,
           visitedFragmentNames,
-          enableIncremental,
         );
       }
     }
@@ -2282,15 +2274,14 @@ export class Executor {
   }
 
   collectFieldsImpl(
-    fragments: ObjMap<FragmentDefinitionNode>,
-    variableValues: { [variable: string]: unknown },
+    exeContext: ExecutionContext,
     runtimeType: GraphQLObjectType,
     selectionSet: SelectionSetNode,
     fields: Map<string, Array<FieldNode>>,
     patches: Array<PatchFields>,
     visitedFragmentNames: Set<string>,
-    enableIncremental: boolean,
   ): void {
+    const { fragments, variableValues, getDeferValues } = exeContext;
     for (const selection of selectionSet.selections) {
       switch (selection.kind) {
         case Kind.FIELD: {
@@ -2314,23 +2305,17 @@ export class Executor {
             continue;
           }
 
-          const defer = this.getDeferValues(
-            variableValues,
-            selection,
-            enableIncremental,
-          );
+          const defer = getDeferValues(variableValues, selection);
 
           if (defer) {
             const patchFields = new Map();
             this.collectFieldsImpl(
-              fragments,
-              variableValues,
+              exeContext,
               runtimeType,
               selection.selectionSet,
               patchFields,
               patches,
               visitedFragmentNames,
-              enableIncremental,
             );
             patches.push({
               label: defer.label,
@@ -2338,14 +2323,12 @@ export class Executor {
             });
           } else {
             this.collectFieldsImpl(
-              fragments,
-              variableValues,
+              exeContext,
               runtimeType,
               selection.selectionSet,
               fields,
               patches,
               visitedFragmentNames,
-              enableIncremental,
             );
           }
           break;
@@ -2357,11 +2340,7 @@ export class Executor {
             continue;
           }
 
-          const defer = this.getDeferValues(
-            variableValues,
-            selection,
-            enableIncremental,
-          );
+          const defer = getDeferValues(variableValues, selection);
           if (visitedFragmentNames.has(fragName) && !defer) {
             continue;
           }
@@ -2378,14 +2357,12 @@ export class Executor {
           if (defer) {
             const patchFields = new Map();
             this.collectFieldsImpl(
-              fragments,
-              variableValues,
+              exeContext,
               runtimeType,
               fragment.selectionSet,
               patchFields,
               patches,
               visitedFragmentNames,
-              enableIncremental,
             );
             patches.push({
               label: defer.label,
@@ -2393,14 +2370,12 @@ export class Executor {
             });
           } else {
             this.collectFieldsImpl(
-              fragments,
-              variableValues,
+              exeContext,
               runtimeType,
               fragment.selectionSet,
               fields,
               patches,
               visitedFragmentNames,
-              enableIncremental,
             );
           }
           break;
@@ -2414,15 +2389,10 @@ export class Executor {
    * deferred based on the experimental flag, defer directive present and
    * not disabled by the "if" argument.
    */
-  getDeferValues(
+  _getDeferValues(
     variableValues: { [variable: string]: unknown },
     node: FragmentSpreadNode | InlineFragmentNode,
-    enableIncremental: boolean,
   ): undefined | { label?: string } {
-    if (!enableIncremental) {
-      return;
-    }
-
     const defer = getDirectiveValues(
       this._executorSchema,
       GraphQLDeferDirective,
