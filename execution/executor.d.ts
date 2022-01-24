@@ -43,6 +43,10 @@ import type { ExecutorSchema } from './executorSchema';
  * 2) fragment "spreads" e.g. `...c`
  * 3) inline fragment "spreads" e.g. `...on Type { a }`
  */
+export interface OperationContext {
+  operation: OperationDefinitionNode;
+  fragments: ObjMap<FragmentDefinitionNode>;
+}
 /**
  * Data that must be available at all points during query execution.
  */
@@ -198,6 +202,14 @@ export declare type StreamValuesGetter = (
  * @internal
  */
 export declare class Executor {
+  splitDefinitions: (a1: DocumentNode) => {
+    operations: ReadonlyArray<OperationDefinitionNode>;
+    fragments: ObjMap<FragmentDefinitionNode>;
+  };
+  selectOperation: (
+    a1: readonly OperationDefinitionNode[],
+    a2: Maybe<string>,
+  ) => OperationDefinitionNode | readonly GraphQLError[];
   /**
    * A memoized collection of relevant subfields with regard to the return
    * type. Memoizing ensures the subfields are not repeatedly calculated, which
@@ -357,6 +369,24 @@ export declare class Executor {
     info: GraphQLResolveInfo,
     fieldNodes: ReadonlyArray<FieldNode>,
   ) => unknown;
+  _splitDefinitions(document: DocumentNode): {
+    operations: ReadonlyArray<OperationDefinitionNode>;
+    fragments: ObjMap<FragmentDefinitionNode>;
+  };
+  _selectOperation(
+    operations: ReadonlyArray<OperationDefinitionNode>,
+    operationName: Maybe<string>,
+  ): ReadonlyArray<GraphQLError> | OperationDefinitionNode;
+  /**
+   * Constructs a OperationContext object given an a document and operationName.
+   *
+   * Returns an array of GraphQLErrors if a valid operation context
+   * cannot be created.
+   */
+  buildOperationContext(
+    document: DocumentNode,
+    operationName: Maybe<string>,
+  ): ReadonlyArray<GraphQLError> | OperationContext;
   /**
    * Constructs a ExecutionContext object from the arguments passed to
    * execute, which we will pass throughout the other execution methods.

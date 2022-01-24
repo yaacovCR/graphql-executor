@@ -16,6 +16,8 @@ var _inspect = require('../jsutils/inspect.js');
 
 var _memoize = require('../jsutils/memoize1.js');
 
+var _memoize1and = require('../jsutils/memoize1and1.js');
+
 var _memoize2 = require('../jsutils/memoize2.js');
 
 var _memoize3 = require('../jsutils/memoize3.js');
@@ -107,6 +109,20 @@ class Executor {
    * field list can be memoized.
    */
   constructor(executorArgs) {
+    _defineProperty(
+      this,
+      'splitDefinitions',
+      (0, _memoize.memoize1)((document) => this._splitDefinitions(document)),
+    );
+
+    _defineProperty(
+      this,
+      'selectOperation',
+      (0, _memoize1and.memoize1and1)((operations, operationName) =>
+        this._selectOperation(operations, operationName),
+      ),
+    );
+
     _defineProperty(
       this,
       'collectSubfields',
@@ -395,6 +411,90 @@ class Executor {
       );
   }
 
+  _splitDefinitions(document) {
+    const operations = [];
+    const fragments = Object.create(null);
+
+    for (const definition of document.definitions) {
+      switch (definition.kind) {
+        case _graphql.Kind.OPERATION_DEFINITION:
+          operations.push(definition);
+          break;
+
+        case _graphql.Kind.FRAGMENT_DEFINITION:
+          fragments[definition.name.value] = definition;
+          break;
+
+        default: // ignore non-executable definitions
+      }
+    }
+
+    return {
+      operations,
+      fragments,
+    };
+  }
+
+  _selectOperation(operations, operationName) {
+    let operation;
+
+    for (const possibleOperation of operations) {
+      var _possibleOperation$na;
+
+      if (operationName == null) {
+        if (operation !== undefined) {
+          return [
+            new _graphql.GraphQLError(
+              'Must provide operation name if query contains multiple operations.',
+            ),
+          ];
+        }
+
+        operation = possibleOperation;
+      } else if (
+        ((_possibleOperation$na = possibleOperation.name) === null ||
+        _possibleOperation$na === void 0
+          ? void 0
+          : _possibleOperation$na.value) === operationName
+      ) {
+        operation = possibleOperation;
+      }
+    }
+
+    if (!operation) {
+      if (operationName != null) {
+        return [
+          new _graphql.GraphQLError(
+            `Unknown operation named "${operationName}".`,
+          ),
+        ];
+      }
+
+      return [new _graphql.GraphQLError('Must provide an operation.')];
+    }
+
+    return operation;
+  }
+  /**
+   * Constructs a OperationContext object given an a document and operationName.
+   *
+   * Returns an array of GraphQLErrors if a valid operation context
+   * cannot be created.
+   */
+
+  buildOperationContext(document, operationName) {
+    const { operations, fragments } = this.splitDefinitions(document);
+    const selectedOperation = this.selectOperation(operations, operationName);
+
+    if ('length' in selectedOperation) {
+      return selectedOperation;
+    }
+
+    return {
+      operation: selectedOperation,
+      fragments,
+    };
+  }
   /**
    * Constructs a ExecutionContext object from the arguments passed to
    * execute, which we will pass throughout the other execution methods.
@@ -402,8 +502,9 @@ class Executor {
    * Returns an array of GraphQLErrors if a valid execution context
    * cannot be created.
    */
+
   buildExecutionContext(args) {
-    var _definition$name, _operation$variableDe;
+    var _operation$variableDe;
 
     const {
       document,
@@ -420,52 +521,16 @@ class Executor {
     // developer mistake which should throw an error.
 
     this.assertValidExecutionArguments(document, rawVariableValues);
-    let operation;
-    const fragments = Object.create(null);
+    const operationContext = this.buildOperationContext(
+      document,
+      operationName,
+    );
 
-    for (const definition of document.definitions) {
-      switch (definition.kind) {
-        case _graphql.Kind.OPERATION_DEFINITION:
-          if (operationName == null) {
-            if (operation !== undefined) {
-              return [
-                new _graphql.GraphQLError(
-                  'Must provide operation name if query contains multiple operations.',
-                ),
-              ];
-            }
-
-            operation = definition;
-          } else if (
-            ((_definition$name = definition.name) === null ||
-            _definition$name === void 0
-              ? void 0
-              : _definition$name.value) === operationName
-          ) {
-            operation = definition;
-          }
-
-          break;
-
-        case _graphql.Kind.FRAGMENT_DEFINITION:
-          fragments[definition.name.value] = definition;
-          break;
-
-        default: // ignore non-executable definitions
-      }
+    if ('length' in operationContext) {
+      return operationContext;
     }
 
-    if (!operation) {
-      if (operationName != null) {
-        return [
-          new _graphql.GraphQLError(
-            `Unknown operation named "${operationName}".`,
-          ),
-        ];
-      }
-
-      return [new _graphql.GraphQLError('Must provide an operation.')];
-    } // See: 'https://github.com/graphql/graphql-js/issues/2203'
+    const { operation, fragments } = operationContext; // See: 'https://github.com/graphql/graphql-js/issues/2203'
 
     const variableDefinitions =
       /* c8 ignore next */
