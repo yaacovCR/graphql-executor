@@ -39,6 +39,7 @@ import type { Maybe } from '../jsutils/Maybe.ts';
 import type { Push, Stop } from '../jsutils/repeater.ts';
 import { inspect } from '../jsutils/inspect.ts';
 import { memoize1 } from '../jsutils/memoize1.ts';
+import { memoize1and1 } from '../jsutils/memoize1and1.ts';
 import { memoize2 } from '../jsutils/memoize2.ts';
 import { memoize3 } from '../jsutils/memoize3.ts';
 import { invariant } from '../jsutils/invariant.ts';
@@ -82,6 +83,10 @@ import { flattenAsyncIterable } from './flattenAsyncIterable.ts';
  * 3) inline fragment "spreads" e.g. `...on Type { a }`
  */
 
+export interface OperationContext {
+  operation: OperationDefinitionNode;
+  fragments: ObjMap<FragmentDefinitionNode>;
+}
 /**
  * Data that must be available at all points during query execution.
  */
@@ -239,11 +244,21 @@ export type StreamValuesGetter = (
  */
 
 export class Executor {
+  splitDefinitions = memoize1((document: DocumentNode) =>
+    this._splitDefinitions(document),
+  );
+  selectOperation = memoize1and1(
+    (
+      operations: ReadonlyArray<OperationDefinitionNode>,
+      operationName: Maybe<string>,
+    ) => this._selectOperation(operations, operationName),
+  );
   /**
    * A memoized collection of relevant subfields with regard to the return
    * type. Memoizing ensures the subfields are not repeatedly calculated, which
    * saves overhead when resolving lists of values.
    */
+
   collectSubfields = memoize3(
     (
       exeContext: ExecutionContext,
@@ -567,6 +582,91 @@ export class Executor {
 
       return resolveFn(source, args, contextValue, info);
     };
+
+  _splitDefinitions(document: DocumentNode): {
+    operations: ReadonlyArray<OperationDefinitionNode>;
+    fragments: ObjMap<FragmentDefinitionNode>;
+  } {
+    const operations: Array<OperationDefinitionNode> = [];
+    const fragments: ObjMap<FragmentDefinitionNode> = Object.create(null);
+
+    for (const definition of document.definitions) {
+      switch (definition.kind) {
+        case Kind.OPERATION_DEFINITION:
+          operations.push(definition);
+          break;
+
+        case Kind.FRAGMENT_DEFINITION:
+          fragments[definition.name.value] = definition;
+          break;
+
+        default: // ignore non-executable definitions
+      }
+    }
+
+    return {
+      operations,
+      fragments,
+    };
+  }
+
+  _selectOperation(
+    operations: ReadonlyArray<OperationDefinitionNode>,
+    operationName: Maybe<string>,
+  ): ReadonlyArray<GraphQLError> | OperationDefinitionNode {
+    let operation: OperationDefinitionNode | undefined;
+
+    for (const possibleOperation of operations) {
+      if (operationName == null) {
+        if (operation !== undefined) {
+          return [
+            new GraphQLError(
+              'Must provide operation name if query contains multiple operations.',
+            ),
+          ];
+        }
+
+        operation = possibleOperation;
+      } else if (possibleOperation.name?.value === operationName) {
+        operation = possibleOperation;
+      }
+    }
+
+    if (!operation) {
+      if (operationName != null) {
+        return [
+          new GraphQLError(`Unknown operation named "${operationName}".`),
+        ];
+      }
+
+      return [new GraphQLError('Must provide an operation.')];
+    }
+
+    return operation;
+  }
+  /**
+   * Constructs a OperationContext object given an a document and operationName.
+   *
+   * Returns an array of GraphQLErrors if a valid operation context
+   * cannot be created.
+   */
+
+  buildOperationContext(
+    document: DocumentNode,
+    operationName: Maybe<string>,
+  ): ReadonlyArray<GraphQLError> | OperationContext {
+    const { operations, fragments } = this.splitDefinitions(document);
+    const selectedOperation = this.selectOperation(operations, operationName);
+
+    if ('length' in selectedOperation) {
+      return selectedOperation;
+    }
+
+    return {
+      operation: selectedOperation,
+      fragments,
+    };
+  }
   /**
    * Constructs a ExecutionContext object from the arguments passed to
    * execute, which we will pass throughout the other execution methods.
@@ -593,45 +693,16 @@ export class Executor {
     // developer mistake which should throw an error.
 
     this.assertValidExecutionArguments(document, rawVariableValues);
-    let operation: OperationDefinitionNode | undefined;
-    const fragments: ObjMap<FragmentDefinitionNode> = Object.create(null);
+    const operationContext = this.buildOperationContext(
+      document,
+      operationName,
+    );
 
-    for (const definition of document.definitions) {
-      switch (definition.kind) {
-        case Kind.OPERATION_DEFINITION:
-          if (operationName == null) {
-            if (operation !== undefined) {
-              return [
-                new GraphQLError(
-                  'Must provide operation name if query contains multiple operations.',
-                ),
-              ];
-            }
-
-            operation = definition;
-          } else if (definition.name?.value === operationName) {
-            operation = definition;
-          }
-
-          break;
-
-        case Kind.FRAGMENT_DEFINITION:
-          fragments[definition.name.value] = definition;
-          break;
-
-        default: // ignore non-executable definitions
-      }
+    if ('length' in operationContext) {
+      return operationContext;
     }
 
-    if (!operation) {
-      if (operationName != null) {
-        return [
-          new GraphQLError(`Unknown operation named "${operationName}".`),
-        ];
-      }
-
-      return [new GraphQLError('Must provide an operation.')];
-    } // See: 'https://github.com/graphql/graphql-js/issues/2203'
+    const { operation, fragments } = operationContext; // See: 'https://github.com/graphql/graphql-js/issues/2203'
 
     const variableDefinitions =
       /* c8 ignore next */
