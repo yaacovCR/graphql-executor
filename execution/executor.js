@@ -20,8 +20,6 @@ var _memoize1and = require('../jsutils/memoize1and1.js');
 
 var _memoize2 = require('../jsutils/memoize2.js');
 
-var _memoize3 = require('../jsutils/memoize3.js');
-
 var _invariant = require('../jsutils/invariant.js');
 
 var _devAssert = require('../jsutils/devAssert.js');
@@ -83,18 +81,6 @@ function _defineProperty(obj, key, value) {
  */
 class Executor {
   /**
-   * A memoized collection of relevant subfields with regard to the return
-   * type. Memoizing ensures the subfields are not repeatedly calculated, which
-   * saves overhead when resolving lists of values.
-   */
-
-  /**
-   * A memoized collection of field argument values.
-   * Memoizing ensures the subfields are not repeatedly calculated, which
-   * saves overhead when resolving lists of values.
-   */
-
-  /**
    * A memoized method that looks up the field given a parent type
    * and an array of field nodes.
    */
@@ -120,27 +106,6 @@ class Executor {
       'selectOperation',
       (0, _memoize1and.memoize1and1)((operations, operationName) =>
         this._selectOperation(operations, operationName),
-      ),
-    );
-
-    _defineProperty(
-      this,
-      'collectSubfields',
-      (0, _memoize3.memoize3)((exeContext, returnType, fieldNodes) =>
-        this._collectSubfields(exeContext, returnType, fieldNodes),
-      ),
-    );
-
-    _defineProperty(
-      this,
-      'getArgumentValues',
-      (0, _memoize3.memoize3)((def, node, variableValues) =>
-        (0, _values.getArgumentValues)(
-          this._executorSchema,
-          def,
-          node,
-          variableValues,
-        ),
       ),
     );
 
@@ -179,7 +144,7 @@ class Executor {
           const { contextValue, variableValues } = exeContext; // Build a JS object of arguments from the field.arguments AST, using the
           // variables scope to fulfill any variable references.
 
-          const args = this.getArgumentValues(
+          const args = exeContext.getArgumentValues(
             fieldDef,
             fieldNodes[0],
             variableValues,
@@ -189,6 +154,62 @@ class Executor {
 
           return resolveFn(source, args, contextValue, info);
         },
+    );
+
+    _defineProperty(
+      this,
+      'buildFieldCollector',
+      (fragments, variableValues, getDeferValues) =>
+        (runtimeType, selectionSet) => {
+          const fields = new Map();
+          const patches = [];
+          this.collectFieldsImpl(
+            fragments,
+            variableValues,
+            getDeferValues,
+            runtimeType,
+            selectionSet,
+            fields,
+            patches,
+            new Set(),
+          );
+          return {
+            fields,
+            patches,
+          };
+        },
+    );
+
+    _defineProperty(
+      this,
+      'buildSubFieldCollector',
+      (fragments, variableValues, getDeferValues) =>
+        (0, _memoize2.memoize2)((returnType, fieldNodes) => {
+          const subFieldNodes = new Map();
+          const visitedFragmentNames = new Set();
+          const subPatches = [];
+          const subFieldsAndPatches = {
+            fields: subFieldNodes,
+            patches: subPatches,
+          };
+
+          for (const node of fieldNodes) {
+            if (node.selectionSet) {
+              this.collectFieldsImpl(
+                fragments,
+                variableValues,
+                getDeferValues,
+                returnType,
+                node.selectionSet,
+                subFieldNodes,
+                subPatches,
+                visitedFragmentNames,
+              );
+            }
+          }
+
+          return subFieldsAndPatches;
+        }),
     );
 
     const { schema, executorSchema } = executorArgs; // Schema must be provided.
@@ -561,6 +582,10 @@ class Executor {
       fieldResolver !== null && fieldResolver !== void 0
         ? fieldResolver
         : defaultFieldResolver;
+    const getDeferValues = enableIncrementalFlagValue
+      ? this._getDeferValues.bind(this)
+      : () => undefined;
+    const coercedVariableValuesValues = coercedVariableValues.coerced;
     return {
       fragments,
       rootValue,
@@ -577,12 +602,28 @@ class Executor {
           ? forceQueryAlgorithm
           : false,
       enableIncremental: enableIncrementalFlagValue,
-      getDeferValues: enableIncrementalFlagValue
-        ? this._getDeferValues.bind(this)
-        : () => undefined,
+      getArgumentValues: (0, _memoize2.memoize2)((def, node) =>
+        (0, _values.getArgumentValues)(
+          this._executorSchema,
+          def,
+          node,
+          coercedVariableValuesValues,
+        ),
+      ),
+      getDeferValues,
       getStreamValues: enableIncrementalFlagValue
         ? this._getStreamValues.bind(this)
         : () => undefined,
+      fieldCollector: this.buildFieldCollector(
+        fragments,
+        coercedVariableValuesValues,
+        getDeferValues,
+      ),
+      subFieldCollector: this.buildSubFieldCollector(
+        fragments,
+        coercedVariableValuesValues,
+        getDeferValues,
+      ),
       resolveField:
         operation.operation === 'subscription' && !forceQueryAlgorithm
           ? this.buildFieldResolver(
@@ -667,11 +708,8 @@ class Executor {
       );
     }
 
-    const fieldsAndPatches = this.collectFields(
-      exeContext,
-      rootType,
-      operation.selectionSet,
-    );
+    const { fieldCollector } = exeContext;
+    const fieldsAndPatches = fieldCollector(rootType, operation.selectionSet);
     return {
       rootType,
       fieldsAndPatches,
@@ -1512,9 +1550,12 @@ class Executor {
     result,
     payloadContext,
   ) {
-    // Collect sub-fields to execute to complete this value.
-    const { fields: subFieldNodes, patches: subPatches } =
-      this.collectSubfields(exeContext, returnType, fieldNodes);
+    const { subFieldCollector } = exeContext; // Collect sub-fields to execute to complete this value.
+
+    const { fields: subFieldNodes, patches: subPatches } = subFieldCollector(
+      returnType,
+      fieldNodes,
+    );
     const subFields = this.executeFields(
       exeContext,
       returnType,
@@ -2069,68 +2110,16 @@ class Executor {
    * object type returned by that field.
    */
 
-  collectFields(exeContext, runtimeType, selectionSet) {
-    const fields = new Map();
-    const patches = [];
-    this.collectFieldsImpl(
-      exeContext,
-      runtimeType,
-      selectionSet,
-      fields,
-      patches,
-      new Set(),
-    );
-    return {
-      fields,
-      patches,
-    };
-  }
-  /**
-   * Given an array of field nodes, collects all of the subfields of the passed
-   * in fields, and returns them at the end.
-   *
-   * CollectSubFields requires the "return type" of an object. For a field that
-   * returns an Interface or Union type, the "return type" will be the actual
-   * object type returned by that field.
-   *
-   * @internal
-   */
-
-  _collectSubfields(exeContext, returnType, fieldNodes) {
-    const subFieldNodes = new Map();
-    const visitedFragmentNames = new Set();
-    const subPatches = [];
-    const subFieldsAndPatches = {
-      fields: subFieldNodes,
-      patches: subPatches,
-    };
-
-    for (const node of fieldNodes) {
-      if (node.selectionSet) {
-        this.collectFieldsImpl(
-          exeContext,
-          returnType,
-          node.selectionSet,
-          subFieldNodes,
-          subPatches,
-          visitedFragmentNames,
-        );
-      }
-    }
-
-    return subFieldsAndPatches;
-  }
-
   collectFieldsImpl(
-    exeContext,
+    fragments,
+    variableValues,
+    getDeferValues,
     runtimeType,
     selectionSet,
     fields,
     patches,
     visitedFragmentNames,
   ) {
-    const { fragments, variableValues, getDeferValues } = exeContext;
-
     for (const selection of selectionSet.selections) {
       switch (selection.kind) {
         case _graphql.Kind.FIELD: {
@@ -2163,7 +2152,9 @@ class Executor {
           if (defer) {
             const patchFields = new Map();
             this.collectFieldsImpl(
-              exeContext,
+              fragments,
+              variableValues,
+              getDeferValues,
               runtimeType,
               selection.selectionSet,
               patchFields,
@@ -2176,7 +2167,9 @@ class Executor {
             });
           } else {
             this.collectFieldsImpl(
-              exeContext,
+              fragments,
+              variableValues,
+              getDeferValues,
               runtimeType,
               selection.selectionSet,
               fields,
@@ -2215,7 +2208,9 @@ class Executor {
           if (defer) {
             const patchFields = new Map();
             this.collectFieldsImpl(
-              exeContext,
+              fragments,
+              variableValues,
+              getDeferValues,
               runtimeType,
               fragment.selectionSet,
               patchFields,
@@ -2228,7 +2223,9 @@ class Executor {
             });
           } else {
             this.collectFieldsImpl(
-              exeContext,
+              fragments,
+              variableValues,
+              getDeferValues,
               runtimeType,
               fragment.selectionSet,
               fields,

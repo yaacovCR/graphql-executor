@@ -62,8 +62,11 @@ export interface ExecutionContext {
   typeResolver: GraphQLTypeResolver<any, any>;
   forceQueryAlgorithm: boolean;
   enableIncremental: boolean;
+  getArgumentValues: ArgumentValuesGetter;
   getDeferValues: DeferValuesGetter;
   getStreamValues: StreamValuesGetter;
+  fieldCollector: FieldCollector;
+  subFieldCollector: SubFieldCollector;
   resolveField: FieldResolver;
   rootPayloadContext: PayloadContext;
   iterators: Set<AsyncIterator<unknown>>;
@@ -167,6 +170,13 @@ export declare type FieldResolver = (
   info: GraphQLResolveInfo,
   fieldNodes: ReadonlyArray<FieldNode>,
 ) => unknown;
+export declare type ArgumentValuesGetter = (
+  def: GraphQLField<unknown, unknown>,
+  node: FieldNode,
+  variableValues: ObjMap<unknown>,
+) => {
+  [argument: string]: unknown;
+};
 export declare type DeferValuesGetter = (
   variableValues: {
     [variable: string]: unknown;
@@ -188,6 +198,14 @@ export declare type StreamValuesGetter = (
       initialCount?: number;
       label?: string;
     };
+export declare type FieldCollector = (
+  runtimeType: GraphQLObjectType,
+  selectionSet: SelectionSetNode,
+) => FieldsAndPatches;
+export declare type SubFieldCollector = (
+  returnType: GraphQLObjectType,
+  fieldNodes: ReadonlyArray<FieldNode>,
+) => FieldsAndPatches;
 /**
  * Executor class responsible for implementing the Execution section of the GraphQL spec.
  *
@@ -210,28 +228,6 @@ export declare class Executor {
     a1: readonly OperationDefinitionNode[],
     a2: Maybe<string>,
   ) => OperationDefinitionNode | readonly GraphQLError[];
-  /**
-   * A memoized collection of relevant subfields with regard to the return
-   * type. Memoizing ensures the subfields are not repeatedly calculated, which
-   * saves overhead when resolving lists of values.
-   */
-  collectSubfields: (
-    a1: ExecutionContext,
-    a2: GraphQLObjectType<any, any>,
-    a3: readonly FieldNode[],
-  ) => FieldsAndPatches;
-  /**
-   * A memoized collection of field argument values.
-   * Memoizing ensures the subfields are not repeatedly calculated, which
-   * saves overhead when resolving lists of values.
-   */
-  getArgumentValues: (
-    a1: GraphQLField<unknown, unknown, any>,
-    a2: FieldNode,
-    a3: ObjMap<unknown>,
-  ) => {
-    [argument: string]: unknown;
-  };
   /**
    * A memoized method that looks up the field given a parent type
    * and an array of field nodes.
@@ -742,11 +738,16 @@ export declare class Executor {
    * returns an Interface or Union type, the "runtime type" will be the actual
    * object type returned by that field.
    */
-  collectFields(
-    exeContext: ExecutionContext,
+  buildFieldCollector: (
+    fragments: ObjMap<FragmentDefinitionNode>,
+    variableValues: {
+      [variable: string]: unknown;
+    },
+    getDeferValues: DeferValuesGetter,
+  ) => (
     runtimeType: GraphQLObjectType,
     selectionSet: SelectionSetNode,
-  ): FieldsAndPatches;
+  ) => FieldsAndPatches;
   /**
    * Given an array of field nodes, collects all of the subfields of the passed
    * in fields, and returns them at the end.
@@ -755,15 +756,25 @@ export declare class Executor {
    * returns an Interface or Union type, the "return type" will be the actual
    * object type returned by that field.
    *
-   * @internal
+   * Memoizing ensures the subfields are not repeatedly calculated, which
+   * saves overhead when resolving lists of values.
    */
-  _collectSubfields(
-    exeContext: ExecutionContext,
-    returnType: GraphQLObjectType,
-    fieldNodes: ReadonlyArray<FieldNode>,
-  ): FieldsAndPatches;
+  buildSubFieldCollector: (
+    fragments: ObjMap<FragmentDefinitionNode>,
+    variableValues: {
+      [variable: string]: unknown;
+    },
+    getDeferValues: DeferValuesGetter,
+  ) => (
+    a1: GraphQLObjectType<any, any>,
+    a2: readonly FieldNode[],
+  ) => FieldsAndPatches;
   collectFieldsImpl(
-    exeContext: ExecutionContext,
+    fragments: ObjMap<FragmentDefinitionNode>,
+    variableValues: {
+      [variable: string]: unknown;
+    },
+    getDeferValues: DeferValuesGetter,
     runtimeType: GraphQLObjectType,
     selectionSet: SelectionSetNode,
     fields: Map<string, Array<FieldNode>>,
