@@ -41,7 +41,6 @@ import { inspect } from '../jsutils/inspect.ts';
 import { memoize1 } from '../jsutils/memoize1.ts';
 import { memoize1and1 } from '../jsutils/memoize1and1.ts';
 import { memoize2 } from '../jsutils/memoize2.ts';
-import { memoize3 } from '../jsutils/memoize3.ts';
 import { invariant } from '../jsutils/invariant.ts';
 import { devAssert } from '../jsutils/devAssert.ts';
 import { isPromise } from '../jsutils/isPromise.ts';
@@ -103,8 +102,11 @@ export interface ExecutionContext {
   typeResolver: GraphQLTypeResolver<any, any>;
   forceQueryAlgorithm: boolean;
   enableIncremental: boolean;
+  getArgumentValues: ArgumentValuesGetter;
   getDeferValues: DeferValuesGetter;
   getStreamValues: StreamValuesGetter;
+  fieldCollector: FieldCollector;
+  subFieldCollector: SubFieldCollector;
   resolveField: FieldResolver;
   rootPayloadContext: PayloadContext;
   iterators: Set<AsyncIterator<unknown>>;
@@ -208,6 +210,13 @@ export type FieldResolver = (
   info: GraphQLResolveInfo,
   fieldNodes: ReadonlyArray<FieldNode>,
 ) => unknown;
+export type ArgumentValuesGetter = (
+  def: GraphQLField<unknown, unknown>,
+  node: FieldNode,
+  variableValues: ObjMap<unknown>,
+) => {
+  [argument: string]: unknown;
+};
 export type DeferValuesGetter = (
   variableValues: {
     [variable: string]: unknown;
@@ -229,6 +238,14 @@ export type StreamValuesGetter = (
       initialCount?: number;
       label?: string;
     };
+export type FieldCollector = (
+  runtimeType: GraphQLObjectType,
+  selectionSet: SelectionSetNode,
+) => FieldsAndPatches;
+export type SubFieldCollector = (
+  returnType: GraphQLObjectType,
+  fieldNodes: ReadonlyArray<FieldNode>,
+) => FieldsAndPatches;
 /**
  * Executor class responsible for implementing the Execution section of the GraphQL spec.
  *
@@ -252,32 +269,6 @@ export class Executor {
       operations: ReadonlyArray<OperationDefinitionNode>,
       operationName: Maybe<string>,
     ) => this._selectOperation(operations, operationName),
-  );
-  /**
-   * A memoized collection of relevant subfields with regard to the return
-   * type. Memoizing ensures the subfields are not repeatedly calculated, which
-   * saves overhead when resolving lists of values.
-   */
-
-  collectSubfields = memoize3(
-    (
-      exeContext: ExecutionContext,
-      returnType: GraphQLObjectType,
-      fieldNodes: ReadonlyArray<FieldNode>,
-    ) => this._collectSubfields(exeContext, returnType, fieldNodes),
-  );
-  /**
-   * A memoized collection of field argument values.
-   * Memoizing ensures the subfields are not repeatedly calculated, which
-   * saves overhead when resolving lists of values.
-   */
-
-  getArgumentValues = memoize3(
-    (
-      def: GraphQLField<unknown, unknown>,
-      node: FieldNode,
-      variableValues: ObjMap<unknown>,
-    ) => _getArgumentValues(this._executorSchema, def, node, variableValues),
   );
   /**
    * A memoized method that looks up the field given a parent type
@@ -572,7 +563,7 @@ export class Executor {
       const { contextValue, variableValues } = exeContext; // Build a JS object of arguments from the field.arguments AST, using the
       // variables scope to fulfill any variable references.
 
-      const args = this.getArgumentValues(
+      const args = exeContext.getArgumentValues(
         fieldDef,
         fieldNodes[0],
         variableValues,
@@ -722,6 +713,10 @@ export class Executor {
 
     const enableIncrementalFlagValue = enableIncremental ?? true;
     const defaultResolveFieldValueFn = fieldResolver ?? defaultFieldResolver;
+    const getDeferValues = enableIncrementalFlagValue
+      ? this._getDeferValues.bind(this)
+      : () => undefined;
+    const coercedVariableValuesValues = coercedVariableValues.coerced;
     return {
       fragments,
       rootValue,
@@ -732,12 +727,29 @@ export class Executor {
       typeResolver: typeResolver ?? defaultTypeResolver,
       forceQueryAlgorithm: forceQueryAlgorithm ?? false,
       enableIncremental: enableIncrementalFlagValue,
-      getDeferValues: enableIncrementalFlagValue
-        ? this._getDeferValues.bind(this)
-        : () => undefined,
+      getArgumentValues: memoize2(
+        (def: GraphQLField<unknown, unknown>, node: FieldNode) =>
+          _getArgumentValues(
+            this._executorSchema,
+            def,
+            node,
+            coercedVariableValuesValues,
+          ),
+      ),
+      getDeferValues,
       getStreamValues: enableIncrementalFlagValue
         ? this._getStreamValues.bind(this)
         : () => undefined,
+      fieldCollector: this.buildFieldCollector(
+        fragments,
+        coercedVariableValuesValues,
+        getDeferValues,
+      ),
+      subFieldCollector: this.buildSubFieldCollector(
+        fragments,
+        coercedVariableValuesValues,
+        getDeferValues,
+      ),
       resolveField:
         operation.operation === 'subscription' && !forceQueryAlgorithm
           ? this.buildFieldResolver(
@@ -831,11 +843,8 @@ export class Executor {
       );
     }
 
-    const fieldsAndPatches = this.collectFields(
-      exeContext,
-      rootType,
-      operation.selectionSet,
-    );
+    const { fieldCollector } = exeContext;
+    const fieldsAndPatches = fieldCollector(rootType, operation.selectionSet);
     return {
       rootType,
       fieldsAndPatches,
@@ -1692,9 +1701,12 @@ export class Executor {
     result: unknown,
     payloadContext: PayloadContext,
   ): PromiseOrValue<ObjMap<unknown>> {
-    // Collect sub-fields to execute to complete this value.
-    const { fields: subFieldNodes, patches: subPatches } =
-      this.collectSubfields(exeContext, returnType, fieldNodes);
+    const { subFieldCollector } = exeContext; // Collect sub-fields to execute to complete this value.
+
+    const { fields: subFieldNodes, patches: subPatches } = subFieldCollector(
+      returnType,
+      fieldNodes,
+    );
     const subFields = this.executeFields(
       exeContext,
       returnType,
@@ -2286,26 +2298,35 @@ export class Executor {
    * object type returned by that field.
    */
 
-  collectFields(
-    exeContext: ExecutionContext,
-    runtimeType: GraphQLObjectType,
-    selectionSet: SelectionSetNode,
-  ): FieldsAndPatches {
-    const fields = new Map();
-    const patches: Array<PatchFields> = [];
-    this.collectFieldsImpl(
-      exeContext,
-      runtimeType,
-      selectionSet,
-      fields,
-      patches,
-      new Set(),
-    );
-    return {
-      fields,
-      patches,
+  buildFieldCollector =
+    (
+      fragments: ObjMap<FragmentDefinitionNode>,
+      variableValues: {
+        [variable: string]: unknown;
+      },
+      getDeferValues: DeferValuesGetter,
+    ) =>
+    (
+      runtimeType: GraphQLObjectType,
+      selectionSet: SelectionSetNode,
+    ): FieldsAndPatches => {
+      const fields = new Map();
+      const patches: Array<PatchFields> = [];
+      this.collectFieldsImpl(
+        fragments,
+        variableValues,
+        getDeferValues,
+        runtimeType,
+        selectionSet,
+        fields,
+        patches,
+        new Set(),
+      );
+      return {
+        fields,
+        patches,
+      };
     };
-  }
   /**
    * Given an array of field nodes, collects all of the subfields of the passed
    * in fields, and returns them at the end.
@@ -2314,48 +2335,61 @@ export class Executor {
    * returns an Interface or Union type, the "return type" will be the actual
    * object type returned by that field.
    *
-   * @internal
+   * Memoizing ensures the subfields are not repeatedly calculated, which
+   * saves overhead when resolving lists of values.
    */
 
-  _collectSubfields(
-    exeContext: ExecutionContext,
-    returnType: GraphQLObjectType,
-    fieldNodes: ReadonlyArray<FieldNode>,
-  ): FieldsAndPatches {
-    const subFieldNodes = new Map();
-    const visitedFragmentNames = new Set<string>();
-    const subPatches: Array<PatchFields> = [];
-    const subFieldsAndPatches = {
-      fields: subFieldNodes,
-      patches: subPatches,
-    };
+  buildSubFieldCollector = (
+    fragments: ObjMap<FragmentDefinitionNode>,
+    variableValues: {
+      [variable: string]: unknown;
+    },
+    getDeferValues: DeferValuesGetter,
+  ) =>
+    memoize2(
+      (
+        returnType: GraphQLObjectType,
+        fieldNodes: ReadonlyArray<FieldNode>,
+      ): FieldsAndPatches => {
+        const subFieldNodes = new Map();
+        const visitedFragmentNames = new Set<string>();
+        const subPatches: Array<PatchFields> = [];
+        const subFieldsAndPatches = {
+          fields: subFieldNodes,
+          patches: subPatches,
+        };
 
-    for (const node of fieldNodes) {
-      if (node.selectionSet) {
-        this.collectFieldsImpl(
-          exeContext,
-          returnType,
-          node.selectionSet,
-          subFieldNodes,
-          subPatches,
-          visitedFragmentNames,
-        );
-      }
-    }
+        for (const node of fieldNodes) {
+          if (node.selectionSet) {
+            this.collectFieldsImpl(
+              fragments,
+              variableValues,
+              getDeferValues,
+              returnType,
+              node.selectionSet,
+              subFieldNodes,
+              subPatches,
+              visitedFragmentNames,
+            );
+          }
+        }
 
-    return subFieldsAndPatches;
-  }
+        return subFieldsAndPatches;
+      },
+    );
 
   collectFieldsImpl(
-    exeContext: ExecutionContext,
+    fragments: ObjMap<FragmentDefinitionNode>,
+    variableValues: {
+      [variable: string]: unknown;
+    },
+    getDeferValues: DeferValuesGetter,
     runtimeType: GraphQLObjectType,
     selectionSet: SelectionSetNode,
     fields: Map<string, Array<FieldNode>>,
     patches: Array<PatchFields>,
     visitedFragmentNames: Set<string>,
   ): void {
-    const { fragments, variableValues, getDeferValues } = exeContext;
-
     for (const selection of selectionSet.selections) {
       switch (selection.kind) {
         case Kind.FIELD: {
@@ -2388,7 +2422,9 @@ export class Executor {
           if (defer) {
             const patchFields = new Map();
             this.collectFieldsImpl(
-              exeContext,
+              fragments,
+              variableValues,
+              getDeferValues,
               runtimeType,
               selection.selectionSet,
               patchFields,
@@ -2401,7 +2437,9 @@ export class Executor {
             });
           } else {
             this.collectFieldsImpl(
-              exeContext,
+              fragments,
+              variableValues,
+              getDeferValues,
               runtimeType,
               selection.selectionSet,
               fields,
@@ -2440,7 +2478,9 @@ export class Executor {
           if (defer) {
             const patchFields = new Map();
             this.collectFieldsImpl(
-              exeContext,
+              fragments,
+              variableValues,
+              getDeferValues,
               runtimeType,
               fragment.selectionSet,
               patchFields,
@@ -2453,7 +2493,9 @@ export class Executor {
             });
           } else {
             this.collectFieldsImpl(
-              exeContext,
+              fragments,
+              variableValues,
+              getDeferValues,
               runtimeType,
               fragment.selectionSet,
               fields,
