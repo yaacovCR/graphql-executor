@@ -67,8 +67,7 @@ fragment HeroFragment2 on Query {
 }
 `);
 
-const selectionSet = (document.definitions[0] as OperationDefinitionNode)
-  .selectionSet;
+const operation = document.definitions[0] as OperationDefinitionNode;
 
 describe('collectFields', () => {
   it('memoizes', () => {
@@ -79,8 +78,8 @@ describe('collectFields', () => {
         skipSecond: false,
       },
     }) as ExecutionContext;
-    const { fields: fields1 } = exeContext.fieldCollector(query, selectionSet);
-    const { fields: fields2 } = exeContext.fieldCollector(query, selectionSet);
+    const { fields: fields1 } = exeContext.rootFieldCollector(query, operation);
+    const { fields: fields2 } = exeContext.rootFieldCollector(query, operation);
 
     const heroFieldNodes1 = fields1.get('hero');
     const heroFieldNodes2 = fields2.get('hero');
@@ -96,9 +95,9 @@ describe('collectFields', () => {
         skipSecond: false,
       },
     }) as ExecutionContext;
-    const { fields: fields1 } = skipFirstExeContext.fieldCollector(
+    const { fields: fields1 } = skipFirstExeContext.rootFieldCollector(
       query,
-      selectionSet,
+      operation,
     );
     const skipSecondExeContext = executor.buildExecutionContext({
       document,
@@ -107,9 +106,9 @@ describe('collectFields', () => {
         skipSecond: true,
       },
     }) as ExecutionContext;
-    const { fields: fields2 } = skipSecondExeContext.fieldCollector(
+    const { fields: fields2 } = skipSecondExeContext.rootFieldCollector(
       query,
-      selectionSet,
+      operation,
     );
 
     const heroFieldNodes1 = fields1.get('hero');
