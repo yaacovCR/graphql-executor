@@ -79,16 +79,8 @@ describe('collectFields', () => {
         skipSecond: false,
       },
     }) as ExecutionContext;
-    const { fields: fields1 } = executor.collectFields(
-      exeContext,
-      query,
-      selectionSet,
-    );
-    const { fields: fields2 } = executor.collectFields(
-      exeContext,
-      query,
-      selectionSet,
-    );
+    const { fields: fields1 } = exeContext.fieldCollector(query, selectionSet);
+    const { fields: fields2 } = exeContext.fieldCollector(query, selectionSet);
 
     const heroFieldNodes1 = fields1.get('hero');
     const heroFieldNodes2 = fields2.get('hero');
@@ -104,8 +96,7 @@ describe('collectFields', () => {
         skipSecond: false,
       },
     }) as ExecutionContext;
-    const { fields: fields1 } = executor.collectFields(
-      skipFirstExeContext,
+    const { fields: fields1 } = skipFirstExeContext.fieldCollector(
       query,
       selectionSet,
     );
@@ -116,8 +107,7 @@ describe('collectFields', () => {
         skipSecond: true,
       },
     }) as ExecutionContext;
-    const { fields: fields2 } = executor.collectFields(
-      skipSecondExeContext,
+    const { fields: fields2 } = skipSecondExeContext.fieldCollector(
       query,
       selectionSet,
     );
