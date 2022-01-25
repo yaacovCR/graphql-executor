@@ -62,7 +62,7 @@ import type { ExecutorSchema } from './executorSchema';
 import { toExecutorSchema } from './toExecutorSchema';
 import {
   getVariableValues,
-  getArgumentValues as _getArgumentValues,
+  getArgumentValues,
   getDirectiveValues,
 } from './values';
 import { mapAsyncIterable } from './mapAsyncIterable';
@@ -709,7 +709,7 @@ export class Executor {
     const enableIncrementalFlagValue = enableIncremental ?? true;
     const defaultResolveFieldValueFn = fieldResolver ?? defaultFieldResolver;
     const getDeferValues = enableIncrementalFlagValue
-      ? this._getDeferValues.bind(this)
+      ? this.getDeferValues.bind(this)
       : () => undefined;
     const coercedVariableValuesValues = coercedVariableValues.coerced;
     return {
@@ -724,7 +724,7 @@ export class Executor {
       enableIncremental: enableIncrementalFlagValue,
       getArgumentValues: memoize2(
         (def: GraphQLField<unknown, unknown>, node: FieldNode) =>
-          _getArgumentValues(
+          getArgumentValues(
             this._executorSchema,
             def,
             node,
@@ -733,7 +733,7 @@ export class Executor {
       ),
       getDeferValues,
       getStreamValues: enableIncrementalFlagValue
-        ? this._getStreamValues.bind(this)
+        ? this.getStreamValues.bind(this)
         : () => undefined,
       fieldCollector: this.buildFieldCollector(
         fragments,
@@ -1237,7 +1237,7 @@ export class Executor {
    * streamed based on the experimental flag, stream directive present and
    * not disabled by the "if" argument.
    */
-  _getStreamValues(
+  getStreamValues(
     variableValues: { [variable: string]: unknown },
     fieldNodes: ReadonlyArray<FieldNode>,
   ):
@@ -2500,7 +2500,7 @@ export class Executor {
    * deferred based on the experimental flag, defer directive present and
    * not disabled by the "if" argument.
    */
-  _getDeferValues(
+  getDeferValues(
     variableValues: { [variable: string]: unknown },
     node: FragmentSpreadNode | InlineFragmentNode,
   ): undefined | { label?: string } {
