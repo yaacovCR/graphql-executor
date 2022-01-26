@@ -94,6 +94,10 @@ export class Executor {
    */
 
   /**
+   * A memoized method that retrieves a value completer given a return type.
+   */
+
+  /**
    * Creates a field list, memoizing so that functions operating on the
    * field list can be memoized.
    */
@@ -123,6 +127,12 @@ export class Executor {
       memoize2((parentType, fieldNodes) =>
         this._getFieldDef(parentType, fieldNodes),
       ),
+    );
+
+    _defineProperty(
+      this,
+      'getValueCompleter',
+      memoize1((returnType) => this._getValueCompleter(returnType)),
     );
 
     _defineProperty(
@@ -821,12 +831,12 @@ export class Executor {
         fieldNodes,
       );
       let completed;
+      const valueCompleter = this.getValueCompleter(returnType);
 
       if (isPromise(result)) {
         completed = result.then((resolved) =>
-          this.completeValue(
+          valueCompleter(
             exeContext,
-            returnType,
             fieldNodes,
             info,
             path,
@@ -835,9 +845,8 @@ export class Executor {
           ),
         );
       } else {
-        completed = this.completeValue(
+        completed = valueCompleter(
           exeContext,
-          returnType,
           fieldNodes,
           info,
           path,
@@ -903,6 +912,28 @@ export class Executor {
     errors.push(error);
     return null;
   }
+
+  buildNullableValueCompleter(valueCompleter) {
+    return (exeContext, fieldNodes, info, path, result, payloadContext) => {
+      // If result is an Error, throw a located error.
+      if (result instanceof Error) {
+        throw result;
+      } // If result value is null or undefined then return null.
+
+      if (result == null) {
+        return null;
+      }
+
+      return valueCompleter(
+        exeContext,
+        fieldNodes,
+        info,
+        path,
+        result,
+        payloadContext,
+      );
+    };
+  }
   /**
    * Implements the instructions for completeValue as defined in the
    * "Field entries" section of the spec.
@@ -925,84 +956,110 @@ export class Executor {
    * value by executing all sub-selections.
    */
 
-  completeValue(
-    exeContext,
-    returnType,
-    fieldNodes,
-    info,
-    path,
-    result,
-    payloadContext,
-  ) {
-    // If result is an Error, throw a located error.
-    if (result instanceof Error) {
-      throw result;
-    } // If field type is NonNull, complete for inner type, and throw field error
-    // if result is null.
-
+  _getValueCompleter(returnType) {
     if (this._executorSchema.isNonNullType(returnType)) {
-      const completed = this.completeValue(
-        exeContext,
-        returnType.ofType,
-        fieldNodes,
-        info,
-        path,
-        result,
-        payloadContext,
-      );
-
-      if (completed === null) {
-        throw new Error(
-          `Cannot return null for non-nullable field ${info.parentType.name}.${info.fieldName}.`,
+      return (exeContext, fieldNodes, info, path, result, payloadContext) => {
+        // If field type is NonNull, complete for inner type, and throw field error
+        // if result is null.
+        const innerValueCompleter = this.getValueCompleter(returnType.ofType);
+        const completed = innerValueCompleter(
+          exeContext,
+          fieldNodes,
+          info,
+          path,
+          result,
+          payloadContext,
         );
-      }
 
-      return completed;
-    } // If result value is null or undefined then return null.
+        if (completed === null) {
+          throw new Error(
+            `Cannot return null for non-nullable field ${info.parentType.name}.${info.fieldName}.`,
+          );
+        }
 
-    if (result == null) {
-      return null;
-    } // If field type is List, complete each item in the list with the inner type
+        return completed;
+      };
+    }
 
     if (this._executorSchema.isListType(returnType)) {
-      return this.completeListValue(
-        exeContext,
-        returnType,
-        fieldNodes,
-        info,
-        path,
-        result,
-        payloadContext,
+      return this.buildNullableValueCompleter(
+        (
+          exeContext,
+          fieldNodes,
+          info,
+          path,
+          result,
+          payloadContext, // If field type is List, complete each item in the list with the inner type
+        ) =>
+          this.completeListValue(
+            exeContext,
+            returnType,
+            fieldNodes,
+            info,
+            path,
+            result,
+            payloadContext,
+          ),
       );
-    } // If field type is a leaf type, Scalar or Enum, serialize to a valid value,
-    // returning null if serialization is not possible.
+    }
 
     if (this._executorSchema.isLeafType(returnType)) {
-      return this.completeLeafValue(returnType, result);
-    } // If field type is an abstract type, Interface or Union, determine the
-    // runtime Object type and complete for that type.
+      return this.buildNullableValueCompleter(
+        (
+          _exeContext,
+          _fieldNodes,
+          _info,
+          _path,
+          result,
+          _payloadContext, // If field type is a leaf type, Scalar or Enum, serialize to a valid value,
+        ) =>
+          // returning null if serialization is not possible.
+          this.completeLeafValue(returnType, result),
+      );
+    }
 
     if (this._executorSchema.isAbstractType(returnType)) {
-      return this.completeAbstractValue(
-        exeContext,
-        returnType,
-        fieldNodes,
-        info,
-        path,
-        result,
-        payloadContext,
+      return this.buildNullableValueCompleter(
+        (
+          exeContext,
+          fieldNodes,
+          info,
+          path,
+          result,
+          payloadContext, // If field type is an abstract type, Interface or Union, determine the
+        ) =>
+          // runtime Object type and complete for that type.
+          this.completeAbstractValue(
+            exeContext,
+            returnType,
+            fieldNodes,
+            info,
+            path,
+            result,
+            payloadContext,
+          ),
       );
-    } // If field type is Object, execute and complete all sub-selections.
+    }
 
     if (this._executorSchema.isObjectType(returnType)) {
-      return this.completeObjectValue(
-        exeContext,
-        returnType,
-        fieldNodes,
-        info,
-        path,
-        result,
-        payloadContext,
+      return this.buildNullableValueCompleter(
+        (
+          exeContext,
+          fieldNodes,
+          info,
+          path,
+          result,
+          payloadContext, // If field type is Object, execute and complete all sub-selections.
+        ) =>
+          this.completeObjectValue(
+            exeContext,
+            returnType,
+            fieldNodes,
+            info,
+            path,
+            result,
+            payloadContext,
+          ),
       );
     }
     /* c8 ignore next 6 */
@@ -1115,7 +1172,8 @@ export class Executor {
 
     const promises = [];
     const completedResults = [];
-    let index = 0; // eslint-disable-next-line no-constant-condition
+    let index = 0;
+    const valueCompleter = this.getValueCompleter(itemType); // eslint-disable-next-line no-constant-condition
 
     while (true) {
       if (
@@ -1129,7 +1187,7 @@ export class Executor {
           exeContext,
           fieldNodes,
           info,
-          itemType,
+          valueCompleter,
           path,
           stream.label,
           payloadContext,
@@ -1151,6 +1209,7 @@ export class Executor {
         iteration.value,
         exeContext,
         itemType,
+        valueCompleter,
         fieldNodes,
         info,
         itemPath,
@@ -1184,7 +1243,8 @@ export class Executor {
 
     const promises = [];
     const completedResults = [];
-    let index = 0; // eslint-disable-next-line no-constant-condition
+    let index = 0;
+    const valueCompleter = this.getValueCompleter(itemType); // eslint-disable-next-line no-constant-condition
 
     while (true) {
       if (
@@ -1200,6 +1260,7 @@ export class Executor {
           fieldNodes,
           info,
           itemType,
+          valueCompleter,
           path,
           stream.label,
           payloadContext,
@@ -1236,6 +1297,7 @@ export class Executor {
         iteration.value,
         exeContext,
         itemType,
+        valueCompleter,
         fieldNodes,
         info,
         itemPath,
@@ -1256,6 +1318,7 @@ export class Executor {
     item,
     exeContext,
     itemType,
+    valueCompleter,
     fieldNodes,
     info,
     itemPath,
@@ -1266,9 +1329,8 @@ export class Executor {
 
       if (isPromise(item)) {
         completedItem = item.then((resolved) =>
-          this.completeValue(
+          valueCompleter(
             exeContext,
-            itemType,
             fieldNodes,
             info,
             itemPath,
@@ -1277,9 +1339,8 @@ export class Executor {
           ),
         );
       } else {
-        completedItem = this.completeValue(
+        completedItem = valueCompleter(
           exeContext,
-          itemType,
           fieldNodes,
           info,
           itemPath,
@@ -1755,7 +1816,7 @@ export class Executor {
     exeContext,
     fieldNodes,
     info,
-    itemType,
+    valueCompleter,
     path,
     label,
     parentPayloadContext,
@@ -1776,9 +1837,8 @@ export class Executor {
       const itemPath = addPath(path, index, undefined);
       Promise.resolve(iteration.value)
         .then((resolved) =>
-          this.completeValue(
+          valueCompleter(
             exeContext,
-            itemType,
             fieldNodes,
             info,
             itemPath,
@@ -1823,6 +1883,7 @@ export class Executor {
     fieldNodes,
     info,
     itemType,
+    valueCompleter,
     path,
     label,
     parentPayloadContext,
@@ -1855,9 +1916,8 @@ export class Executor {
       const itemPath = addPath(path, index, undefined);
       Promise.resolve(iteration.value)
         .then((resolved) =>
-          this.completeValue(
+          valueCompleter(
             exeContext,
-            itemType,
             fieldNodes,
             info,
             itemPath,

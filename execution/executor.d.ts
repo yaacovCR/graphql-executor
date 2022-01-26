@@ -166,6 +166,14 @@ export declare type FieldResolver = (
   info: GraphQLResolveInfo,
   fieldNodes: ReadonlyArray<FieldNode>,
 ) => unknown;
+export declare type ValueCompleter = (
+  exeContext: ExecutionContext,
+  fieldNodes: ReadonlyArray<FieldNode>,
+  info: GraphQLResolveInfo,
+  path: Path,
+  result: unknown,
+  payloadContext: PayloadContext,
+) => PromiseOrValue<unknown>;
 export declare type ArgumentValuesGetter = (
   def: GraphQLField<unknown, unknown>,
   node: FieldNode,
@@ -232,6 +240,10 @@ export declare class Executor {
     a1: GraphQLObjectType<any, any>,
     a2: readonly FieldNode[],
   ) => Maybe<GraphQLField<unknown, unknown, any>>;
+  /**
+   * A memoized method that retrieves a value completer given a return type.
+   */
+  getValueCompleter: (a1: GraphQLOutputType) => ValueCompleter;
   /**
    * Creates a field list, memoizing so that functions operating on the
    * field list can be memoized.
@@ -447,6 +459,7 @@ export declare class Executor {
     returnType: GraphQLOutputType,
     errors: Array<GraphQLError>,
   ): null;
+  buildNullableValueCompleter(valueCompleter: ValueCompleter): ValueCompleter;
   /**
    * Implements the instructions for completeValue as defined in the
    * "Field entries" section of the spec.
@@ -468,15 +481,7 @@ export declare class Executor {
    * Otherwise, the field type expects a sub-selection set, and will complete the
    * value by executing all sub-selections.
    */
-  completeValue(
-    exeContext: ExecutionContext,
-    returnType: GraphQLOutputType,
-    fieldNodes: ReadonlyArray<FieldNode>,
-    info: GraphQLResolveInfo,
-    path: Path,
-    result: unknown,
-    payloadContext: PayloadContext,
-  ): PromiseOrValue<unknown>;
+  _getValueCompleter(returnType: GraphQLOutputType): ValueCompleter;
   /**
    * Complete a list value by completing each item in the list with the
    * inner type
@@ -537,6 +542,7 @@ export declare class Executor {
     item: unknown,
     exeContext: ExecutionContext,
     itemType: GraphQLOutputType,
+    valueCompleter: ValueCompleter,
     fieldNodes: ReadonlyArray<FieldNode>,
     info: GraphQLResolveInfo,
     itemPath: Path,
@@ -655,7 +661,7 @@ export declare class Executor {
     exeContext: ExecutionContext,
     fieldNodes: ReadonlyArray<FieldNode>,
     info: GraphQLResolveInfo,
-    itemType: GraphQLOutputType,
+    valueCompleter: ValueCompleter,
     path: Path,
     label: string | undefined,
     parentPayloadContext: PayloadContext,
@@ -667,6 +673,7 @@ export declare class Executor {
     fieldNodes: ReadonlyArray<FieldNode>,
     info: GraphQLResolveInfo,
     itemType: GraphQLOutputType,
+    valueCompleter: ValueCompleter,
     path: Path,
     label: string | undefined,
     parentPayloadContext: PayloadContext,
