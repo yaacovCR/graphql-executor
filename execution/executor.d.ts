@@ -512,7 +512,7 @@ export declare class Executor {
    * streamed based on the experimental flag, stream directive present and
    * not disabled by the "if" argument.
    */
-  _getStreamValues(
+  getStreamValues(
     variableValues: {
       [variable: string]: unknown;
     },
@@ -786,7 +786,7 @@ export declare class Executor {
    * deferred based on the experimental flag, defer directive present and
    * not disabled by the "if" argument.
    */
-  _getDeferValues(
+  getDeferValues(
     variableValues: {
       [variable: string]: unknown;
     },

@@ -45,7 +45,7 @@ import { isGraphQLError } from '../error/isGraphQLError.mjs';
 import { toExecutorSchema } from './toExecutorSchema.mjs';
 import {
   getVariableValues,
-  getArgumentValues as _getArgumentValues,
+  getArgumentValues,
   getDirectiveValues,
 } from './values.mjs';
 import { mapAsyncIterable } from './mapAsyncIterable.mjs';
@@ -585,7 +585,7 @@ export class Executor {
         ? fieldResolver
         : defaultFieldResolver;
     const getDeferValues = enableIncrementalFlagValue
-      ? this._getDeferValues.bind(this)
+      ? this.getDeferValues.bind(this)
       : () => undefined;
     const coercedVariableValuesValues = coercedVariableValues.coerced;
     return {
@@ -605,7 +605,7 @@ export class Executor {
           : false,
       enableIncremental: enableIncrementalFlagValue,
       getArgumentValues: memoize2((def, node) =>
-        _getArgumentValues(
+        getArgumentValues(
           this._executorSchema,
           def,
           node,
@@ -614,7 +614,7 @@ export class Executor {
       ),
       getDeferValues,
       getStreamValues: enableIncrementalFlagValue
-        ? this._getStreamValues.bind(this)
+        ? this.getStreamValues.bind(this)
         : () => undefined,
       fieldCollector: this.buildFieldCollector(
         fragments,
@@ -1086,7 +1086,7 @@ export class Executor {
    * not disabled by the "if" argument.
    */
 
-  _getStreamValues(variableValues, fieldNodes) {
+  getStreamValues(variableValues, fieldNodes) {
     // validation only allows equivalent streams on multiple fields, so it is
     // safe to only check the first fieldNode for the stream directive
     const stream = getDirectiveValues(
@@ -2232,7 +2232,7 @@ export class Executor {
    * not disabled by the "if" argument.
    */
 
-  _getDeferValues(variableValues, node) {
+  getDeferValues(variableValues, node) {
     const defer = getDirectiveValues(
       this._executorSchema,
       GraphQLDeferDirective,

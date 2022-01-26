@@ -583,7 +583,7 @@ class Executor {
         ? fieldResolver
         : defaultFieldResolver;
     const getDeferValues = enableIncrementalFlagValue
-      ? this._getDeferValues.bind(this)
+      ? this.getDeferValues.bind(this)
       : () => undefined;
     const coercedVariableValuesValues = coercedVariableValues.coerced;
     return {
@@ -612,7 +612,7 @@ class Executor {
       ),
       getDeferValues,
       getStreamValues: enableIncrementalFlagValue
-        ? this._getStreamValues.bind(this)
+        ? this.getStreamValues.bind(this)
         : () => undefined,
       fieldCollector: this.buildFieldCollector(
         fragments,
@@ -1088,7 +1088,7 @@ class Executor {
    * not disabled by the "if" argument.
    */
 
-  _getStreamValues(variableValues, fieldNodes) {
+  getStreamValues(variableValues, fieldNodes) {
     // validation only allows equivalent streams on multiple fields, so it is
     // safe to only check the first fieldNode for the stream directive
     const stream = (0, _values.getDirectiveValues)(
@@ -2245,7 +2245,7 @@ class Executor {
    * not disabled by the "if" argument.
    */
 
-  _getDeferValues(variableValues, node) {
+  getDeferValues(variableValues, node) {
     const defer = (0, _values.getDirectiveValues)(
       this._executorSchema,
       _directives.GraphQLDeferDirective,
