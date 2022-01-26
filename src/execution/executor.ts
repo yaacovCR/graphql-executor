@@ -223,6 +223,15 @@ export type FieldResolver = (
   fieldNodes: ReadonlyArray<FieldNode>,
 ) => unknown;
 
+export type ValueCompleter = (
+  exeContext: ExecutionContext,
+  fieldNodes: ReadonlyArray<FieldNode>,
+  info: GraphQLResolveInfo,
+  path: Path,
+  result: unknown,
+  payloadContext: PayloadContext,
+) => PromiseOrValue<unknown>;
+
 export type ArgumentValuesGetter = (
   def: GraphQLField<unknown, unknown>,
   node: FieldNode,
@@ -286,6 +295,13 @@ export class Executor {
   getFieldDef = memoize2(
     (parentType: GraphQLObjectType, fieldNodes: ReadonlyArray<FieldNode>) =>
       this._getFieldDef(parentType, fieldNodes),
+  );
+
+  /**
+   * A memoized method that retrieves a value completer given a return type.
+   */
+  getValueCompleter = memoize1((returnType: GraphQLOutputType) =>
+    this._getValueCompleter(returnType),
   );
 
   /**
@@ -980,11 +996,11 @@ export class Executor {
       );
 
       let completed;
+      const valueCompleter = this.getValueCompleter(returnType);
       if (isPromise(result)) {
         completed = result.then((resolved) =>
-          this.completeValue(
+          valueCompleter(
             exeContext,
-            returnType,
             fieldNodes,
             info,
             path,
@@ -993,9 +1009,8 @@ export class Executor {
           ),
         );
       } else {
-        completed = this.completeValue(
+        completed = valueCompleter(
           exeContext,
-          returnType,
           fieldNodes,
           info,
           path,
@@ -1093,90 +1108,163 @@ export class Executor {
    * Otherwise, the field type expects a sub-selection set, and will complete the
    * value by executing all sub-selections.
    */
-  completeValue(
-    exeContext: ExecutionContext,
-    returnType: GraphQLOutputType,
-    fieldNodes: ReadonlyArray<FieldNode>,
-    info: GraphQLResolveInfo,
-    path: Path,
-    result: unknown,
-    payloadContext: PayloadContext,
-  ): PromiseOrValue<unknown> {
-    // If result is an Error, throw a located error.
-    if (result instanceof Error) {
-      throw result;
-    }
-
-    // If field type is NonNull, complete for inner type, and throw field error
-    // if result is null.
+  _getValueCompleter(returnType: GraphQLOutputType): ValueCompleter {
     if (this._executorSchema.isNonNullType(returnType)) {
-      const completed = this.completeValue(
-        exeContext,
-        returnType.ofType,
-        fieldNodes,
-        info,
-        path,
-        result,
-        payloadContext,
-      );
-      if (completed === null) {
-        throw new Error(
-          `Cannot return null for non-nullable field ${info.parentType.name}.${info.fieldName}.`,
+      return (
+        exeContext: ExecutionContext,
+        fieldNodes: ReadonlyArray<FieldNode>,
+        info: GraphQLResolveInfo,
+        path: Path,
+        result: unknown,
+        payloadContext: PayloadContext,
+      ): PromiseOrValue<unknown> => {
+        // If result is an Error, throw a located error.
+        if (result instanceof Error) {
+          throw result;
+        }
+
+        // If field type is NonNull, complete for inner type, and throw field error
+        // if result is null.
+        const innerValueCompleter = this.getValueCompleter(returnType.ofType);
+        const completed = innerValueCompleter(
+          exeContext,
+          fieldNodes,
+          info,
+          path,
+          result,
+          payloadContext,
         );
-      }
-      return completed;
+        if (completed === null) {
+          throw new Error(
+            `Cannot return null for non-nullable field ${info.parentType.name}.${info.fieldName}.`,
+          );
+        }
+        return completed;
+      };
     }
 
-    // If result value is null or undefined then return null.
-    if (result == null) {
-      return null;
-    }
-
-    // If field type is List, complete each item in the list with the inner type
     if (this._executorSchema.isListType(returnType)) {
-      return this.completeListValue(
-        exeContext,
-        returnType,
-        fieldNodes,
-        info,
-        path,
-        result,
-        payloadContext,
-      );
+      return (
+        exeContext: ExecutionContext,
+        fieldNodes: ReadonlyArray<FieldNode>,
+        info: GraphQLResolveInfo,
+        path: Path,
+        result: unknown,
+        payloadContext: PayloadContext,
+      ): PromiseOrValue<unknown> => {
+        // If result is an Error, throw a located error.
+        if (result instanceof Error) {
+          throw result;
+        }
+
+        // If result value is null or undefined then return null.
+        if (result == null) {
+          return null;
+        }
+
+        // If field type is List, complete each item in the list with the inner type
+        return this.completeListValue(
+          exeContext,
+          returnType,
+          fieldNodes,
+          info,
+          path,
+          result,
+          payloadContext,
+        );
+      };
     }
 
-    // If field type is a leaf type, Scalar or Enum, serialize to a valid value,
-    // returning null if serialization is not possible.
     if (this._executorSchema.isLeafType(returnType)) {
-      return this.completeLeafValue(returnType, result);
+      return (
+        _exeContext: ExecutionContext,
+        _fieldNodes: ReadonlyArray<FieldNode>,
+        _info: GraphQLResolveInfo,
+        _path: Path,
+        result: unknown,
+        _payloadContext: PayloadContext,
+      ): PromiseOrValue<unknown> => {
+        // If result is an Error, throw a located error.
+        if (result instanceof Error) {
+          throw result;
+        }
+
+        // If result value is null or undefined then return null.
+        if (result == null) {
+          return null;
+        }
+
+        // If field type is a leaf type, Scalar or Enum, serialize to a valid value,
+        // returning null if serialization is not possible.
+        return this.completeLeafValue(returnType, result);
+      };
     }
 
-    // If field type is an abstract type, Interface or Union, determine the
-    // runtime Object type and complete for that type.
     if (this._executorSchema.isAbstractType(returnType)) {
-      return this.completeAbstractValue(
-        exeContext,
-        returnType,
-        fieldNodes,
-        info,
-        path,
-        result,
-        payloadContext,
-      );
+      return (
+        exeContext: ExecutionContext,
+        fieldNodes: ReadonlyArray<FieldNode>,
+        info: GraphQLResolveInfo,
+        path: Path,
+        result: unknown,
+        payloadContext: PayloadContext,
+      ): PromiseOrValue<unknown> => {
+        // If result is an Error, throw a located error.
+        if (result instanceof Error) {
+          throw result;
+        }
+
+        // If result value is null or undefined then return null.
+        if (result == null) {
+          return null;
+        }
+
+        // If field type is an abstract type, Interface or Union, determine the
+        // runtime Object type and complete for that type.
+        return this.completeAbstractValue(
+          exeContext,
+          returnType,
+          fieldNodes,
+          info,
+          path,
+          result,
+          payloadContext,
+        );
+      };
     }
 
-    // If field type is Object, execute and complete all sub-selections.
     if (this._executorSchema.isObjectType(returnType)) {
-      return this.completeObjectValue(
-        exeContext,
-        returnType,
-        fieldNodes,
-        info,
-        path,
-        result,
-        payloadContext,
-      );
+      return (
+        exeContext: ExecutionContext,
+        fieldNodes: ReadonlyArray<FieldNode>,
+        info: GraphQLResolveInfo,
+        path: Path,
+        result: unknown,
+        payloadContext: PayloadContext,
+      ): PromiseOrValue<unknown> => {
+        // If result is an Error, throw a located error.
+        if (result instanceof Error) {
+          throw result;
+        }
+
+        // If result value is null or undefined then return null.
+        if (result == null) {
+          return null;
+        }
+
+        // If field type is Object, execute and complete all sub-selections.
+        return this.completeObjectValue(
+          exeContext,
+          returnType,
+          fieldNodes,
+          info,
+          path,
+          result,
+          payloadContext,
+        );
+      };
     }
+
     /* c8 ignore next 6 */
     // Not reachable. All possible output types have been considered
     invariant(
@@ -1301,6 +1389,7 @@ export class Executor {
     const promises: Array<Promise<void>> = [];
     const completedResults: Array<unknown> = [];
     let index = 0;
+    const valueCompleter = this.getValueCompleter(itemType);
     // eslint-disable-next-line no-constant-condition
     while (true) {
       if (
@@ -1314,7 +1403,7 @@ export class Executor {
           exeContext,
           fieldNodes,
           info,
-          itemType,
+          valueCompleter,
           path,
           stream.label,
           payloadContext,
@@ -1336,6 +1425,7 @@ export class Executor {
         iteration.value,
         exeContext,
         itemType,
+        valueCompleter,
         fieldNodes,
         info,
         itemPath,
@@ -1372,6 +1462,7 @@ export class Executor {
     const promises: Array<Promise<void>> = [];
     const completedResults: Array<unknown> = [];
     let index = 0;
+    const valueCompleter = this.getValueCompleter(itemType);
     // eslint-disable-next-line no-constant-condition
     while (true) {
       if (
@@ -1387,6 +1478,7 @@ export class Executor {
           fieldNodes,
           info,
           itemType,
+          valueCompleter,
           path,
           stream.label,
           payloadContext,
@@ -1423,6 +1515,7 @@ export class Executor {
         iteration.value,
         exeContext,
         itemType,
+        valueCompleter,
         fieldNodes,
         info,
         itemPath,
@@ -1444,6 +1537,7 @@ export class Executor {
     item: unknown,
     exeContext: ExecutionContext,
     itemType: GraphQLOutputType,
+    valueCompleter: ValueCompleter,
     fieldNodes: ReadonlyArray<FieldNode>,
     info: GraphQLResolveInfo,
     itemPath: Path,
@@ -1453,9 +1547,8 @@ export class Executor {
       let completedItem;
       if (isPromise(item)) {
         completedItem = item.then((resolved) =>
-          this.completeValue(
+          valueCompleter(
             exeContext,
-            itemType,
             fieldNodes,
             info,
             itemPath,
@@ -1464,9 +1557,8 @@ export class Executor {
           ),
         );
       } else {
-        completedItem = this.completeValue(
+        completedItem = valueCompleter(
           exeContext,
-          itemType,
           fieldNodes,
           info,
           itemPath,
@@ -1958,7 +2050,7 @@ export class Executor {
     exeContext: ExecutionContext,
     fieldNodes: ReadonlyArray<FieldNode>,
     info: GraphQLResolveInfo,
-    itemType: GraphQLOutputType,
+    valueCompleter: ValueCompleter,
     path: Path,
     label: string | undefined,
     parentPayloadContext: PayloadContext,
@@ -1979,9 +2071,8 @@ export class Executor {
 
       Promise.resolve(iteration.value)
         .then((resolved) =>
-          this.completeValue(
+          valueCompleter(
             exeContext,
-            itemType,
             fieldNodes,
             info,
             itemPath,
@@ -2027,6 +2118,7 @@ export class Executor {
     fieldNodes: ReadonlyArray<FieldNode>,
     info: GraphQLResolveInfo,
     itemType: GraphQLOutputType,
+    valueCompleter: ValueCompleter,
     path: Path,
     label: string | undefined,
     parentPayloadContext: PayloadContext,
@@ -2060,9 +2152,8 @@ export class Executor {
 
       Promise.resolve(iteration.value)
         .then((resolved) =>
-          this.completeValue(
+          valueCompleter(
             exeContext,
-            itemType,
             fieldNodes,
             info,
             itemPath,
