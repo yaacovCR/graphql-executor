@@ -71,6 +71,10 @@ import { flattenAsyncIterable } from './flattenAsyncIterable.mjs';
  */
 
 /**
+ * Data that must be available at all points during query execution.
+ */
+
+/**
  * Executor class responsible for implementing the Execution section of the GraphQL spec.
  *
  * This class is exported only to assist people in implementing their own executors
@@ -162,9 +166,9 @@ export class Executor {
 
     _defineProperty(
       this,
-      'buildFieldCollector',
+      'buildRootFieldCollector',
       (fragments, variableValues, getDeferValues) =>
-        (runtimeType, selectionSet) => {
+        (runtimeType, operation) => {
           const fields = new Map();
           const patches = [];
           this.collectFieldsImpl(
@@ -172,7 +176,7 @@ export class Executor {
             variableValues,
             getDeferValues,
             runtimeType,
-            selectionSet,
+            operation.selectionSet,
             fields,
             patches,
             new Set(),
@@ -345,11 +349,11 @@ export class Executor {
    * executor.
    */
 
-  executeQueryOrMutationImpl(exeContext, fieldsExecutor) {
+  executeQueryOrMutationImpl(exeContext, rootFieldsExecutor) {
     let data;
 
     try {
-      data = this.executeRootFields(exeContext, fieldsExecutor);
+      data = this.executeRootFields(exeContext, rootFieldsExecutor);
     } catch (error) {
       exeContext.rootPayloadContext.errors.push(error);
       return this.buildResponse(exeContext, null);
@@ -499,26 +503,6 @@ export class Executor {
     return operation;
   }
   /**
-   * Constructs a OperationContext object given an a document and operationName.
-   *
-   * Returns an array of GraphQLErrors if a valid operation context
-   * cannot be created.
-   */
-
-  buildOperationContext(document, operationName) {
-    const { operations, fragments } = this.splitDefinitions(document);
-    const selectedOperation = this.selectOperation(operations, operationName);
-
-    if ('length' in selectedOperation) {
-      return selectedOperation;
-    }
-
-    return {
-      operation: selectedOperation,
-      fragments,
-    };
-  }
-  /**
    * Constructs a ExecutionContext object from the arguments passed to
    * execute, which we will pass throughout the other execution methods.
    *
@@ -544,16 +528,12 @@ export class Executor {
     // developer mistake which should throw an error.
 
     this.assertValidExecutionArguments(document, rawVariableValues);
-    const operationContext = this.buildOperationContext(
-      document,
-      operationName,
-    );
+    const { operations, fragments } = this.splitDefinitions(document);
+    const operation = this.selectOperation(operations, operationName);
 
-    if ('length' in operationContext) {
-      return operationContext;
-    }
-
-    const { operation, fragments } = operationContext; // See: 'https://github.com/graphql/graphql-js/issues/2203'
+    if ('length' in operation) {
+      return operation;
+    } // See: 'https://github.com/graphql/graphql-js/issues/2203'
 
     const variableDefinitions =
       /* c8 ignore next */
@@ -616,7 +596,7 @@ export class Executor {
       getStreamValues: enableIncrementalFlagValue
         ? this.getStreamValues.bind(this)
         : () => undefined,
-      fieldCollector: this.buildFieldCollector(
+      rootFieldCollector: this.buildRootFieldCollector(
         fragments,
         coercedVariableValuesValues,
         getDeferValues,
@@ -674,14 +654,14 @@ export class Executor {
    * Executes the root fields specified by the operation.
    */
 
-  executeRootFields(exeContext, fieldsExecutor) {
-    const { rootValue, operation, rootPayloadContext } = exeContext;
+  executeRootFields(exeContext, rootFieldsExecutor) {
+    const { rootValue, rootPayloadContext } = exeContext;
     const {
       rootType,
       fieldsAndPatches: { fields, patches },
-    } = this.parseOperationRoot(exeContext, operation);
+    } = this.getRootContext(exeContext);
     const path = undefined;
-    const result = fieldsExecutor(
+    const result = rootFieldsExecutor(
       exeContext,
       rootType,
       rootValue,
@@ -700,7 +680,9 @@ export class Executor {
     return result;
   }
 
-  parseOperationRoot(exeContext, operation) {
+  getRootContext(exeContext) {
+    const { operation, rootFieldCollector } = exeContext;
+
     const rootType = this._executorSchema.getRootType(operation.operation);
 
     if (rootType == null) {
@@ -710,8 +692,7 @@ export class Executor {
       );
     }
 
-    const { fieldCollector } = exeContext;
-    const fieldsAndPatches = fieldCollector(rootType, operation.selectionSet);
+    const fieldsAndPatches = rootFieldCollector(rootType, operation);
     return {
       rootType,
       fieldsAndPatches,
@@ -1671,11 +1652,11 @@ export class Executor {
   }
 
   async executeSubscriptionRootField(exeContext) {
-    const { rootValue, operation } = exeContext;
+    const { rootValue } = exeContext;
     const {
       rootType,
       fieldsAndPatches: { fields },
-    } = this.parseOperationRoot(exeContext, operation);
+    } = this.getRootContext(exeContext);
     const [responseName, fieldNodes] = [...fields.entries()][0];
     const fieldDef = this.getFieldDef(rootType, fieldNodes);
 
@@ -2090,7 +2071,7 @@ export class Executor {
     return value;
   }
   /**
-   * Given a selectionSet, collects all of the fields and returns them.
+   * Given an operation, collects all of the root fields and returns them.
    *
    * CollectFields requires the "runtime type" of an object. For a field that
    * returns an Interface or Union type, the "runtime type" will be the actual

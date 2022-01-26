@@ -43,10 +43,6 @@ import type { ExecutorSchema } from './executorSchema';
  * 2) fragment "spreads" e.g. `...c`
  * 3) inline fragment "spreads" e.g. `...on Type { a }`
  */
-export interface OperationContext {
-  operation: OperationDefinitionNode;
-  fragments: ObjMap<FragmentDefinitionNode>;
-}
 /**
  * Data that must be available at all points during query execution.
  */
@@ -65,7 +61,7 @@ export interface ExecutionContext {
   getArgumentValues: ArgumentValuesGetter;
   getDeferValues: DeferValuesGetter;
   getStreamValues: StreamValuesGetter;
-  fieldCollector: FieldCollector;
+  rootFieldCollector: RootFieldCollector;
   subFieldCollector: SubFieldCollector;
   resolveField: FieldResolver;
   rootPayloadContext: PayloadContext;
@@ -198,9 +194,9 @@ export declare type StreamValuesGetter = (
       initialCount?: number;
       label?: string;
     };
-export declare type FieldCollector = (
+export declare type RootFieldCollector = (
   runtimeType: GraphQLObjectType,
-  selectionSet: SelectionSetNode,
+  operation: OperationDefinitionNode,
 ) => FieldsAndPatches;
 export declare type SubFieldCollector = (
   returnType: GraphQLObjectType,
@@ -333,7 +329,7 @@ export declare class Executor {
    */
   executeQueryOrMutationImpl(
     exeContext: ExecutionContext,
-    fieldsExecutor: FieldsExecutor,
+    rootFieldsExecutor: FieldsExecutor,
   ): PromiseOrValue<
     ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
   >;
@@ -374,16 +370,6 @@ export declare class Executor {
     operationName: Maybe<string>,
   ): ReadonlyArray<GraphQLError> | OperationDefinitionNode;
   /**
-   * Constructs a OperationContext object given an a document and operationName.
-   *
-   * Returns an array of GraphQLErrors if a valid operation context
-   * cannot be created.
-   */
-  buildOperationContext(
-    document: DocumentNode,
-    operationName: Maybe<string>,
-  ): ReadonlyArray<GraphQLError> | OperationContext;
-  /**
    * Constructs a ExecutionContext object from the arguments passed to
    * execute, which we will pass throughout the other execution methods.
    *
@@ -406,12 +392,9 @@ export declare class Executor {
    */
   executeRootFields(
     exeContext: ExecutionContext,
-    fieldsExecutor: FieldsExecutor,
+    rootFieldsExecutor: FieldsExecutor,
   ): PromiseOrValue<ObjMap<unknown> | null>;
-  parseOperationRoot(
-    exeContext: ExecutionContext,
-    operation: OperationDefinitionNode,
-  ): {
+  getRootContext(exeContext: ExecutionContext): {
     rootType: GraphQLObjectType;
     fieldsAndPatches: FieldsAndPatches;
   };
@@ -732,13 +715,13 @@ export declare class Executor {
     label?: string,
   ): ExecutionPatchResult;
   /**
-   * Given a selectionSet, collects all of the fields and returns them.
+   * Given an operation, collects all of the root fields and returns them.
    *
    * CollectFields requires the "runtime type" of an object. For a field that
    * returns an Interface or Union type, the "runtime type" will be the actual
    * object type returned by that field.
    */
-  buildFieldCollector: (
+  buildRootFieldCollector: (
     fragments: ObjMap<FragmentDefinitionNode>,
     variableValues: {
       [variable: string]: unknown;
@@ -746,7 +729,7 @@ export declare class Executor {
     getDeferValues: DeferValuesGetter,
   ) => (
     runtimeType: GraphQLObjectType,
-    selectionSet: SelectionSetNode,
+    operation: OperationDefinitionNode,
   ) => FieldsAndPatches;
   /**
    * Given an array of field nodes, collects all of the subfields of the passed
