@@ -57,7 +57,7 @@ import type { ExecutorSchema } from './executorSchema.ts';
 import { toExecutorSchema } from './toExecutorSchema.ts';
 import {
   getVariableValues,
-  getArgumentValues as _getArgumentValues,
+  getArgumentValues,
   getDirectiveValues,
 } from './values.ts';
 import { mapAsyncIterable } from './mapAsyncIterable.ts';
@@ -714,7 +714,7 @@ export class Executor {
     const enableIncrementalFlagValue = enableIncremental ?? true;
     const defaultResolveFieldValueFn = fieldResolver ?? defaultFieldResolver;
     const getDeferValues = enableIncrementalFlagValue
-      ? this._getDeferValues.bind(this)
+      ? this.getDeferValues.bind(this)
       : () => undefined;
     const coercedVariableValuesValues = coercedVariableValues.coerced;
     return {
@@ -729,7 +729,7 @@ export class Executor {
       enableIncremental: enableIncrementalFlagValue,
       getArgumentValues: memoize2(
         (def: GraphQLField<unknown, unknown>, node: FieldNode) =>
-          _getArgumentValues(
+          getArgumentValues(
             this._executorSchema,
             def,
             node,
@@ -738,7 +738,7 @@ export class Executor {
       ),
       getDeferValues,
       getStreamValues: enableIncrementalFlagValue
-        ? this._getStreamValues.bind(this)
+        ? this.getStreamValues.bind(this)
         : () => undefined,
       fieldCollector: this.buildFieldCollector(
         fragments,
@@ -1235,7 +1235,7 @@ export class Executor {
    * not disabled by the "if" argument.
    */
 
-  _getStreamValues(
+  getStreamValues(
     variableValues: {
       [variable: string]: unknown;
     },
@@ -2515,7 +2515,7 @@ export class Executor {
    * not disabled by the "if" argument.
    */
 
-  _getDeferValues(
+  getDeferValues(
     variableValues: {
       [variable: string]: unknown;
     },
