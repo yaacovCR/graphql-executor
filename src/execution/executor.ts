@@ -908,6 +908,8 @@ export class Executor {
 
       if (result !== undefined) {
         if (isPromise(result)) {
+          // set key to undefined to preserve key order
+          results[responseName] = undefined;
           const promise = result.then((resolved) => {
             results[responseName] = resolved;
           });
