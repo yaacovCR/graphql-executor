@@ -1,5 +1,11 @@
 # graphql-executor
 
+## 0.0.17
+
+### Patch Changes
+
+- 53a698e2: preserve key order when promises resolves out of order
+
 ## 0.0.16
 
 ### Patch Changes
