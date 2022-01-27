@@ -71,6 +71,14 @@ export interface ExecutionContext {
   pushedPayloads: WeakMap<PayloadContext, boolean>;
   pendingPayloads: WeakMap<PayloadContext, Array<IncrementalResult>>;
 }
+interface FieldContext {
+  fieldDef: GraphQLField<unknown, unknown>;
+  initialFieldNode: FieldNode;
+  fieldName: string;
+  fieldNodes: ReadonlyArray<FieldNode>;
+  returnType: GraphQLOutputType;
+  parentType: GraphQLObjectType;
+}
 interface PayloadContext {
   errors: Array<GraphQLError>;
   label?: string;
@@ -161,14 +169,13 @@ export declare type FieldsExecutor = (
 ) => PromiseOrValue<ObjMap<unknown>>;
 export declare type FieldResolver = (
   exeContext: ExecutionContext,
-  fieldDef: GraphQLField<unknown, unknown>,
+  fieldContext: FieldContext,
   source: unknown,
   info: GraphQLResolveInfo,
-  fieldNodes: ReadonlyArray<FieldNode>,
 ) => unknown;
 export declare type ValueCompleter = (
   exeContext: ExecutionContext,
-  fieldNodes: ReadonlyArray<FieldNode>,
+  fieldContext: FieldContext,
   info: GraphQLResolveInfo,
   path: Path,
   result: unknown,
@@ -195,7 +202,7 @@ export declare type StreamValuesGetter = (
   variableValues: {
     [variable: string]: unknown;
   },
-  fieldNodes: ReadonlyArray<FieldNode>,
+  fieldContext: FieldContext,
 ) =>
   | undefined
   | {
@@ -233,13 +240,13 @@ export declare class Executor {
     a2: Maybe<string>,
   ) => OperationDefinitionNode | readonly GraphQLError[];
   /**
-   * A memoized method that looks up the field given a parent type
+   * A memoized method that looks up the field context given a parent type
    * and an array of field nodes.
    */
-  getFieldDef: (
+  getFieldContext: (
     a1: GraphQLObjectType<any, any>,
     a2: readonly FieldNode[],
-  ) => Maybe<GraphQLField<unknown, unknown, any>>;
+  ) => Maybe<FieldContext>;
   /**
    * A memoized method that retrieves a value completer given a return type.
    */
@@ -368,10 +375,9 @@ export declare class Executor {
     defaultResolver: GraphQLFieldResolver<unknown, unknown>,
   ) => (
     exeContext: ExecutionContext,
-    fieldDef: GraphQLField<unknown, unknown>,
+    fieldContext: FieldContext,
     source: unknown,
     info: GraphQLResolveInfo,
-    fieldNodes: ReadonlyArray<FieldNode>,
   ) => unknown;
   _splitDefinitions(document: DocumentNode): {
     operations: ReadonlyArray<OperationDefinitionNode>;
@@ -449,9 +455,7 @@ export declare class Executor {
   ): PromiseOrValue<unknown>;
   buildResolveInfo(
     exeContext: ExecutionContext,
-    fieldDef: GraphQLField<unknown, unknown>,
-    fieldNodes: ReadonlyArray<FieldNode>,
-    parentType: GraphQLObjectType,
+    fieldContext: FieldContext,
     path: Path,
   ): GraphQLResolveInfo;
   handleFieldError(
@@ -489,7 +493,7 @@ export declare class Executor {
   completeListValue(
     exeContext: ExecutionContext,
     returnType: GraphQLList<GraphQLOutputType>,
-    fieldNodes: ReadonlyArray<FieldNode>,
+    fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
@@ -504,7 +508,7 @@ export declare class Executor {
     variableValues: {
       [variable: string]: unknown;
     },
-    fieldNodes: ReadonlyArray<FieldNode>,
+    fieldContext: FieldContext,
   ):
     | undefined
     | {
@@ -517,7 +521,7 @@ export declare class Executor {
   completeIteratorValue(
     exeContext: ExecutionContext,
     itemType: GraphQLOutputType,
-    fieldNodes: ReadonlyArray<FieldNode>,
+    fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     path: Path,
     iterator: Iterator<unknown>,
@@ -529,7 +533,7 @@ export declare class Executor {
   completeAsyncIteratorValue(
     exeContext: ExecutionContext,
     itemType: GraphQLOutputType,
-    fieldNodes: ReadonlyArray<FieldNode>,
+    fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     path: Path,
     iterator: AsyncIterator<unknown>,
@@ -543,7 +547,7 @@ export declare class Executor {
     exeContext: ExecutionContext,
     itemType: GraphQLOutputType,
     valueCompleter: ValueCompleter,
-    fieldNodes: ReadonlyArray<FieldNode>,
+    fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     itemPath: Path,
     payloadContext: PayloadContext,
@@ -560,7 +564,7 @@ export declare class Executor {
   completeAbstractValue(
     exeContext: ExecutionContext,
     returnType: GraphQLAbstractType,
-    fieldNodes: ReadonlyArray<FieldNode>,
+    fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
@@ -569,8 +573,7 @@ export declare class Executor {
   ensureValidRuntimeType(
     runtimeTypeOrName: unknown,
     returnType: GraphQLAbstractType,
-    fieldNodes: ReadonlyArray<FieldNode>,
-    info: GraphQLResolveInfo,
+    fieldContext: FieldContext,
     result: unknown,
   ): GraphQLObjectType;
   /**
@@ -579,7 +582,7 @@ export declare class Executor {
   completeObjectValue(
     exeContext: ExecutionContext,
     returnType: GraphQLObjectType,
-    fieldNodes: ReadonlyArray<FieldNode>,
+    fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
@@ -593,7 +596,7 @@ export declare class Executor {
   collectAndExecuteSubfields(
     exeContext: ExecutionContext,
     returnType: GraphQLObjectType,
-    fieldNodes: ReadonlyArray<FieldNode>,
+    fieldContext: FieldContext,
     path: Path,
     result: unknown,
     payloadContext: PayloadContext,
@@ -607,11 +610,13 @@ export declare class Executor {
    * could get automatically added to the query type, but that would
    * require mutating type definitions, which would cause issues.
    *
+   * Returns: the field definition and a class for constructing the info
+   * argument for field resolvers.
    */
-  _getFieldDef(
+  _getFieldContext(
     parentType: GraphQLObjectType,
     fieldNodes: ReadonlyArray<FieldNode>,
-  ): Maybe<GraphQLField<unknown, unknown>>;
+  ): Maybe<FieldContext>;
   /**
    * Implements the "Subscribe" algorithm described in the GraphQL specification.
    *
@@ -659,7 +664,7 @@ export declare class Executor {
     initialIndex: number,
     iterator: Iterator<unknown>,
     exeContext: ExecutionContext,
-    fieldNodes: ReadonlyArray<FieldNode>,
+    fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     valueCompleter: ValueCompleter,
     path: Path,
@@ -670,7 +675,7 @@ export declare class Executor {
     initialIndex: number,
     iterator: AsyncIterator<unknown>,
     exeContext: ExecutionContext,
-    fieldNodes: ReadonlyArray<FieldNode>,
+    fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     itemType: GraphQLOutputType,
     valueCompleter: ValueCompleter,
@@ -682,7 +687,7 @@ export declare class Executor {
     index: number,
     iterator: AsyncIterator<unknown>,
     exeContext: ExecutionContext,
-    fieldNodes: ReadonlyArray<FieldNode>,
+    fieldContext: FieldContext,
     itemType: GraphQLOutputType,
     path: Path,
     payloadContext: PayloadContext,
