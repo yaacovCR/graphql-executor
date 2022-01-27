@@ -1,5 +1,11 @@
 # graphql-executor
 
+## 0.0.16
+
+### Patch Changes
+
+- 2a1621cb: Streamline/refactor Executor methods and arguments
+
 ## 0.0.15
 
 ### Patch Changes
