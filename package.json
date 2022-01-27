@@ -1,6 +1,6 @@
 {
   "name": "graphql-executor",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "description": "A customizable GraphQL Spec compliant Executor class.",
   "license": "MIT",
   "main": "index",
