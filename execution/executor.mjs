@@ -160,10 +160,14 @@ export class Executor {
             _fieldDef$resolverKey !== void 0
               ? _fieldDef$resolverKey
               : defaultResolver;
-          const { contextValue, variableValues } = exeContext; // Build a JS object of arguments from the field.arguments AST, using the
+          const {
+            contextValue,
+            variableValues,
+            getArgumentValues: _getArgumentValues,
+          } = exeContext; // Build a JS object of arguments from the field.arguments AST, using the
           // variables scope to fulfill any variable references.
 
-          const args = exeContext.getArgumentValues(
+          const args = _getArgumentValues(
             fieldDef,
             initialFieldNode,
             variableValues,
@@ -760,9 +764,10 @@ export class Executor {
   ) {
     const results = Object.create(null);
     const promises = [];
+    const parentTypeName = parentType.name;
 
     for (const [responseName, fieldNodes] of fields.entries()) {
-      const fieldPath = addPath(path, responseName, parentType.name);
+      const fieldPath = addPath(path, responseName, parentTypeName);
       const result = this.executeField(
         exeContext,
         parentType,
@@ -1729,7 +1734,7 @@ export class Executor {
   }
 
   async executeSubscriptionRootField(exeContext) {
-    const { rootValue } = exeContext;
+    const { rootValue, resolveField } = exeContext;
     const {
       rootType,
       fieldsAndPatches: { fields },
@@ -1749,7 +1754,7 @@ export class Executor {
     const info = this.buildResolveInfo(exeContext, fieldContext, path);
 
     try {
-      const eventStream = await exeContext.resolveField(
+      const eventStream = await resolveField(
         exeContext,
         fieldContext,
         rootValue,
