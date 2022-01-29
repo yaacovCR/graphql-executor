@@ -458,8 +458,15 @@ export declare class Executor {
     fieldContext: FieldContext,
     path: Path,
   ): GraphQLResolveInfo;
-  handleFieldError(
-    error: GraphQLError,
+  toLocatedError(
+    rawError: unknown,
+    fieldNodes: ReadonlyArray<FieldNode>,
+    path: Path,
+  ): GraphQLError;
+  handleRawError(
+    rawError: unknown,
+    fieldNodes: ReadonlyArray<FieldNode>,
+    path: Path,
     returnType: GraphQLOutputType,
     errors: Array<GraphQLError>,
   ): null;
@@ -677,7 +684,6 @@ export declare class Executor {
     exeContext: ExecutionContext,
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
-    itemType: GraphQLOutputType,
     valueCompleter: ValueCompleter,
     path: Path,
     label: string | undefined,
@@ -688,7 +694,6 @@ export declare class Executor {
     iterator: AsyncIterator<unknown>,
     exeContext: ExecutionContext,
     fieldContext: FieldContext,
-    itemType: GraphQLOutputType,
     path: Path,
     payloadContext: PayloadContext,
     prevPayloadContext: PayloadContext,

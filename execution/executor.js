@@ -154,14 +154,10 @@ class Executor {
             _fieldDef$resolverKey !== void 0
               ? _fieldDef$resolverKey
               : defaultResolver;
-          const {
-            contextValue,
-            variableValues,
-            getArgumentValues: _getArgumentValues,
-          } = exeContext; // Build a JS object of arguments from the field.arguments AST, using the
+          const { contextValue, variableValues } = exeContext; // Build a JS object of arguments from the field.arguments AST, using the
           // variables scope to fulfill any variable references.
 
-          const args = _getArgumentValues(
+          const args = exeContext.getArgumentValues(
             fieldDef,
             initialFieldNode,
             variableValues,
@@ -764,10 +760,9 @@ class Executor {
   ) {
     const results = Object.create(null);
     const promises = [];
-    const parentTypeName = parentType.name;
 
     for (const [responseName, fieldNodes] of fields.entries()) {
-      const fieldPath = (0, _Path.addPath)(path, responseName, parentTypeName);
+      const fieldPath = (0, _Path.addPath)(path, responseName, parentType.name);
       const result = this.executeField(
         exeContext,
         parentType,
@@ -859,28 +854,26 @@ class Executor {
       if ((0, _isPromise.isPromise)(completed)) {
         // Note: we don't rely on a `catch` method, but we do expect "thenable"
         // to take a second callback for the error case.
-        return completed.then(undefined, (rawError) => {
-          const error = (0, _graphql.locatedError)(
-            (0, _toError.toError)(rawError),
+        return completed.then(undefined, (rawError) =>
+          this.handleRawError(
+            rawError,
             fieldNodes,
-            (0, _Path.pathToArray)(path),
-          );
-          return this.handleFieldError(
-            error,
+            path,
             returnType,
             payloadContext.errors,
-          );
-        });
+          ),
+        );
       }
 
       return completed;
     } catch (rawError) {
-      const error = (0, _graphql.locatedError)(
-        (0, _toError.toError)(rawError),
+      return this.handleRawError(
+        rawError,
         fieldNodes,
-        (0, _Path.pathToArray)(path),
+        path,
+        returnType,
+        payloadContext.errors,
       );
-      return this.handleFieldError(error, returnType, payloadContext.errors);
     }
   }
 
@@ -905,9 +898,18 @@ class Executor {
     };
   }
 
-  handleFieldError(error, returnType, errors) {
-    // If the field type is non-nullable, then it is resolved without any
+  toLocatedError(rawError, fieldNodes, path) {
+    return (0, _graphql.locatedError)(
+      (0, _toError.toError)(rawError),
+      fieldNodes,
+      (0, _Path.pathToArray)(path),
+    );
+  }
+
+  handleRawError(rawError, fieldNodes, path, returnType, errors) {
+    const error = this.toLocatedError(rawError, fieldNodes, path); // If the field type is non-nullable, then it is resolved without any
     // protection from errors, however it still properly locates the error.
+
     if (this._executorSchema.isNonNullType(returnType)) {
       throw error;
     } // Otherwise, error protection is applied, logging the error and resolving
@@ -1266,7 +1268,6 @@ class Executor {
           exeContext,
           fieldContext,
           info,
-          itemType,
           valueCompleter,
           path,
           stream.label,
@@ -1282,13 +1283,14 @@ class Executor {
         // eslint-disable-next-line no-await-in-loop
         iteration = await iterator.next();
       } catch (rawError) {
-        const error = (0, _graphql.locatedError)(
-          (0, _toError.toError)(rawError),
-          fieldContext.fieldNodes,
-          (0, _Path.pathToArray)(itemPath),
-        );
         completedResults.push(
-          this.handleFieldError(error, itemType, payloadContext.errors),
+          this.handleRawError(
+            rawError,
+            fieldContext.fieldNodes,
+            itemPath,
+            itemType,
+            payloadContext.errors,
+          ),
         );
         break;
       }
@@ -1364,26 +1366,24 @@ class Executor {
       // to take a second callback for the error case.
 
       const promise = completedItem
-        .then(undefined, (rawError) => {
-          const error = (0, _graphql.locatedError)(
-            (0, _toError.toError)(rawError),
+        .then(undefined, (rawError) =>
+          this.handleRawError(
+            rawError,
             fieldContext.fieldNodes,
-            (0, _Path.pathToArray)(itemPath),
-          );
-          return this.handleFieldError(error, itemType, payloadContext.errors);
-        })
+            itemPath,
+            itemType,
+            payloadContext.errors,
+          ),
+        )
         .then((resolved) => {
           completedResults[index] = resolved;
         });
       promises.push(promise);
     } catch (rawError) {
-      const error = (0, _graphql.locatedError)(
-        (0, _toError.toError)(rawError),
+      completedResults[index] = this.handleRawError(
+        rawError,
         fieldContext.fieldNodes,
-        (0, _Path.pathToArray)(itemPath),
-      );
-      completedResults[index] = this.handleFieldError(
-        error,
+        itemPath,
         itemType,
         payloadContext.errors,
       );
@@ -1741,7 +1741,7 @@ class Executor {
   }
 
   async executeSubscriptionRootField(exeContext) {
-    const { rootValue, resolveField } = exeContext;
+    const { rootValue } = exeContext;
     const {
       rootType,
       fieldsAndPatches: { fields },
@@ -1761,7 +1761,7 @@ class Executor {
     const info = this.buildResolveInfo(exeContext, fieldContext, path);
 
     try {
-      const eventStream = await resolveField(
+      const eventStream = await exeContext.resolveField(
         exeContext,
         fieldContext,
         rootValue,
@@ -1773,12 +1773,11 @@ class Executor {
       }
 
       return eventStream;
-    } catch (error) {
-      throw (0, _graphql.locatedError)(
-        (0, _toError.toError)(error),
-        fieldNodes,
-        (0, _Path.pathToArray)(path),
-      );
+    } catch (rawError) {
+      // no need to use handleRawError helper because the
+      // source stream creation portion of subscription algorithm
+      // does not include error bubbling/null protection.
+      throw this.toLocatedError(rawError, fieldNodes, path);
     }
   }
 
@@ -1822,7 +1821,8 @@ class Executor {
               path,
             ),
           (error) => {
-            this.handleFieldError(error, parentType, payloadContext.errors);
+            // executeFields will never throw a raw error
+            payloadContext.errors.push(error);
             this.queue(
               exeContext,
               payloadContext,
@@ -1871,30 +1871,28 @@ class Executor {
             payloadContext,
           ),
         )
-        .then((data) =>
-          this.queue(
-            exeContext,
-            payloadContext,
-            _prevPayloadContext,
-            data,
-            itemPath,
-          ),
-        )
-        .then(undefined, (rawError) => {
-          const error = (0, _graphql.locatedError)(
-            (0, _toError.toError)(rawError),
-            fieldContext.fieldNodes,
-            (0, _Path.pathToArray)(itemPath),
-          );
-          payloadContext.errors.push(error);
-          this.queue(
-            exeContext,
-            payloadContext,
-            _prevPayloadContext,
-            null,
-            itemPath,
-          );
-        });
+        .then(
+          (data) =>
+            this.queue(
+              exeContext,
+              payloadContext,
+              _prevPayloadContext,
+              data,
+              itemPath,
+            ),
+          (rawError) => {
+            payloadContext.errors.push(
+              this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
+            );
+            this.queue(
+              exeContext,
+              payloadContext,
+              _prevPayloadContext,
+              null,
+              itemPath,
+            );
+          },
+        );
       index++;
       prevPayloadContext = payloadContext;
       iteration = iterator.next();
@@ -1907,7 +1905,6 @@ class Executor {
     exeContext,
     fieldContext,
     info,
-    itemType,
     valueCompleter,
     path,
     label,
@@ -1926,7 +1923,6 @@ class Executor {
       iterator,
       exeContext,
       fieldContext,
-      itemType,
       path,
       currentPayloadContext,
       parentPayloadContext,
@@ -1960,13 +1956,9 @@ class Executor {
           ),
         )
         .then(undefined, (rawError) => {
-          const error = (0, _graphql.locatedError)(
-            (0, _toError.toError)(rawError),
-            fieldContext.fieldNodes,
-            (0, _Path.pathToArray)(itemPath),
+          _currentPayloadContext.errors.push(
+            this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
           );
-
-          _currentPayloadContext.errors.push(error);
 
           this.queue(
             exeContext,
@@ -1988,7 +1980,6 @@ class Executor {
         iterator,
         exeContext,
         fieldContext,
-        itemType,
         path,
         currentPayloadContext,
         prevPayloadContext,
@@ -2003,7 +1994,6 @@ class Executor {
     iterator,
     exeContext,
     fieldContext,
-    itemType,
     path,
     payloadContext,
     prevPayloadContext,
@@ -2013,12 +2003,9 @@ class Executor {
     } catch (rawError) {
       exeContext.pendingPushes++;
       const itemPath = (0, _Path.addPath)(path, index, undefined);
-      const error = (0, _graphql.locatedError)(
-        (0, _toError.toError)(rawError),
-        fieldContext.fieldNodes,
-        (0, _Path.pathToArray)(itemPath),
+      payloadContext.errors.push(
+        this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
       );
-      this.handleFieldError(error, itemType, payloadContext.errors);
       this.queue(
         exeContext,
         payloadContext,
