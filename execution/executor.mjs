@@ -715,10 +715,11 @@ export class Executor {
    */
 
   executeFieldsSerially(exeContext, parentType, sourceValue, path, fields) {
+    const parentTypeName = parentType.name;
     return promiseReduce(
       fields.entries(),
       (results, [responseName, fieldNodes]) => {
-        const fieldPath = addPath(path, responseName, parentType.name);
+        const fieldPath = addPath(path, responseName, parentTypeName);
         const result = this.executeField(
           exeContext,
           parentType,
@@ -760,9 +761,10 @@ export class Executor {
   ) {
     const results = Object.create(null);
     const promises = [];
+    const parentTypeName = parentType.name;
 
     for (const [responseName, fieldNodes] of fields.entries()) {
-      const fieldPath = addPath(path, responseName, parentType.name);
+      const fieldPath = addPath(path, responseName, parentTypeName);
       const result = this.executeField(
         exeContext,
         parentType,
@@ -1730,7 +1732,6 @@ export class Executor {
   }
 
   async executeSubscriptionRootField(exeContext) {
-    const { rootValue } = exeContext;
     const {
       rootType,
       fieldsAndPatches: { fields },
@@ -1753,7 +1754,7 @@ export class Executor {
       const eventStream = await exeContext.resolveField(
         exeContext,
         fieldContext,
-        rootValue,
+        exeContext.rootValue,
         info,
       );
 
