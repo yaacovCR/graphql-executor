@@ -851,10 +851,11 @@ export class Executor {
     path: Path | undefined,
     fields: Map<string, ReadonlyArray<FieldNode>>,
   ): PromiseOrValue<ObjMap<unknown>> {
+    const parentTypeName = parentType.name;
     return promiseReduce(
       fields.entries(),
       (results, [responseName, fieldNodes]) => {
-        const fieldPath = addPath(path, responseName, parentType.name);
+        const fieldPath = addPath(path, responseName, parentTypeName);
         const result = this.executeField(
           exeContext,
           parentType,
@@ -896,9 +897,10 @@ export class Executor {
   ): PromiseOrValue<ObjMap<unknown>> {
     const results = Object.create(null);
     const promises: Array<Promise<void>> = [];
+    const parentTypeName = parentType.name;
 
     for (const [responseName, fieldNodes] of fields.entries()) {
-      const fieldPath = addPath(path, responseName, parentType.name);
+      const fieldPath = addPath(path, responseName, parentTypeName);
       const result = this.executeField(
         exeContext,
         parentType,
@@ -1920,7 +1922,6 @@ export class Executor {
   async executeSubscriptionRootField(
     exeContext: ExecutionContext,
   ): Promise<unknown> {
-    const { rootValue } = exeContext;
     const {
       rootType,
       fieldsAndPatches: { fields },
@@ -1943,7 +1944,7 @@ export class Executor {
       const eventStream = await exeContext.resolveField(
         exeContext,
         fieldContext,
-        rootValue,
+        exeContext.rootValue,
         info,
       );
 
