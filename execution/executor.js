@@ -42,8 +42,6 @@ var _repeater = require('../jsutils/repeater.js');
 
 var _toError = require('../jsutils/toError.js');
 
-var _isGraphQLError = require('../error/isGraphQLError.js');
-
 var _toExecutorSchema = require('./toExecutorSchema.js');
 
 var _values = require('./values.js');
@@ -332,9 +330,10 @@ class Executor {
    */
 
   executeQueryAlgorithm(exeContext) {
-    return this.executeQueryOrMutationImpl(
+    return this.executeOperationImpl(
       exeContext,
       this.executeFields.bind(this),
+      this.buildResponse.bind(this),
     );
   }
   /**
@@ -343,38 +342,38 @@ class Executor {
    */
 
   executeMutationImpl(exeContext) {
-    return this.executeQueryOrMutationImpl(
+    return this.executeOperationImpl(
       exeContext,
       this.executeFieldsSerially.bind(this),
+      this.buildResponse.bind(this),
     );
   }
   /**
    * Implements the Execute algorithm described in the GraphQL specification
-   * for queries/mutations, using the provided parallel or serial fields
-   * executor.
+   * using the provided root fields executor and response builder.
    */
 
-  executeQueryOrMutationImpl(exeContext, rootFieldsExecutor) {
+  executeOperationImpl(exeContext, rootFieldsExecutor, responseBuilder) {
     let data;
 
     try {
       data = this.executeRootFields(exeContext, rootFieldsExecutor);
     } catch (error) {
       exeContext.rootPayloadContext.errors.push(error);
-      return this.buildResponse(exeContext, null);
+      data = null;
     }
 
     if ((0, _isPromise.isPromise)(data)) {
       return data.then(
-        (resolvedData) => this.buildResponse(exeContext, resolvedData),
+        (resolvedData) => responseBuilder(exeContext, resolvedData),
         (error) => {
           exeContext.rootPayloadContext.errors.push(error);
-          return this.buildResponse(exeContext, null);
+          return responseBuilder(exeContext, null);
         },
       );
     }
 
-    return this.buildResponse(exeContext, data);
+    return responseBuilder(exeContext, data);
   }
   /**
    * Given a completed execution context and data, build the `{ errors, data }`
@@ -1685,15 +1684,69 @@ class Executor {
    *
    * If the operation succeeded, the promise resolves to an AsyncIterator, which
    * yields a stream of ExecutionResults representing the response stream.
-   *
-   * Accepts either an object with named arguments, or individual arguments.
    */
 
   async executeSubscriptionImpl(exeContext) {
-    const resultOrStream = await this.createSourceEventStreamImpl(exeContext);
+    return this.executeOperationImpl(
+      exeContext,
+      this.executeSubscriptionRootFields.bind(this),
+      this.buildSubscribeResponse.bind(this),
+    );
+  }
+  /**
+   * Implements the "Executing selection sets" section of the spec
+   * for root subscription fields.
+   */
 
-    if (!(0, _isAsyncIterable.isAsyncIterable)(resultOrStream)) {
-      return resultOrStream;
+  async executeSubscriptionRootFields(
+    exeContext,
+    parentType,
+    sourceValue,
+    path,
+    fields,
+    payloadContext,
+  ) {
+    // TODO: consider allowing multiple root subscription fields
+    const [responseName, fieldNodes] = [...fields.entries()][0];
+    const fieldPath = (0, _Path.addPath)(path, responseName, parentType.name);
+    return this.executeSubscriptionRootField(
+      exeContext,
+      parentType,
+      sourceValue,
+      fieldNodes,
+      fieldPath,
+      payloadContext,
+    );
+  }
+
+  buildCreateSourceEventStreamResponse(exeContext, eventStream) {
+    const { rootPayloadContext } = exeContext;
+    const errors = rootPayloadContext.errors;
+
+    if (errors.length) {
+      return {
+        errors,
+      };
+    }
+
+    if (!(0, _isAsyncIterable.isAsyncIterable)(eventStream)) {
+      throw new Error(
+        'Subscription field must return Async Iterable. ' +
+          `Received: ${(0, _inspect.inspect)(eventStream)}.`,
+      );
+    }
+
+    return eventStream;
+  }
+
+  buildSubscribeResponse(exeContext, _eventStream) {
+    const eventStream = this.buildCreateSourceEventStreamResponse(
+      exeContext,
+      _eventStream,
+    );
+
+    if (!(0, _isAsyncIterable.isAsyncIterable)(eventStream)) {
+      return eventStream;
     } // For each payload yielded from a subscription, map it over the normal
     // GraphQL `execute` function, with `payload` as the rootValue.
     // This implements the "MapSourceToResponseEvent" algorithm described in
@@ -1710,62 +1763,46 @@ class Executor {
     }; // Map every source value to a ExecutionResult value as described above.
 
     return (0, _flattenAsyncIterable.flattenAsyncIterable)(
-      (0, _mapAsyncIterable.mapAsyncIterable)(
-        resultOrStream,
-        mapSourceToResponse,
-      ),
+      (0, _mapAsyncIterable.mapAsyncIterable)(eventStream, mapSourceToResponse),
     );
   }
 
   async createSourceEventStreamImpl(exeContext) {
-    try {
-      const eventStream = await this.executeSubscriptionRootField(exeContext); // Assert field returned an event stream, otherwise yield an error.
-
-      if (!(0, _isAsyncIterable.isAsyncIterable)(eventStream)) {
-        throw new Error(
-          'Subscription field must return Async Iterable. ' +
-            `Received: ${(0, _inspect.inspect)(eventStream)}.`,
-        );
-      }
-
-      return eventStream;
-    } catch (error) {
-      // If it GraphQLError, report it as an ExecutionResult, containing only errors and no data.
-      // Otherwise treat the error as a system-class error and re-throw it.
-      if ((0, _isGraphQLError.isGraphQLError)(error)) {
-        return {
-          errors: [error],
-        };
-      }
-
-      throw error;
-    }
+    return this.executeOperationImpl(
+      exeContext,
+      this.executeSubscriptionRootFields.bind(this),
+      this.buildCreateSourceEventStreamResponse.bind(this),
+    );
   }
 
-  async executeSubscriptionRootField(exeContext) {
-    const {
-      rootType,
-      fieldsAndPatches: { fields },
-    } = this.getRootContext(exeContext);
-    const [responseName, fieldNodes] = [...fields.entries()][0];
-    const fieldContext = this.getFieldContext(rootType, fieldNodes);
+  async executeSubscriptionRootField(
+    exeContext,
+    parentType,
+    sourceValue,
+    fieldNodes,
+    fieldPath,
+    payloadContext,
+  ) {
+    const fieldContext = this.getFieldContext(parentType, fieldNodes);
 
     if (!fieldContext) {
       const fieldName = fieldNodes[0].name.value;
-      throw new _graphql.GraphQLError(
-        `The subscription field "${fieldName}" is not defined.`,
-        fieldNodes,
+      payloadContext.errors.push(
+        new _graphql.GraphQLError(
+          `The subscription field "${fieldName}" is not defined.`,
+          fieldNodes,
+        ),
       );
+      return null;
     }
 
-    const path = (0, _Path.addPath)(undefined, responseName, rootType.name);
-    const info = this.buildResolveInfo(exeContext, fieldContext, path);
+    const info = this.buildResolveInfo(exeContext, fieldContext, fieldPath);
 
     try {
       const eventStream = await exeContext.resolveField(
         exeContext,
         fieldContext,
-        exeContext.rootValue,
+        sourceValue,
         info,
       );
 
@@ -1775,10 +1812,10 @@ class Executor {
 
       return eventStream;
     } catch (rawError) {
-      // no need to use handleRawError helper because the
-      // source stream creation portion of subscription algorithm
-      // does not include error bubbling/null protection.
-      throw this.toLocatedError(rawError, fieldNodes, path);
+      payloadContext.errors.push(
+        this.toLocatedError(rawError, fieldNodes, fieldPath),
+      );
+      return null;
     }
   }
 

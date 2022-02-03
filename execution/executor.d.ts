@@ -159,14 +159,21 @@ export interface ExecutionPatchResult<
 export declare type AsyncExecutionResult =
   | ExecutionResult
   | ExecutionPatchResult;
-export declare type FieldsExecutor = (
+export declare type FieldsExecutor<TReturnType> = (
   exeContext: ExecutionContext,
   parentType: GraphQLObjectType,
   sourceValue: unknown,
   path: Path | undefined,
   fields: Map<string, ReadonlyArray<FieldNode>>,
   payloadContext: PayloadContext,
-) => PromiseOrValue<ObjMap<unknown>>;
+) => PromiseOrValue<TReturnType>;
+export declare type ResponseBuilder<
+  TRootFieldsExecutorReturnType,
+  TReturnType,
+> = (
+  exeContext: ExecutionContext,
+  data: TRootFieldsExecutorReturnType | null,
+) => TReturnType;
 export declare type FieldResolver = (
   exeContext: ExecutionContext,
   fieldContext: FieldContext,
@@ -343,15 +350,16 @@ export declare class Executor {
   >;
   /**
    * Implements the Execute algorithm described in the GraphQL specification
-   * for queries/mutations, using the provided parallel or serial fields
-   * executor.
+   * using the provided root fields executor and response builder.
    */
-  executeQueryOrMutationImpl(
+  executeOperationImpl<TRootFieldsExecutorReturnType, TReturnType>(
     exeContext: ExecutionContext,
-    rootFieldsExecutor: FieldsExecutor,
-  ): PromiseOrValue<
-    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
-  >;
+    rootFieldsExecutor: FieldsExecutor<TRootFieldsExecutorReturnType>,
+    responseBuilder: ResponseBuilder<
+      TRootFieldsExecutorReturnType,
+      TReturnType
+    >,
+  ): PromiseOrValue<TReturnType>;
   /**
    * Given a completed execution context and data, build the `{ errors, data }`
    * response defined by the "Response" section of the GraphQL specification.
@@ -408,10 +416,10 @@ export declare class Executor {
   /**
    * Executes the root fields specified by the operation.
    */
-  executeRootFields(
+  executeRootFields<TReturnType>(
     exeContext: ExecutionContext,
-    rootFieldsExecutor: FieldsExecutor,
-  ): PromiseOrValue<ObjMap<unknown> | null>;
+    rootFieldsExecutor: FieldsExecutor<TReturnType>,
+  ): PromiseOrValue<TReturnType | null>;
   getRootContext(exeContext: ExecutionContext): {
     rootType: GraphQLObjectType;
     fieldsAndPatches: FieldsAndPatches;
@@ -642,18 +650,43 @@ export declare class Executor {
    *
    * If the operation succeeded, the promise resolves to an AsyncIterator, which
    * yields a stream of ExecutionResults representing the response stream.
-   *
-   * Accepts either an object with named arguments, or individual arguments.
    */
   executeSubscriptionImpl(
     exeContext: ExecutionContext,
   ): Promise<
     AsyncGenerator<AsyncExecutionResult, void, void> | ExecutionResult
   >;
+  /**
+   * Implements the "Executing selection sets" section of the spec
+   * for root subscription fields.
+   */
+  executeSubscriptionRootFields(
+    exeContext: ExecutionContext,
+    parentType: GraphQLObjectType,
+    sourceValue: unknown,
+    path: Path | undefined,
+    fields: Map<string, ReadonlyArray<FieldNode>>,
+    payloadContext: PayloadContext,
+  ): Promise<unknown>;
+  buildCreateSourceEventStreamResponse(
+    exeContext: ExecutionContext,
+    eventStream: unknown,
+  ): AsyncIterable<unknown> | ExecutionResult;
+  buildSubscribeResponse(
+    exeContext: ExecutionContext,
+    _eventStream: unknown,
+  ): AsyncGenerator<AsyncExecutionResult, void, void> | ExecutionResult;
   createSourceEventStreamImpl(
     exeContext: ExecutionContext,
   ): Promise<AsyncIterable<unknown> | ExecutionResult>;
-  executeSubscriptionRootField(exeContext: ExecutionContext): Promise<unknown>;
+  executeSubscriptionRootField(
+    exeContext: ExecutionContext,
+    parentType: GraphQLObjectType,
+    sourceValue: unknown,
+    fieldNodes: ReadonlyArray<FieldNode>,
+    fieldPath: Path,
+    payloadContext: PayloadContext,
+  ): Promise<unknown>;
   executeSubscriptionEvent(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
