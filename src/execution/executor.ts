@@ -356,7 +356,20 @@ export class Executor {
       return { errors: exeContext };
     }
 
-    return this.executeImpl(exeContext);
+    const { operation, forceQueryAlgorithm } = exeContext;
+
+    if (forceQueryAlgorithm) {
+      return this.executeQueryImpl(exeContext);
+    }
+
+    switch (operation.operation) {
+      case 'query':
+        return this.executeQueryImpl(exeContext);
+      case 'mutation':
+        return this.executeMutationImpl(exeContext);
+      default:
+        return this.executeSubscriptionImpl(exeContext);
+    }
   }
 
   /**
@@ -401,36 +414,6 @@ export class Executor {
     return this.createSourceEventStreamImpl(exeContext);
   }
 
-  executeImpl(
-    exeContext: ExecutionContext,
-  ): PromiseOrValue<
-    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
-  > {
-    const { operation, forceQueryAlgorithm } = exeContext;
-
-    if (forceQueryAlgorithm) {
-      return this.executeQueryAlgorithm(exeContext);
-    }
-
-    const operationType = operation.operation;
-    switch (operationType) {
-      case 'query':
-        return this.executeQueryImpl(exeContext);
-      case 'mutation':
-        return this.executeMutationImpl(exeContext);
-      default:
-        return this.executeSubscriptionImpl(exeContext);
-    }
-  }
-
-  executeQueryImpl(
-    exeContext: ExecutionContext,
-  ): PromiseOrValue<
-    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
-  > {
-    return this.executeQueryAlgorithm(exeContext);
-  }
-
   /**
    * Implements the ExecuteQuery algorithm described in the GraphQL
    * specification. This algorithm is used to execute query operations
@@ -445,7 +428,7 @@ export class Executor {
    * at which point we still log the error and null the parent field, which
    * in this case is the entire response.
    */
-  executeQueryAlgorithm(
+  executeQueryImpl(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
     ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
@@ -487,7 +470,31 @@ export class Executor {
   ): PromiseOrValue<TReturnType> {
     let data: PromiseOrValue<TRootFieldsExecutorReturnType | null>;
     try {
-      data = this.executeRootFields(exeContext, rootFieldsExecutor);
+      const { rootValue, rootPayloadContext } = exeContext;
+
+      const {
+        rootType,
+        fieldsAndPatches: { fields, patches },
+      } = this.getRootContext(exeContext);
+      const path = undefined;
+
+      data = rootFieldsExecutor(
+        exeContext,
+        rootType,
+        rootValue,
+        path,
+        fields,
+        rootPayloadContext,
+      );
+
+      this.addPatches(
+        exeContext,
+        patches,
+        rootType,
+        rootValue,
+        path,
+        rootPayloadContext,
+      );
     } catch (error) {
       exeContext.rootPayloadContext.errors.push(error);
       data = null;
@@ -786,42 +793,6 @@ export class Executor {
       pushedPayloads: new WeakMap(),
       pendingPayloads: new WeakMap(),
     };
-  }
-
-  /**
-   * Executes the root fields specified by the operation.
-   */
-  executeRootFields<TReturnType>(
-    exeContext: ExecutionContext,
-    rootFieldsExecutor: FieldsExecutor<TReturnType>,
-  ): PromiseOrValue<TReturnType | null> {
-    const { rootValue, rootPayloadContext } = exeContext;
-
-    const {
-      rootType,
-      fieldsAndPatches: { fields, patches },
-    } = this.getRootContext(exeContext);
-    const path = undefined;
-
-    const result = rootFieldsExecutor(
-      exeContext,
-      rootType,
-      rootValue,
-      path,
-      fields,
-      rootPayloadContext,
-    );
-
-    this.addPatches(
-      exeContext,
-      patches,
-      rootType,
-      rootValue,
-      path,
-      rootPayloadContext,
-    );
-
-    return result;
   }
 
   getRootContext(exeContext: ExecutionContext): {
@@ -1959,7 +1930,7 @@ export class Executor {
         exeContext,
         payload,
       );
-      return this.executeSubscriptionEvent(perPayloadExecutionContext);
+      return this.executeQueryImpl(perPayloadExecutionContext);
     };
 
     // Map every source value to a ExecutionResult value as described above.
@@ -2019,14 +1990,6 @@ export class Executor {
       );
       return null;
     }
-  }
-
-  executeSubscriptionEvent(
-    exeContext: ExecutionContext,
-  ): PromiseOrValue<
-    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
-  > {
-    return this.executeQueryAlgorithm(exeContext);
   }
 
   addPatches(
