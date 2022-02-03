@@ -1855,7 +1855,7 @@ export class Executor {
   > {
     return this.executeOperationImpl(
       exeContext,
-      this.executeSubscriptionRootFields.bind(this),
+      this.executeRootSubscriptionFields.bind(this),
       this.buildSubscribeResponse.bind(this),
     );
   }
@@ -1864,7 +1864,7 @@ export class Executor {
    * Implements the "Executing selection sets" section of the spec
    * for root subscription fields.
    */
-  async executeSubscriptionRootFields(
+  async executeRootSubscriptionFields(
     exeContext: ExecutionContext,
     parentType: GraphQLObjectType,
     sourceValue: unknown,
@@ -1875,7 +1875,7 @@ export class Executor {
     // TODO: consider allowing multiple root subscription fields
     const [responseName, fieldNodes] = [...fields.entries()][0];
     const fieldPath = addPath(path, responseName, parentType.name);
-    return this.executeSubscriptionRootField(
+    return this.executeRootSubscriptionField(
       exeContext,
       parentType,
       sourceValue,
@@ -1944,12 +1944,12 @@ export class Executor {
   ): Promise<AsyncIterable<unknown> | ExecutionResult> {
     return this.executeOperationImpl(
       exeContext,
-      this.executeSubscriptionRootFields.bind(this),
+      this.executeRootSubscriptionFields.bind(this),
       this.buildCreateSourceEventStreamResponse.bind(this),
     );
   }
 
-  async executeSubscriptionRootField(
+  async executeRootSubscriptionField(
     exeContext: ExecutionContext,
     parentType: GraphQLObjectType,
     sourceValue: unknown,
