@@ -342,6 +342,10 @@ export class Executor {
 
   /**
    * Implements the "Executing requests" section of the spec.
+   *
+   * If the client-provided arguments to this function do not result in a
+   * compliant subscription, a GraphQL Response (ExecutionResult) with
+   * descriptive errors and no data will be returned.
    */
   execute(
     args: ExecutorExecutionArgs,
@@ -417,7 +421,7 @@ export class Executor {
   /**
    * Implements the ExecuteQuery algorithm described in the GraphQL
    * specification. This algorithm is used to execute query operations
-   * and to implement the ExecuteSubscriptionEvent algorith,
+   * and to implement the ExecuteSubscriptionEvent algorithm.
    *
    * If errors are encountered while executing a GraphQL field, only that
    * field and its descendants will be omitted, and sibling fields will still
