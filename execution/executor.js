@@ -234,6 +234,10 @@ class Executor {
   }
   /**
    * Implements the "Executing requests" section of the spec.
+   *
+   * If the client-provided arguments to this function do not result in a
+   * compliant subscription, a GraphQL Response (ExecutionResult) with
+   * descriptive errors and no data will be returned.
    */
 
   execute(args) {
@@ -246,7 +250,22 @@ class Executor {
       };
     }
 
-    return this.executeImpl(exeContext);
+    const { operation, forceQueryAlgorithm } = exeContext;
+
+    if (forceQueryAlgorithm) {
+      return this.executeQueryImpl(exeContext);
+    }
+
+    switch (operation.operation) {
+      case 'query':
+        return this.executeQueryImpl(exeContext);
+
+      case 'mutation':
+        return this.executeMutationImpl(exeContext);
+
+      default:
+        return this.executeSubscriptionImpl(exeContext);
+    }
   }
   /**
    * Implements the "CreateSourceEventStream" algorithm described in the
@@ -289,35 +308,10 @@ class Executor {
 
     return this.createSourceEventStreamImpl(exeContext);
   }
-
-  executeImpl(exeContext) {
-    const { operation, forceQueryAlgorithm } = exeContext;
-
-    if (forceQueryAlgorithm) {
-      return this.executeQueryAlgorithm(exeContext);
-    }
-
-    const operationType = operation.operation;
-
-    switch (operationType) {
-      case 'query':
-        return this.executeQueryImpl(exeContext);
-
-      case 'mutation':
-        return this.executeMutationImpl(exeContext);
-
-      default:
-        return this.executeSubscriptionImpl(exeContext);
-    }
-  }
-
-  executeQueryImpl(exeContext) {
-    return this.executeQueryAlgorithm(exeContext);
-  }
   /**
    * Implements the ExecuteQuery algorithm described in the GraphQL
    * specification. This algorithm is used to execute query operations
-   * and to implement the ExecuteSubscriptionEvent algorith,
+   * and to implement the ExecuteSubscriptionEvent algorithm.
    *
    * If errors are encountered while executing a GraphQL field, only that
    * field and its descendants will be omitted, and sibling fields will still
@@ -329,7 +323,7 @@ class Executor {
    * in this case is the entire response.
    */
 
-  executeQueryAlgorithm(exeContext) {
+  executeQueryImpl(exeContext) {
     return this.executeOperationImpl(
       exeContext,
       this.executeFields.bind(this),
@@ -357,7 +351,28 @@ class Executor {
     let data;
 
     try {
-      data = this.executeRootFields(exeContext, rootFieldsExecutor);
+      const { rootValue, rootPayloadContext } = exeContext;
+      const {
+        rootType,
+        fieldsAndPatches: { fields, patches },
+      } = this.getRootContext(exeContext);
+      const path = undefined;
+      data = rootFieldsExecutor(
+        exeContext,
+        rootType,
+        rootValue,
+        path,
+        fields,
+        rootPayloadContext,
+      );
+      this.addPatches(
+        exeContext,
+        patches,
+        rootType,
+        rootValue,
+        path,
+        rootPayloadContext,
+      );
     } catch (error) {
       exeContext.rootPayloadContext.errors.push(error);
       data = null;
@@ -655,35 +670,6 @@ class Executor {
       pushedPayloads: new WeakMap(),
       pendingPayloads: new WeakMap(),
     };
-  }
-  /**
-   * Executes the root fields specified by the operation.
-   */
-
-  executeRootFields(exeContext, rootFieldsExecutor) {
-    const { rootValue, rootPayloadContext } = exeContext;
-    const {
-      rootType,
-      fieldsAndPatches: { fields, patches },
-    } = this.getRootContext(exeContext);
-    const path = undefined;
-    const result = rootFieldsExecutor(
-      exeContext,
-      rootType,
-      rootValue,
-      path,
-      fields,
-      rootPayloadContext,
-    );
-    this.addPatches(
-      exeContext,
-      patches,
-      rootType,
-      rootValue,
-      path,
-      rootPayloadContext,
-    );
-    return result;
   }
 
   getRootContext(exeContext) {
@@ -1689,7 +1675,7 @@ class Executor {
   async executeSubscriptionImpl(exeContext) {
     return this.executeOperationImpl(
       exeContext,
-      this.executeSubscriptionRootFields.bind(this),
+      this.executeRootSubscriptionFields.bind(this),
       this.buildSubscribeResponse.bind(this),
     );
   }
@@ -1698,7 +1684,7 @@ class Executor {
    * for root subscription fields.
    */
 
-  async executeSubscriptionRootFields(
+  async executeRootSubscriptionFields(
     exeContext,
     parentType,
     sourceValue,
@@ -1709,7 +1695,7 @@ class Executor {
     // TODO: consider allowing multiple root subscription fields
     const [responseName, fieldNodes] = [...fields.entries()][0];
     const fieldPath = (0, _Path.addPath)(path, responseName, parentType.name);
-    return this.executeSubscriptionRootField(
+    return this.executeRootSubscriptionField(
       exeContext,
       parentType,
       sourceValue,
@@ -1759,7 +1745,7 @@ class Executor {
         exeContext,
         payload,
       );
-      return this.executeSubscriptionEvent(perPayloadExecutionContext);
+      return this.executeQueryImpl(perPayloadExecutionContext);
     }; // Map every source value to a ExecutionResult value as described above.
 
     return (0, _flattenAsyncIterable.flattenAsyncIterable)(
@@ -1770,12 +1756,12 @@ class Executor {
   async createSourceEventStreamImpl(exeContext) {
     return this.executeOperationImpl(
       exeContext,
-      this.executeSubscriptionRootFields.bind(this),
+      this.executeRootSubscriptionFields.bind(this),
       this.buildCreateSourceEventStreamResponse.bind(this),
     );
   }
 
-  async executeSubscriptionRootField(
+  async executeRootSubscriptionField(
     exeContext,
     parentType,
     sourceValue,
@@ -1817,10 +1803,6 @@ class Executor {
       );
       return null;
     }
-  }
-
-  executeSubscriptionEvent(exeContext) {
-    return this.executeQueryAlgorithm(exeContext);
   }
 
   addPatches(

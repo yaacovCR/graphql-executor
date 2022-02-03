@@ -273,6 +273,10 @@ export declare class Executor {
   constructor(executorArgs: ExecutorArgs);
   /**
    * Implements the "Executing requests" section of the spec.
+   *
+   * If the client-provided arguments to this function do not result in a
+   * compliant subscription, a GraphQL Response (ExecutionResult) with
+   * descriptive errors and no data will be returned.
    */
   execute(
     args: ExecutorExecutionArgs,
@@ -310,20 +314,10 @@ export declare class Executor {
   createSourceEventStream(
     args: ExecutorExecutionArgs,
   ): Promise<AsyncIterable<unknown> | ExecutionResult>;
-  executeImpl(
-    exeContext: ExecutionContext,
-  ): PromiseOrValue<
-    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
-  >;
-  executeQueryImpl(
-    exeContext: ExecutionContext,
-  ): PromiseOrValue<
-    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
-  >;
   /**
    * Implements the ExecuteQuery algorithm described in the GraphQL
    * specification. This algorithm is used to execute query operations
-   * and to implement the ExecuteSubscriptionEvent algorith,
+   * and to implement the ExecuteSubscriptionEvent algorithm.
    *
    * If errors are encountered while executing a GraphQL field, only that
    * field and its descendants will be omitted, and sibling fields will still
@@ -334,7 +328,7 @@ export declare class Executor {
    * at which point we still log the error and null the parent field, which
    * in this case is the entire response.
    */
-  executeQueryAlgorithm(
+  executeQueryImpl(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
     ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
@@ -413,13 +407,6 @@ export declare class Executor {
     exeContext: ExecutionContext,
     payload: unknown,
   ): ExecutionContext;
-  /**
-   * Executes the root fields specified by the operation.
-   */
-  executeRootFields<TReturnType>(
-    exeContext: ExecutionContext,
-    rootFieldsExecutor: FieldsExecutor<TReturnType>,
-  ): PromiseOrValue<TReturnType | null>;
   getRootContext(exeContext: ExecutionContext): {
     rootType: GraphQLObjectType;
     fieldsAndPatches: FieldsAndPatches;
@@ -660,7 +647,7 @@ export declare class Executor {
    * Implements the "Executing selection sets" section of the spec
    * for root subscription fields.
    */
-  executeSubscriptionRootFields(
+  executeRootSubscriptionFields(
     exeContext: ExecutionContext,
     parentType: GraphQLObjectType,
     sourceValue: unknown,
@@ -679,7 +666,7 @@ export declare class Executor {
   createSourceEventStreamImpl(
     exeContext: ExecutionContext,
   ): Promise<AsyncIterable<unknown> | ExecutionResult>;
-  executeSubscriptionRootField(
+  executeRootSubscriptionField(
     exeContext: ExecutionContext,
     parentType: GraphQLObjectType,
     sourceValue: unknown,
@@ -687,11 +674,6 @@ export declare class Executor {
     fieldPath: Path,
     payloadContext: PayloadContext,
   ): Promise<unknown>;
-  executeSubscriptionEvent(
-    exeContext: ExecutionContext,
-  ): PromiseOrValue<
-    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
-  >;
   addPatches(
     exeContext: ExecutionContext,
     patches: Array<PatchFields>,
