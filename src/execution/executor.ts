@@ -249,15 +249,15 @@ export type DeferValuesGetter = (
   node: FragmentSpreadNode | InlineFragmentNode,
 ) => undefined | { label?: string };
 
+export interface StreamValues {
+  initialCount: number;
+  label?: string;
+}
+
 export type StreamValuesGetter = (
   variableValues: { [variable: string]: unknown },
   fieldContext: FieldContext,
-) =>
-  | undefined
-  | {
-      initialCount?: number;
-      label?: string;
-    };
+) => undefined | StreamValues;
 
 export type RootFieldCollector = (
   runtimeType: GraphQLObjectType,
@@ -1238,6 +1238,18 @@ export class Executor {
   ): PromiseOrValue<ReadonlyArray<unknown>> {
     const itemType = returnType.ofType;
 
+    const valueCompleter = this.getValueCompleter(itemType);
+
+    // This is specified as a simple map, however we're optimizing the path
+    // where the list contains no Promises by avoiding creating another Promise.
+    const completedResults: Array<unknown> = [];
+    const promises: Array<Promise<void>> = [];
+
+    const stream = exeContext.getStreamValues(
+      exeContext.variableValues,
+      fieldContext,
+    );
+
     if (isAsyncIterable(result)) {
       const iterator = result[Symbol.asyncIterator]();
 
@@ -1246,9 +1258,13 @@ export class Executor {
         itemType,
         fieldContext,
         info,
+        valueCompleter,
         path,
         iterator,
         payloadContext,
+        stream,
+        completedResults,
+        promises,
       );
     }
 
@@ -1259,15 +1275,23 @@ export class Executor {
     }
 
     const iterator = result[Symbol.iterator]();
-    return this.completeIteratorValue(
+    this.completeIteratorValue(
       exeContext,
       itemType,
       fieldContext,
       info,
+      valueCompleter,
       path,
       iterator,
       payloadContext,
+      stream,
+      completedResults,
+      promises,
     );
+
+    return promises.length
+      ? resolveAfterAll(completedResults, promises)
+      : completedResults;
   }
 
   /**
@@ -1278,12 +1302,7 @@ export class Executor {
   getStreamValues(
     variableValues: { [variable: string]: unknown },
     fieldContext: FieldContext,
-  ):
-    | undefined
-    | {
-        initialCount?: number;
-        label?: string;
-      } {
+  ): undefined | StreamValues {
     // validation only allows equivalent streams on multiple fields, so it is
     // safe to only check the first fieldNode for the stream directive
     const stream = getDirectiveValues(
@@ -1325,32 +1344,76 @@ export class Executor {
     itemType: GraphQLOutputType,
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
+    valueCompleter: ValueCompleter,
     path: Path,
     iterator: Iterator<unknown>,
     payloadContext: PayloadContext,
-  ): PromiseOrValue<ReadonlyArray<unknown>> {
-    const stream = exeContext.getStreamValues(
-      exeContext.variableValues,
-      fieldContext,
-    );
+    stream: StreamValues | undefined,
+    completedResults: Array<unknown>,
+    promises: Array<Promise<void>>,
+  ): void {
+    if (stream) {
+      this.completeIteratorValueWithStream(
+        exeContext,
+        itemType,
+        fieldContext,
+        info,
+        valueCompleter,
+        path,
+        iterator,
+        payloadContext,
+        stream,
+        completedResults,
+        0,
+        promises,
+      );
+    }
 
-    // This is specified as a simple map, however we're optimizing the path
-    // where the list contains no Promises by avoiding creating another Promise.
-    const promises: Array<Promise<void>> = [];
-    const completedResults: Array<unknown> = [];
-    let index = 0;
-    const valueCompleter = this.getValueCompleter(itemType);
+    this.completeIteratorValueWithoutStream(
+      exeContext,
+      itemType,
+      fieldContext,
+      info,
+      valueCompleter,
+      path,
+      iterator,
+      payloadContext,
+      completedResults,
+      0,
+      promises,
+    );
+  }
+
+  /**
+   * Complete an iterator value by completing each result, possibly adding a new stream.
+   *
+   * Returns the next index or, if a stream was initiated, the last payload context.
+   */
+  completeIteratorValueWithStream(
+    exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
+    fieldContext: FieldContext,
+    info: GraphQLResolveInfo,
+    valueCompleter: ValueCompleter,
+    path: Path,
+    iterator: Iterator<unknown>,
+    payloadContext: PayloadContext,
+    stream: StreamValues,
+    completedResults: Array<unknown>,
+    _index: number,
+    promises: Array<Promise<void>>,
+  ): void {
+    const initialCount = stream.initialCount;
+
+    let index = _index;
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      if (
-        stream &&
-        typeof stream.initialCount === 'number' &&
-        index >= stream.initialCount
-      ) {
+      if (index >= initialCount) {
         this.addIteratorValue(
           index,
           iterator,
           exeContext,
+          itemType,
           fieldContext,
           info,
           valueCompleter,
@@ -1358,15 +1421,15 @@ export class Executor {
           stream.label,
           payloadContext,
         );
-        break;
+        return;
       }
-
-      const itemPath = addPath(path, index, undefined);
 
       const iteration = iterator.next();
       if (iteration.done) {
-        break;
+        return;
       }
+
+      const itemPath = addPath(path, index, undefined);
 
       this.completeListItemValue(
         completedResults,
@@ -1384,10 +1447,53 @@ export class Executor {
 
       index++;
     }
+  }
 
-    return promises.length
-      ? resolveAfterAll(completedResults, promises)
-      : completedResults;
+  /**
+   * Complete an iterator value by completing each result.
+   *
+   * Returns the next index.
+   */
+  completeIteratorValueWithoutStream(
+    exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
+    fieldContext: FieldContext,
+    info: GraphQLResolveInfo,
+    valueCompleter: ValueCompleter,
+    path: Path,
+    iterator: Iterator<unknown>,
+    payloadContext: PayloadContext,
+    completedResults: Array<unknown>,
+    _index: number,
+    promises: Array<Promise<void>>,
+  ): number {
+    let index = _index;
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const iteration = iterator.next();
+      if (iteration.done) {
+        return index;
+      }
+
+      const itemPath = addPath(path, index, undefined);
+
+      this.completeListItemValue(
+        completedResults,
+        index,
+        promises,
+        iteration.value,
+        exeContext,
+        itemType,
+        valueCompleter,
+        fieldContext,
+        info,
+        itemPath,
+        payloadContext,
+      );
+
+      index++;
+    }
   }
 
   /**
@@ -1398,86 +1504,173 @@ export class Executor {
     itemType: GraphQLOutputType,
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
+    valueCompleter: ValueCompleter,
     path: Path,
     iterator: AsyncIterator<unknown>,
     payloadContext: PayloadContext,
+    stream: StreamValues | undefined,
+    completedResults: Array<unknown>,
+    promises: Array<Promise<void>>,
   ): Promise<ReadonlyArray<unknown>> {
-    const stream = exeContext.getStreamValues(
-      exeContext.variableValues,
-      fieldContext,
-    );
-
-    // This is specified as a simple map, however we're optimizing the path
-    // where the list contains no Promises by avoiding creating another Promise.
-    const promises: Array<Promise<void>> = [];
-    const completedResults: Array<unknown> = [];
-    let index = 0;
-    const valueCompleter = this.getValueCompleter(itemType);
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      if (
-        stream &&
-        typeof stream.initialCount === 'number' &&
-        index >= stream.initialCount
-      ) {
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        this.addAsyncIteratorValue(
-          index,
-          iterator,
-          exeContext,
-          fieldContext,
-          info,
-          valueCompleter,
-          path,
-          stream.label,
-          payloadContext,
-        );
-        break;
-      }
-
-      const itemPath = addPath(path, index, undefined);
-
-      let iteration: IteratorResult<unknown>;
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        iteration = await iterator.next();
-      } catch (rawError) {
-        completedResults.push(
-          this.handleRawError(
-            rawError,
-            fieldContext.fieldNodes,
-            itemPath,
-            itemType,
-            payloadContext.errors,
-          ),
-        );
-        break;
-      }
-
-      if (iteration.done) {
-        break;
-      }
-
-      this.completeListItemValue(
-        completedResults,
-        index,
-        promises,
-        iteration.value,
+    if (stream) {
+      await this.completeAsyncIteratorValueWithStream(
         exeContext,
         itemType,
-        valueCompleter,
         fieldContext,
         info,
-        itemPath,
+        valueCompleter,
+        path,
+        iterator,
         payloadContext,
+        stream,
+        completedResults,
+        promises,
       );
-
-      index++;
+    } else {
+      await this.completeAsyncIteratorValueWithoutStream(
+        exeContext,
+        itemType,
+        fieldContext,
+        info,
+        valueCompleter,
+        path,
+        iterator,
+        payloadContext,
+        completedResults,
+        promises,
+      );
     }
 
     return promises.length
       ? resolveAfterAll(completedResults, promises)
       : completedResults;
+  }
+
+  async completeAsyncIteratorValueWithStream(
+    exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
+    fieldContext: FieldContext,
+    info: GraphQLResolveInfo,
+    valueCompleter: ValueCompleter,
+    path: Path,
+    iterator: AsyncIterator<unknown>,
+    payloadContext: PayloadContext,
+    stream: StreamValues,
+    completedResults: Array<unknown>,
+    promises: Array<Promise<void>>,
+  ): Promise<void> {
+    const initialCount = stream.initialCount;
+    let index = 0;
+    try {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        if (index >= initialCount) {
+          // eslint-disable-next-line @typescript-eslint/no-floating-promises
+          this.addAsyncIteratorValue(
+            index,
+            iterator,
+            exeContext,
+            itemType,
+            fieldContext,
+            info,
+            valueCompleter,
+            path,
+            stream.label,
+            payloadContext,
+          );
+          return;
+        }
+
+        // eslint-disable-next-line no-await-in-loop
+        const iteration = await iterator.next();
+        if (iteration.done) {
+          break;
+        }
+
+        const itemPath = addPath(path, index, undefined);
+
+        this.completeListItemValue(
+          completedResults,
+          index,
+          promises,
+          iteration.value,
+          exeContext,
+          itemType,
+          valueCompleter,
+          fieldContext,
+          info,
+          itemPath,
+          payloadContext,
+        );
+
+        index++;
+      }
+    } catch (rawError) {
+      const itemPath = addPath(path, index, undefined);
+      completedResults.push(
+        this.handleRawError(
+          rawError,
+          fieldContext.fieldNodes,
+          itemPath,
+          itemType,
+          payloadContext.errors,
+        ),
+      );
+    }
+  }
+
+  async completeAsyncIteratorValueWithoutStream(
+    exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
+    fieldContext: FieldContext,
+    info: GraphQLResolveInfo,
+    valueCompleter: ValueCompleter,
+    path: Path,
+    iterator: AsyncIterator<unknown>,
+    payloadContext: PayloadContext,
+    completedResults: Array<unknown>,
+    promises: Array<Promise<void>>,
+  ): Promise<void> {
+    let index = 0;
+    try {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        // eslint-disable-next-line no-await-in-loop
+        const iteration = await iterator.next();
+        if (iteration.done) {
+          break;
+        }
+
+        const itemPath = addPath(path, index, undefined);
+
+        this.completeListItemValue(
+          completedResults,
+          index,
+          promises,
+          iteration.value,
+          exeContext,
+          itemType,
+          valueCompleter,
+          fieldContext,
+          info,
+          itemPath,
+          payloadContext,
+        );
+
+        index++;
+      }
+    } catch (rawError) {
+      const itemPath = addPath(path, index, undefined);
+      completedResults.push(
+        this.handleRawError(
+          rawError,
+          fieldContext.fieldNodes,
+          itemPath,
+          itemType,
+          payloadContext.errors,
+        ),
+      );
+    }
   }
 
   completeListItemValue(
@@ -2050,6 +2243,7 @@ export class Executor {
     initialIndex: number,
     iterator: Iterator<unknown>,
     exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     valueCompleter: ValueCompleter,
@@ -2061,49 +2255,27 @@ export class Executor {
     let prevPayloadContext = parentPayloadContext;
     let iteration = iterator.next();
     while (!iteration.done) {
+      // avoid unsafe reference of variable from functions inside a loop
+      // see https://eslint.org/docs/rules/no-loop-func
       const _prevPayloadContext = prevPayloadContext;
       const payloadContext: PayloadContext = {
         errors: [],
         label,
       };
-      // avoid unsafe reference of variable from functions inside a loop
-      // see https://eslint.org/docs/rules/no-loop-func
       exeContext.pendingPushes++;
       const itemPath = addPath(path, index, undefined);
 
-      Promise.resolve(iteration.value)
-        .then((resolved) =>
-          valueCompleter(
-            exeContext,
-            fieldContext,
-            info,
-            itemPath,
-            resolved,
-            payloadContext,
-          ),
-        )
-        .then(
-          (data) =>
-            this.queue(
-              exeContext,
-              payloadContext,
-              _prevPayloadContext,
-              data,
-              itemPath,
-            ),
-          (rawError) => {
-            payloadContext.errors.push(
-              this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
-            );
-            this.queue(
-              exeContext,
-              payloadContext,
-              _prevPayloadContext,
-              null,
-              itemPath,
-            );
-          },
-        );
+      this.addValue(
+        iteration.value,
+        exeContext,
+        itemType,
+        fieldContext,
+        info,
+        valueCompleter,
+        itemPath,
+        payloadContext,
+        _prevPayloadContext,
+      );
 
       index++;
       prevPayloadContext = payloadContext;
@@ -2115,6 +2287,7 @@ export class Executor {
     initialIndex: number,
     iterator: AsyncIterator<unknown>,
     exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     valueCompleter: ValueCompleter,
@@ -2127,106 +2300,112 @@ export class Executor {
 
     let index = initialIndex;
     let prevPayloadContext = parentPayloadContext;
-    let currentPayloadContext: PayloadContext = {
-      errors: [],
-      label,
-    };
-    let iteration = await this.advanceAsyncIterator(
-      index,
-      iterator,
-      exeContext,
-      fieldContext,
-      path,
-      currentPayloadContext,
-      parentPayloadContext,
-    );
-    while (iteration && !iteration.done) {
-      // avoid unsafe reference of variable from functions inside a loop
-      // see https://eslint.org/docs/rules/no-loop-func
-      const _prevPayloadContext = prevPayloadContext;
-      const _currentPayloadContext = currentPayloadContext;
+    try {
+      let iteration = await iterator.next();
+      while (!iteration.done) {
+        // avoid unsafe reference of variable from functions inside a loop
+        // see https://eslint.org/docs/rules/no-loop-func
+        const _prevPayloadContext = prevPayloadContext;
+        const payloadContext: PayloadContext = {
+          errors: [],
+          label,
+        };
+        exeContext.pendingPushes++;
+        const itemPath = addPath(path, index, undefined);
+
+        this.addValue(
+          iteration.value,
+          exeContext,
+          itemType,
+          fieldContext,
+          info,
+          valueCompleter,
+          itemPath,
+          payloadContext,
+          _prevPayloadContext,
+        );
+
+        index++;
+        prevPayloadContext = payloadContext;
+        // eslint-disable-next-line no-await-in-loop
+        iteration = await iterator.next();
+      }
+    } catch (rawError) {
       exeContext.pendingPushes++;
       const itemPath = addPath(path, index, undefined);
-
-      Promise.resolve(iteration.value)
-        .then((resolved) =>
-          valueCompleter(
-            exeContext,
-            fieldContext,
-            info,
-            itemPath,
-            resolved,
-            _currentPayloadContext,
-          ),
-        )
-        .then((data) =>
-          this.queue(
-            exeContext,
-            _currentPayloadContext,
-            _prevPayloadContext,
-            data,
-            itemPath,
-          ),
-        )
-        .then(undefined, (rawError) => {
-          _currentPayloadContext.errors.push(
-            this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
-          );
-          this.queue(
-            exeContext,
-            _currentPayloadContext,
-            _prevPayloadContext,
-            null,
-            itemPath,
-          );
-        });
-
-      index++;
-      prevPayloadContext = currentPayloadContext;
-      currentPayloadContext = {
-        errors: [],
+      const currentPayloadContext = {
+        errors: [
+          this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
+        ],
         label,
       };
-      // eslint-disable-next-line no-await-in-loop
-      iteration = await this.advanceAsyncIterator(
-        index,
-        iterator,
+      this.queue(
         exeContext,
-        fieldContext,
-        path,
         currentPayloadContext,
         prevPayloadContext,
+        null,
+        itemPath,
       );
     }
 
     this.closeAsyncIterator(exeContext, iterator);
   }
 
-  async advanceAsyncIterator(
-    index: number,
-    iterator: AsyncIterator<unknown>,
+  addValue(
+    value: unknown,
     exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
     fieldContext: FieldContext,
-    path: Path,
+    info: GraphQLResolveInfo,
+    valueCompleter: ValueCompleter,
+    itemPath: Path,
     payloadContext: PayloadContext,
     prevPayloadContext: PayloadContext,
-  ): Promise<IteratorResult<unknown> | undefined> {
-    try {
-      return await iterator.next();
-    } catch (rawError) {
-      exeContext.pendingPushes++;
-      const itemPath = addPath(path, index, undefined);
-      payloadContext.errors.push(
-        this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
+  ): void {
+    Promise.resolve(value)
+      .then((resolved) =>
+        valueCompleter(
+          exeContext,
+          fieldContext,
+          info,
+          itemPath,
+          resolved,
+          payloadContext,
+        ),
+      )
+      // Note: we don't rely on a `catch` method, but we do expect "thenable"
+      // to take a second callback for the error case.
+      .then(undefined, (rawError) =>
+        this.handleRawError(
+          rawError,
+          fieldContext.fieldNodes,
+          itemPath,
+          itemType,
+          payloadContext.errors,
+        ),
+      )
+      .then(
+        (data) =>
+          this.queue(
+            exeContext,
+            payloadContext,
+            prevPayloadContext,
+            data,
+            itemPath,
+          ),
+        (rawError) => {
+          payloadContext.errors.push(
+            this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
+          );
+          this.queue(
+            exeContext,
+            payloadContext,
+            prevPayloadContext,
+            null,
+            itemPath,
+          );
+        },
       );
-      this.queue(
-        exeContext,
-        payloadContext,
-        prevPayloadContext,
-        null,
-        itemPath,
-      );
-    }
   }
 
   closeAsyncIterator(

@@ -294,6 +294,17 @@ describe('Execute: stream directive', () => {
       },
     ]);
   });
+  it('Can use a high value of initialCount to return a single result', async () => {
+    const document = parse('{ scalarList @stream(initialCount: 10) }');
+    const result = await complete(document);
+
+    expect(result).to.deep.equal({
+      data: {
+        scalarList: ['apple', 'banana', 'coconut'],
+      },
+    });
+  });
+
   it('Negative values of initialCount throw field errors', async () => {
     const document = parse('{ scalarList @stream(initialCount: -2) }');
     const result = await complete(document);
@@ -564,9 +575,6 @@ describe('Execute: stream directive', () => {
           id: '3',
         },
         path: ['asyncIterableList', 2],
-        hasNext: true,
-      },
-      {
         hasNext: false,
       },
     ]);
@@ -603,12 +611,38 @@ describe('Execute: stream directive', () => {
           id: '3',
         },
         path: ['asyncIterableList', 2],
-        hasNext: true,
-      },
-      {
         hasNext: false,
       },
     ]);
+  });
+  it('Can use stream with a high initialCount to return a single result on a field that returns an async iterable', async () => {
+    const document = parse(`
+      query { 
+        asyncIterableList @stream(initialCount: 10) {
+          name
+          id
+        }
+      }
+    `);
+    const result = await complete(document);
+    expect(result).to.deep.equal({
+      data: {
+        asyncIterableList: [
+          {
+            name: 'Luke',
+            id: '1',
+          },
+          {
+            name: 'Han',
+            id: '2',
+          },
+          {
+            name: 'Leia',
+            id: '3',
+          },
+        ],
+      },
+    });
   });
   it('Negative values of initialCount throw field errors on a field that returns an async iterable', async () => {
     const document = parse(`
@@ -675,14 +709,12 @@ describe('Execute: stream directive', () => {
             id: '3',
           },
           path: ['asyncIterableList', 2],
-          hasNext: true,
+          hasNext: false,
         },
       },
       {
-        done: false,
-        value: {
-          hasNext: false,
-        },
+        done: true,
+        value: undefined,
       },
       {
         done: true,
