@@ -205,17 +205,16 @@ export declare type DeferValuesGetter = (
   | {
       label?: string;
     };
+export interface StreamValues {
+  initialCount: number;
+  label?: string;
+}
 export declare type StreamValuesGetter = (
   variableValues: {
     [variable: string]: unknown;
   },
   fieldContext: FieldContext,
-) =>
-  | undefined
-  | {
-      initialCount?: number;
-      label?: string;
-    };
+) => undefined | StreamValues;
 export declare type RootFieldCollector = (
   runtimeType: GraphQLObjectType,
   operation: OperationDefinitionNode,
@@ -511,12 +510,7 @@ export declare class Executor {
       [variable: string]: unknown;
     },
     fieldContext: FieldContext,
-  ):
-    | undefined
-    | {
-        initialCount?: number;
-        label?: string;
-      };
+  ): undefined | StreamValues;
   /**
    * Complete an iterator value by completing each result.
    */
@@ -525,10 +519,51 @@ export declare class Executor {
     itemType: GraphQLOutputType,
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
+    valueCompleter: ValueCompleter,
     path: Path,
     iterator: Iterator<unknown>,
     payloadContext: PayloadContext,
-  ): PromiseOrValue<ReadonlyArray<unknown>>;
+    stream: StreamValues | undefined,
+    completedResults: Array<unknown>,
+    promises: Array<Promise<void>>,
+  ): void;
+  /**
+   * Complete an iterator value by completing each result, possibly adding a new stream.
+   *
+   * Returns the next index or, if a stream was initiated, the last payload context.
+   */
+  completeIteratorValueWithStream(
+    exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
+    fieldContext: FieldContext,
+    info: GraphQLResolveInfo,
+    valueCompleter: ValueCompleter,
+    path: Path,
+    iterator: Iterator<unknown>,
+    payloadContext: PayloadContext,
+    stream: StreamValues,
+    completedResults: Array<unknown>,
+    _index: number,
+    promises: Array<Promise<void>>,
+  ): void;
+  /**
+   * Complete an iterator value by completing each result.
+   *
+   * Returns the next index.
+   */
+  completeIteratorValueWithoutStream(
+    exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
+    fieldContext: FieldContext,
+    info: GraphQLResolveInfo,
+    valueCompleter: ValueCompleter,
+    path: Path,
+    iterator: Iterator<unknown>,
+    payloadContext: PayloadContext,
+    completedResults: Array<unknown>,
+    _index: number,
+    promises: Array<Promise<void>>,
+  ): number;
   /**
    * Complete an async iterator value by completing each result.
    */
@@ -537,10 +572,39 @@ export declare class Executor {
     itemType: GraphQLOutputType,
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
+    valueCompleter: ValueCompleter,
     path: Path,
     iterator: AsyncIterator<unknown>,
     payloadContext: PayloadContext,
+    stream: StreamValues | undefined,
+    completedResults: Array<unknown>,
+    promises: Array<Promise<void>>,
   ): Promise<ReadonlyArray<unknown>>;
+  completeAsyncIteratorValueWithStream(
+    exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
+    fieldContext: FieldContext,
+    info: GraphQLResolveInfo,
+    valueCompleter: ValueCompleter,
+    path: Path,
+    iterator: AsyncIterator<unknown>,
+    payloadContext: PayloadContext,
+    stream: StreamValues,
+    completedResults: Array<unknown>,
+    promises: Array<Promise<void>>,
+  ): Promise<void>;
+  completeAsyncIteratorValueWithoutStream(
+    exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
+    fieldContext: FieldContext,
+    info: GraphQLResolveInfo,
+    valueCompleter: ValueCompleter,
+    path: Path,
+    iterator: AsyncIterator<unknown>,
+    payloadContext: PayloadContext,
+    completedResults: Array<unknown>,
+    promises: Array<Promise<void>>,
+  ): Promise<void>;
   completeListItemValue(
     completedResults: Array<unknown>,
     index: number,
@@ -686,6 +750,7 @@ export declare class Executor {
     initialIndex: number,
     iterator: Iterator<unknown>,
     exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     valueCompleter: ValueCompleter,
@@ -697,6 +762,7 @@ export declare class Executor {
     initialIndex: number,
     iterator: AsyncIterator<unknown>,
     exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     valueCompleter: ValueCompleter,
@@ -704,15 +770,17 @@ export declare class Executor {
     label: string | undefined,
     parentPayloadContext: PayloadContext,
   ): Promise<void>;
-  advanceAsyncIterator(
-    index: number,
-    iterator: AsyncIterator<unknown>,
+  addValue(
+    value: unknown,
     exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
     fieldContext: FieldContext,
-    path: Path,
+    info: GraphQLResolveInfo,
+    valueCompleter: ValueCompleter,
+    itemPath: Path,
     payloadContext: PayloadContext,
     prevPayloadContext: PayloadContext,
-  ): Promise<IteratorResult<unknown> | undefined>;
+  ): void;
   closeAsyncIterator(
     exeContext: ExecutionContext,
     iterator: AsyncIterator<unknown>,

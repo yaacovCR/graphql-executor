@@ -1080,6 +1080,15 @@ class Executor {
     payloadContext,
   ) {
     const itemType = returnType.ofType;
+    const valueCompleter = this.getValueCompleter(itemType); // This is specified as a simple map, however we're optimizing the path
+    // where the list contains no Promises by avoiding creating another Promise.
+
+    const completedResults = [];
+    const promises = [];
+    const stream = exeContext.getStreamValues(
+      exeContext.variableValues,
+      fieldContext,
+    );
 
     if ((0, _isAsyncIterable.isAsyncIterable)(result)) {
       const iterator = result[Symbol.asyncIterator]();
@@ -1088,9 +1097,13 @@ class Executor {
         itemType,
         fieldContext,
         info,
+        valueCompleter,
         path,
         iterator,
         payloadContext,
+        stream,
+        completedResults,
+        promises,
       );
     }
 
@@ -1101,15 +1114,22 @@ class Executor {
     }
 
     const iterator = result[Symbol.iterator]();
-    return this.completeIteratorValue(
+    this.completeIteratorValue(
       exeContext,
       itemType,
       fieldContext,
       info,
+      valueCompleter,
       path,
       iterator,
       payloadContext,
+      stream,
+      completedResults,
+      promises,
     );
+    return promises.length
+      ? (0, _resolveAfterAll.resolveAfterAll)(completedResults, promises)
+      : completedResults;
   }
   /**
    * Returns an object containing the `@stream` arguments if a field should be
@@ -1156,31 +1176,75 @@ class Executor {
     itemType,
     fieldContext,
     info,
+    valueCompleter,
     path,
     iterator,
     payloadContext,
+    stream,
+    completedResults,
+    promises,
   ) {
-    const stream = exeContext.getStreamValues(
-      exeContext.variableValues,
-      fieldContext,
-    ); // This is specified as a simple map, however we're optimizing the path
-    // where the list contains no Promises by avoiding creating another Promise.
+    if (stream) {
+      this.completeIteratorValueWithStream(
+        exeContext,
+        itemType,
+        fieldContext,
+        info,
+        valueCompleter,
+        path,
+        iterator,
+        payloadContext,
+        stream,
+        completedResults,
+        0,
+        promises,
+      );
+    }
 
-    const promises = [];
-    const completedResults = [];
-    let index = 0;
-    const valueCompleter = this.getValueCompleter(itemType); // eslint-disable-next-line no-constant-condition
+    this.completeIteratorValueWithoutStream(
+      exeContext,
+      itemType,
+      fieldContext,
+      info,
+      valueCompleter,
+      path,
+      iterator,
+      payloadContext,
+      completedResults,
+      0,
+      promises,
+    );
+  }
+  /**
+   * Complete an iterator value by completing each result, possibly adding a new stream.
+   *
+   * Returns the next index or, if a stream was initiated, the last payload context.
+   */
+
+  completeIteratorValueWithStream(
+    exeContext,
+    itemType,
+    fieldContext,
+    info,
+    valueCompleter,
+    path,
+    iterator,
+    payloadContext,
+    stream,
+    completedResults,
+    _index,
+    promises,
+  ) {
+    const initialCount = stream.initialCount;
+    let index = _index; // eslint-disable-next-line no-constant-condition
 
     while (true) {
-      if (
-        stream &&
-        typeof stream.initialCount === 'number' &&
-        index >= stream.initialCount
-      ) {
+      if (index >= initialCount) {
         this.addIteratorValue(
           index,
           iterator,
           exeContext,
+          itemType,
           fieldContext,
           info,
           valueCompleter,
@@ -1188,16 +1252,16 @@ class Executor {
           stream.label,
           payloadContext,
         );
-        break;
+        return;
       }
 
-      const itemPath = (0, _Path.addPath)(path, index, undefined);
       const iteration = iterator.next();
 
       if (iteration.done) {
-        break;
+        return;
       }
 
+      const itemPath = (0, _Path.addPath)(path, index, undefined);
       this.completeListItemValue(
         completedResults,
         index,
@@ -1213,10 +1277,51 @@ class Executor {
       );
       index++;
     }
+  }
+  /**
+   * Complete an iterator value by completing each result.
+   *
+   * Returns the next index.
+   */
 
-    return promises.length
-      ? (0, _resolveAfterAll.resolveAfterAll)(completedResults, promises)
-      : completedResults;
+  completeIteratorValueWithoutStream(
+    exeContext,
+    itemType,
+    fieldContext,
+    info,
+    valueCompleter,
+    path,
+    iterator,
+    payloadContext,
+    completedResults,
+    _index,
+    promises,
+  ) {
+    let index = _index; // eslint-disable-next-line no-constant-condition
+
+    while (true) {
+      const iteration = iterator.next();
+
+      if (iteration.done) {
+        return index;
+      }
+
+      const itemPath = (0, _Path.addPath)(path, index, undefined);
+      this.completeListItemValue(
+        completedResults,
+        index,
+        promises,
+        iteration.value,
+        exeContext,
+        itemType,
+        valueCompleter,
+        fieldContext,
+        info,
+        itemPath,
+        payloadContext,
+      );
+      index++;
+    }
   }
   /**
    * Complete an async iterator value by completing each result.
@@ -1227,84 +1332,172 @@ class Executor {
     itemType,
     fieldContext,
     info,
+    valueCompleter,
     path,
     iterator,
     payloadContext,
+    stream,
+    completedResults,
+    promises,
   ) {
-    const stream = exeContext.getStreamValues(
-      exeContext.variableValues,
-      fieldContext,
-    ); // This is specified as a simple map, however we're optimizing the path
-    // where the list contains no Promises by avoiding creating another Promise.
-
-    const promises = [];
-    const completedResults = [];
-    let index = 0;
-    const valueCompleter = this.getValueCompleter(itemType); // eslint-disable-next-line no-constant-condition
-
-    while (true) {
-      if (
-        stream &&
-        typeof stream.initialCount === 'number' &&
-        index >= stream.initialCount
-      ) {
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        this.addAsyncIteratorValue(
-          index,
-          iterator,
-          exeContext,
-          fieldContext,
-          info,
-          valueCompleter,
-          path,
-          stream.label,
-          payloadContext,
-        );
-        break;
-      }
-
-      const itemPath = (0, _Path.addPath)(path, index, undefined);
-      let iteration;
-
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        iteration = await iterator.next();
-      } catch (rawError) {
-        completedResults.push(
-          this.handleRawError(
-            rawError,
-            fieldContext.fieldNodes,
-            itemPath,
-            itemType,
-            payloadContext.errors,
-          ),
-        );
-        break;
-      }
-
-      if (iteration.done) {
-        break;
-      }
-
-      this.completeListItemValue(
-        completedResults,
-        index,
-        promises,
-        iteration.value,
+    if (stream) {
+      await this.completeAsyncIteratorValueWithStream(
         exeContext,
         itemType,
-        valueCompleter,
         fieldContext,
         info,
-        itemPath,
+        valueCompleter,
+        path,
+        iterator,
         payloadContext,
+        stream,
+        completedResults,
+        promises,
       );
-      index++;
+    } else {
+      await this.completeAsyncIteratorValueWithoutStream(
+        exeContext,
+        itemType,
+        fieldContext,
+        info,
+        valueCompleter,
+        path,
+        iterator,
+        payloadContext,
+        completedResults,
+        promises,
+      );
     }
 
     return promises.length
       ? (0, _resolveAfterAll.resolveAfterAll)(completedResults, promises)
       : completedResults;
+  }
+
+  async completeAsyncIteratorValueWithStream(
+    exeContext,
+    itemType,
+    fieldContext,
+    info,
+    valueCompleter,
+    path,
+    iterator,
+    payloadContext,
+    stream,
+    completedResults,
+    promises,
+  ) {
+    const initialCount = stream.initialCount;
+    let index = 0;
+
+    try {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        if (index >= initialCount) {
+          // eslint-disable-next-line @typescript-eslint/no-floating-promises
+          this.addAsyncIteratorValue(
+            index,
+            iterator,
+            exeContext,
+            itemType,
+            fieldContext,
+            info,
+            valueCompleter,
+            path,
+            stream.label,
+            payloadContext,
+          );
+          return;
+        } // eslint-disable-next-line no-await-in-loop
+
+        const iteration = await iterator.next();
+
+        if (iteration.done) {
+          break;
+        }
+
+        const itemPath = (0, _Path.addPath)(path, index, undefined);
+        this.completeListItemValue(
+          completedResults,
+          index,
+          promises,
+          iteration.value,
+          exeContext,
+          itemType,
+          valueCompleter,
+          fieldContext,
+          info,
+          itemPath,
+          payloadContext,
+        );
+        index++;
+      }
+    } catch (rawError) {
+      const itemPath = (0, _Path.addPath)(path, index, undefined);
+      completedResults.push(
+        this.handleRawError(
+          rawError,
+          fieldContext.fieldNodes,
+          itemPath,
+          itemType,
+          payloadContext.errors,
+        ),
+      );
+    }
+  }
+
+  async completeAsyncIteratorValueWithoutStream(
+    exeContext,
+    itemType,
+    fieldContext,
+    info,
+    valueCompleter,
+    path,
+    iterator,
+    payloadContext,
+    completedResults,
+    promises,
+  ) {
+    let index = 0;
+
+    try {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        // eslint-disable-next-line no-await-in-loop
+        const iteration = await iterator.next();
+
+        if (iteration.done) {
+          break;
+        }
+
+        const itemPath = (0, _Path.addPath)(path, index, undefined);
+        this.completeListItemValue(
+          completedResults,
+          index,
+          promises,
+          iteration.value,
+          exeContext,
+          itemType,
+          valueCompleter,
+          fieldContext,
+          info,
+          itemPath,
+          payloadContext,
+        );
+        index++;
+      }
+    } catch (rawError) {
+      const itemPath = (0, _Path.addPath)(path, index, undefined);
+      completedResults.push(
+        this.handleRawError(
+          rawError,
+          fieldContext.fieldNodes,
+          itemPath,
+          itemType,
+          payloadContext.errors,
+        ),
+      );
+    }
   }
 
   completeListItemValue(
@@ -1859,6 +2052,7 @@ class Executor {
     initialIndex,
     iterator,
     exeContext,
+    itemType,
     fieldContext,
     info,
     valueCompleter,
@@ -1871,48 +2065,26 @@ class Executor {
     let iteration = iterator.next();
 
     while (!iteration.done) {
+      // avoid unsafe reference of variable from functions inside a loop
+      // see https://eslint.org/docs/rules/no-loop-func
       const _prevPayloadContext = prevPayloadContext;
       const payloadContext = {
         errors: [],
         label,
-      }; // avoid unsafe reference of variable from functions inside a loop
-      // see https://eslint.org/docs/rules/no-loop-func
-
+      };
       exeContext.pendingPushes++;
       const itemPath = (0, _Path.addPath)(path, index, undefined);
-      Promise.resolve(iteration.value)
-        .then((resolved) =>
-          valueCompleter(
-            exeContext,
-            fieldContext,
-            info,
-            itemPath,
-            resolved,
-            payloadContext,
-          ),
-        )
-        .then(
-          (data) =>
-            this.queue(
-              exeContext,
-              payloadContext,
-              _prevPayloadContext,
-              data,
-              itemPath,
-            ),
-          (rawError) => {
-            payloadContext.errors.push(
-              this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
-            );
-            this.queue(
-              exeContext,
-              payloadContext,
-              _prevPayloadContext,
-              null,
-              itemPath,
-            );
-          },
-        );
+      this.addValue(
+        iteration.value,
+        exeContext,
+        itemType,
+        fieldContext,
+        info,
+        valueCompleter,
+        itemPath,
+        payloadContext,
+        _prevPayloadContext,
+      );
       index++;
       prevPayloadContext = payloadContext;
       iteration = iterator.next();
@@ -1923,6 +2095,7 @@ class Executor {
     initialIndex,
     iterator,
     exeContext,
+    itemType,
     fieldContext,
     info,
     valueCompleter,
@@ -1934,106 +2107,111 @@ class Executor {
     iterators.add(iterator);
     let index = initialIndex;
     let prevPayloadContext = parentPayloadContext;
-    let currentPayloadContext = {
-      errors: [],
-      label,
-    };
-    let iteration = await this.advanceAsyncIterator(
-      index,
-      iterator,
-      exeContext,
-      fieldContext,
-      path,
-      currentPayloadContext,
-      parentPayloadContext,
-    );
 
-    while (iteration && !iteration.done) {
-      // avoid unsafe reference of variable from functions inside a loop
-      // see https://eslint.org/docs/rules/no-loop-func
-      const _prevPayloadContext = prevPayloadContext;
-      const _currentPayloadContext = currentPayloadContext;
+    try {
+      let iteration = await iterator.next();
+
+      while (!iteration.done) {
+        // avoid unsafe reference of variable from functions inside a loop
+        // see https://eslint.org/docs/rules/no-loop-func
+        const _prevPayloadContext = prevPayloadContext;
+        const payloadContext = {
+          errors: [],
+          label,
+        };
+        exeContext.pendingPushes++;
+        const itemPath = (0, _Path.addPath)(path, index, undefined);
+        this.addValue(
+          iteration.value,
+          exeContext,
+          itemType,
+          fieldContext,
+          info,
+          valueCompleter,
+          itemPath,
+          payloadContext,
+          _prevPayloadContext,
+        );
+        index++;
+        prevPayloadContext = payloadContext; // eslint-disable-next-line no-await-in-loop
+
+        iteration = await iterator.next();
+      }
+    } catch (rawError) {
       exeContext.pendingPushes++;
       const itemPath = (0, _Path.addPath)(path, index, undefined);
-      Promise.resolve(iteration.value)
-        .then((resolved) =>
-          valueCompleter(
-            exeContext,
-            fieldContext,
-            info,
-            itemPath,
-            resolved,
-            _currentPayloadContext,
-          ),
-        )
-        .then((data) =>
-          this.queue(
-            exeContext,
-            _currentPayloadContext,
-            _prevPayloadContext,
-            data,
-            itemPath,
-          ),
-        )
-        .then(undefined, (rawError) => {
-          _currentPayloadContext.errors.push(
-            this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
-          );
-
-          this.queue(
-            exeContext,
-            _currentPayloadContext,
-            _prevPayloadContext,
-            null,
-            itemPath,
-          );
-        });
-      index++;
-      prevPayloadContext = currentPayloadContext;
-      currentPayloadContext = {
-        errors: [],
+      const currentPayloadContext = {
+        errors: [
+          this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
+        ],
         label,
-      }; // eslint-disable-next-line no-await-in-loop
-
-      iteration = await this.advanceAsyncIterator(
-        index,
-        iterator,
+      };
+      this.queue(
         exeContext,
-        fieldContext,
-        path,
         currentPayloadContext,
         prevPayloadContext,
+        null,
+        itemPath,
       );
     }
 
     this.closeAsyncIterator(exeContext, iterator);
   }
 
-  async advanceAsyncIterator(
-    index,
-    iterator,
+  addValue(
+    value,
     exeContext,
+    itemType,
     fieldContext,
-    path,
+    info,
+    valueCompleter,
+    itemPath,
     payloadContext,
     prevPayloadContext,
   ) {
-    try {
-      return await iterator.next();
-    } catch (rawError) {
-      exeContext.pendingPushes++;
-      const itemPath = (0, _Path.addPath)(path, index, undefined);
-      payloadContext.errors.push(
-        this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
+    Promise.resolve(value)
+      .then((resolved) =>
+        valueCompleter(
+          exeContext,
+          fieldContext,
+          info,
+          itemPath,
+          resolved,
+          payloadContext,
+        ),
+      ) // Note: we don't rely on a `catch` method, but we do expect "thenable"
+      // to take a second callback for the error case.
+      .then(undefined, (rawError) =>
+        this.handleRawError(
+          rawError,
+          fieldContext.fieldNodes,
+          itemPath,
+          itemType,
+          payloadContext.errors,
+        ),
+      )
+      .then(
+        (data) =>
+          this.queue(
+            exeContext,
+            payloadContext,
+            prevPayloadContext,
+            data,
+            itemPath,
+          ),
+        (rawError) => {
+          payloadContext.errors.push(
+            this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
+          );
+          this.queue(
+            exeContext,
+            payloadContext,
+            prevPayloadContext,
+            null,
+            itemPath,
+          );
+        },
       );
-      this.queue(
-        exeContext,
-        payloadContext,
-        prevPayloadContext,
-        null,
-        itemPath,
-      );
-    }
   }
 
   closeAsyncIterator(exeContext, iterator) {
