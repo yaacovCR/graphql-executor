@@ -22,7 +22,7 @@ import type { Path } from '../jsutils/Path';
 import type { ObjMap } from '../jsutils/ObjMap';
 import type { PromiseOrValue } from '../jsutils/PromiseOrValue';
 import type { Maybe } from '../jsutils/Maybe';
-import type { Push, Stop } from '../jsutils/repeater';
+import { Publisher } from '../jsutils/publisher';
 import type { ExecutorSchema } from './executorSchema';
 /**
  * Terminology
@@ -65,11 +65,12 @@ export interface ExecutionContext {
   subFieldCollector: SubFieldCollector;
   resolveField: FieldResolver;
   rootPayloadContext: PayloadContext;
-  iterators: Set<AsyncIterator<unknown>>;
-  publisher: Publisher | undefined;
+  publisher: Publisher<IncrementalResult, AsyncExecutionResult>;
+  state: ExecutionState;
+}
+interface ExecutionState {
   pendingPushes: number;
-  pushedPayloads: WeakMap<PayloadContext, boolean>;
-  pendingPayloads: WeakMap<PayloadContext, Array<IncrementalResult>>;
+  iterators: Set<AsyncIterator<unknown>>;
 }
 interface FieldContext {
   fieldDef: GraphQLField<unknown, unknown>;
@@ -87,10 +88,6 @@ interface IncrementalResult {
   payloadContext: PayloadContext;
   data: ObjMap<unknown> | unknown | null;
   path: Path | undefined;
-}
-interface Publisher {
-  push: Push<ExecutionPatchResult>;
-  stop: Stop;
 }
 export interface PatchFields {
   label?: string;
@@ -388,6 +385,9 @@ export declare class Executor {
     operations: ReadonlyArray<OperationDefinitionNode>,
     operationName: Maybe<string>,
   ): ReadonlyArray<GraphQLError> | OperationDefinitionNode;
+  createPublisher(
+    state: ExecutionState,
+  ): Publisher<IncrementalResult, AsyncExecutionResult>;
   /**
    * Constructs a ExecutionContext object from the arguments passed to
    * execute, which we will pass throughout the other execution methods.
@@ -785,35 +785,7 @@ export declare class Executor {
     exeContext: ExecutionContext,
     iterator: AsyncIterator<unknown>,
   ): void;
-  hasNext(exeContext: ExecutionContext): boolean;
-  queue(
-    exeContext: ExecutionContext,
-    payloadContext: PayloadContext,
-    parentPayloadContext: PayloadContext,
-    data: ObjMap<unknown> | unknown | null,
-    path: Path | undefined,
-  ): void;
-  pushResult(
-    exeContext: ExecutionContext,
-    push: Push<ExecutionPatchResult>,
-    stop: Stop,
-    payloadContext: PayloadContext,
-    data: ObjMap<unknown> | unknown | null,
-    path: Path | undefined,
-  ): void;
-  pushResults(
-    exeContext: ExecutionContext,
-    push: Push<ExecutionPatchResult>,
-    stop: Stop,
-    results: Array<IncrementalResult>,
-  ): void;
-  createPatchResult(
-    exeContext: ExecutionContext,
-    data: ObjMap<unknown> | unknown | null,
-    errors: ReadonlyArray<GraphQLError>,
-    path: Path | undefined,
-    label?: string,
-  ): ExecutionPatchResult;
+  hasNext(state: ExecutionState): boolean;
   /**
    * Given an operation, collects all of the root fields and returns them.
    *
