@@ -381,7 +381,8 @@ export class Executor {
   execute(
     args: ExecutorExecutionArgs,
   ): PromiseOrValue<
-    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
+    | ExecutionResult
+    | AsyncGenerator<ReadonlyArray<AsyncExecutionResult>, void, void>
   > {
     const exeContext = this.buildExecutionContext(args);
 
@@ -466,7 +467,8 @@ export class Executor {
   executeQueryImpl(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
-    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
+    | ExecutionResult
+    | AsyncGenerator<ReadonlyArray<AsyncExecutionResult>, void, void>
   > {
     return this.executeOperationImpl(
       exeContext,
@@ -482,7 +484,8 @@ export class Executor {
   executeMutationImpl(
     exeContext: ExecutionContext,
   ): PromiseOrValue<
-    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
+    | ExecutionResult
+    | AsyncGenerator<ReadonlyArray<AsyncExecutionResult>, void, void>
   > {
     return this.executeOperationImpl(
       exeContext,
@@ -555,7 +558,9 @@ export class Executor {
   buildResponse(
     exeContext: ExecutionContext,
     data: ObjMap<unknown> | null,
-  ): ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void> {
+  ):
+    | ExecutionResult
+    | AsyncGenerator<ReadonlyArray<AsyncExecutionResult>, void, void> {
     const rootResponseNode = exeContext.rootResponseNode;
 
     const errors = rootResponseNode.errors;
@@ -2418,7 +2423,8 @@ export class Executor {
   async executeSubscriptionImpl(
     exeContext: ExecutionContext,
   ): Promise<
-    AsyncGenerator<AsyncExecutionResult, void, void> | ExecutionResult
+    | AsyncGenerator<ReadonlyArray<AsyncExecutionResult>, void, void>
+    | ExecutionResult
   > {
     return this.executeOperationImpl(
       exeContext,
@@ -2476,7 +2482,9 @@ export class Executor {
   buildSubscribeResponse(
     exeContext: ExecutionContext,
     _eventStream: unknown,
-  ): AsyncGenerator<AsyncExecutionResult, void, void> | ExecutionResult {
+  ):
+    | AsyncGenerator<ReadonlyArray<AsyncExecutionResult>, void, void>
+    | ExecutionResult {
     const eventStream = this.buildCreateSourceEventStreamResponse(
       exeContext,
       _eventStream,
@@ -2501,9 +2509,10 @@ export class Executor {
     };
 
     // Map every source value to a ExecutionResult value as described above.
-    return flattenAsyncIterable<ExecutionResult, AsyncExecutionResult>(
-      mapAsyncIterable(eventStream, mapSourceToResponse),
-    );
+    return flattenAsyncIterable<
+      ExecutionResult,
+      ReadonlyArray<AsyncExecutionResult>
+    >(mapAsyncIterable(eventStream, mapSourceToResponse), (result) => [result]);
   }
 
   async createSourceEventStreamImpl(

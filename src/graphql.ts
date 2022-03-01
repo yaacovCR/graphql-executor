@@ -71,7 +71,10 @@ export interface GraphQLArgs {
 
 export function graphql(
   args: GraphQLArgs,
-): Promise<ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>> {
+): Promise<
+  | ExecutionResult
+  | AsyncGenerator<ReadonlyArray<AsyncExecutionResult>, void, void>
+> {
   // Always return a Promise for a consistent API.
   return new Promise((resolve) => resolve(graphqlImpl(args)));
 }
@@ -96,7 +99,8 @@ export function graphqlSync(args: GraphQLArgs): ExecutionResult {
 function graphqlImpl(
   args: GraphQLArgs,
 ): PromiseOrValue<
-  ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
+  | ExecutionResult
+  | AsyncGenerator<ReadonlyArray<AsyncExecutionResult>, void, void>
 > {
   // Temporary for v15 to v16 migration. Remove in v17
   devAssert(

@@ -10,7 +10,7 @@ describe('publisher', () => {
     const iterator = publisher.subscribe();
     expect(await iterator.next()).to.deep.equal({
       done: false,
-      value: 1,
+      value: [1],
     });
   });
 
@@ -21,11 +21,7 @@ describe('publisher', () => {
     const iterator = publisher.subscribe();
     expect(await iterator.next()).to.deep.equal({
       done: false,
-      value: 1,
-    });
-    expect(await iterator.next()).to.deep.equal({
-      done: false,
-      value: 2,
+      value: [1, 2],
     });
   });
 
@@ -36,7 +32,7 @@ describe('publisher', () => {
     const iterator = publisher.subscribe();
     expect(await iterator.next()).to.deep.equal({
       done: false,
-      value: 1,
+      value: [1],
     });
     expect(await iterator.next()).to.deep.equal({
       done: true,
@@ -50,7 +46,7 @@ describe('publisher', () => {
     const iterator = publisher.subscribe();
     expect(await iterator.next()).to.deep.equal({
       done: false,
-      value: 1,
+      value: [1],
     });
     expect(await iterator.next()).to.deep.equal({
       done: true,
@@ -67,11 +63,7 @@ describe('publisher', () => {
     const iterator = publisher.subscribe();
     expect(await iterator.next()).to.deep.equal({
       done: false,
-      value: 1,
-    });
-    expect(await iterator.next()).to.deep.equal({
-      done: false,
-      value: 2,
+      value: [1, 2],
     });
   });
 
@@ -87,19 +79,7 @@ describe('publisher', () => {
     const iterator = publisher.subscribe();
     expect(await iterator.next()).to.deep.equal({
       done: false,
-      value: 1,
-    });
-    expect(await iterator.next()).to.deep.equal({
-      done: false,
-      value: 2,
-    });
-    expect(await iterator.next()).to.deep.equal({
-      done: false,
-      value: 3,
-    });
-    expect(await iterator.next()).to.deep.equal({
-      done: false,
-      value: 4,
+      value: [1, 2, 3, 4],
     });
   });
 
@@ -127,19 +107,7 @@ describe('publisher', () => {
     const iterator = publisher.subscribe();
     expect(await iterator.next()).to.deep.equal({
       done: false,
-      value: 1,
-    });
-    expect(await iterator.next()).to.deep.equal({
-      done: false,
-      value: 2,
-    });
-    expect(await iterator.next()).to.deep.equal({
-      done: false,
-      value: 3,
-    });
-    expect(await iterator.next()).to.deep.equal({
-      done: false,
-      value: undefined,
+      value: [1, 2, 3, undefined],
     });
     expect(await iterator.next()).to.deep.equal({
       done: true,

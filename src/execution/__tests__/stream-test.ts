@@ -256,24 +256,26 @@ describe('Execute: stream directive', () => {
     const result = await complete(document);
 
     expect(result).to.deep.equal([
-      {
-        data: {
-          scalarList: ['apple'],
+      [
+        {
+          data: {
+            scalarList: ['apple'],
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: ['banana'],
-        path: ['scalarList'],
-        atIndex: 1,
-        hasNext: true,
-      },
-      {
-        data: ['coconut'],
-        path: ['scalarList'],
-        atIndex: 2,
-        hasNext: false,
-      },
+        {
+          data: ['banana'],
+          path: ['scalarList'],
+          atIndex: 1,
+          hasNext: true,
+        },
+        {
+          data: ['coconut'],
+          path: ['scalarList'],
+          atIndex: 2,
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Can stream a list field in chunks of size greater than 1', async () => {
@@ -281,24 +283,26 @@ describe('Execute: stream directive', () => {
     const result = await complete(document);
 
     expect(result).to.deep.equal([
-      {
-        data: {
-          scalarList: [],
+      [
+        {
+          data: {
+            scalarList: [],
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: ['apple', 'banana'],
-        path: ['scalarList'],
-        atIndex: 0,
-        hasNext: true,
-      },
-      {
-        data: ['coconut'],
-        path: ['scalarList'],
-        atIndex: 2,
-        hasNext: false,
-      },
+        {
+          data: ['apple', 'banana'],
+          path: ['scalarList'],
+          atIndex: 0,
+          hasNext: true,
+        },
+        {
+          data: ['coconut'],
+          path: ['scalarList'],
+          atIndex: 2,
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Can use default value of initialCount', async () => {
@@ -306,30 +310,32 @@ describe('Execute: stream directive', () => {
     const result = await complete(document);
 
     expect(result).to.deep.equal([
-      {
-        data: {
-          scalarList: [],
+      [
+        {
+          data: {
+            scalarList: [],
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: ['apple'],
-        path: ['scalarList'],
-        atIndex: 0,
-        hasNext: true,
-      },
-      {
-        data: ['banana'],
-        path: ['scalarList'],
-        atIndex: 1,
-        hasNext: true,
-      },
-      {
-        data: ['coconut'],
-        path: ['scalarList'],
-        atIndex: 2,
-        hasNext: false,
-      },
+        {
+          data: ['apple'],
+          path: ['scalarList'],
+          atIndex: 0,
+          hasNext: true,
+        },
+        {
+          data: ['banana'],
+          path: ['scalarList'],
+          atIndex: 1,
+          hasNext: true,
+        },
+        {
+          data: ['coconut'],
+          path: ['scalarList'],
+          atIndex: 2,
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Can use a high value of initialCount to return a single result', async () => {
@@ -416,26 +422,28 @@ describe('Execute: stream directive', () => {
     const result = await complete(document);
 
     expect(result).to.deep.equal([
-      {
-        data: {
-          scalarList: ['apple'],
+      [
+        {
+          data: {
+            scalarList: ['apple'],
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: ['banana'],
-        path: ['scalarList'],
-        atIndex: 1,
-        label: 'scalar-stream',
-        hasNext: true,
-      },
-      {
-        data: ['coconut'],
-        path: ['scalarList'],
-        atIndex: 2,
-        label: 'scalar-stream',
-        hasNext: false,
-      },
+        {
+          data: ['banana'],
+          path: ['scalarList'],
+          atIndex: 1,
+          label: 'scalar-stream',
+          hasNext: true,
+        },
+        {
+          data: ['coconut'],
+          path: ['scalarList'],
+          atIndex: 2,
+          label: 'scalar-stream',
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Can disable @stream using if argument', async () => {
@@ -459,32 +467,34 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expect(result).to.deep.equal([
-      {
-        data: {
-          asyncList: [
+      [
+        {
+          data: {
+            asyncList: [
+              {
+                name: 'Luke',
+                id: '1',
+              },
+              {
+                name: 'Han',
+                id: '2',
+              },
+            ],
+          },
+          hasNext: true,
+        },
+        {
+          data: [
             {
-              name: 'Luke',
-              id: '1',
-            },
-            {
-              name: 'Han',
-              id: '2',
+              name: 'Leia',
+              id: '3',
             },
           ],
+          path: ['asyncList'],
+          atIndex: 2,
+          hasNext: false,
         },
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Leia',
-            id: '3',
-          },
-        ],
-        path: ['asyncList'],
-        atIndex: 2,
-        hasNext: false,
-      },
+      ],
     ]);
   });
   it('Can stream in correct order with lists of promises', async () => {
@@ -498,45 +508,49 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expect(result).to.deep.equal([
-      {
-        data: {
-          asyncSlowList: [],
+      [
+        {
+          data: {
+            asyncSlowList: [],
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Luke',
-            id: '1',
-          },
-        ],
-        path: ['asyncSlowList'],
-        atIndex: 0,
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Han',
-            id: '2',
-          },
-        ],
-        path: ['asyncSlowList'],
-        atIndex: 1,
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Leia',
-            id: '3',
-          },
-        ],
-        path: ['asyncSlowList'],
-        atIndex: 2,
-        hasNext: false,
-      },
+      ],
+      [
+        {
+          data: [
+            {
+              name: 'Luke',
+              id: '1',
+            },
+          ],
+          path: ['asyncSlowList'],
+          atIndex: 0,
+          hasNext: true,
+        },
+        {
+          data: [
+            {
+              name: 'Han',
+              id: '2',
+            },
+          ],
+          path: ['asyncSlowList'],
+          atIndex: 1,
+          hasNext: true,
+        },
+        {
+          data: [
+            {
+              name: 'Leia',
+              id: '3',
+            },
+          ],
+          path: ['asyncSlowList'],
+          atIndex: 2,
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Can stream in parallel', async () => {
@@ -550,45 +564,49 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expect(result).to.deep.equal([
-      {
-        data: {
-          asyncSlowList: [],
+      [
+        {
+          data: {
+            asyncSlowList: [],
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Han',
-            id: '2',
-          },
-        ],
-        path: ['asyncSlowList'],
-        atIndices: [1],
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Leia',
-            id: '3',
-          },
-        ],
-        path: ['asyncSlowList'],
-        atIndices: [2],
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Luke',
-            id: '1',
-          },
-        ],
-        path: ['asyncSlowList'],
-        atIndices: [0],
-        hasNext: false,
-      },
+        {
+          data: [
+            {
+              name: 'Han',
+              id: '2',
+            },
+          ],
+          path: ['asyncSlowList'],
+          atIndices: [1],
+          hasNext: true,
+        },
+        {
+          data: [
+            {
+              name: 'Leia',
+              id: '3',
+            },
+          ],
+          path: ['asyncSlowList'],
+          atIndices: [2],
+          hasNext: true,
+        },
+      ],
+      [
+        {
+          data: [
+            {
+              name: 'Luke',
+              id: '1',
+            },
+          ],
+          path: ['asyncSlowList'],
+          atIndices: [0],
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Can batch stream in parallel', async () => {
@@ -602,38 +620,42 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expect(result).to.deep.equal([
-      {
-        data: {
-          asyncSlowList: [],
+      [
+        {
+          data: {
+            asyncSlowList: [],
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Han',
-            id: '2',
-          },
-          {
-            name: 'Leia',
-            id: '3',
-          },
-        ],
-        path: ['asyncSlowList'],
-        atIndices: [1, 2],
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Luke',
-            id: '1',
-          },
-        ],
-        path: ['asyncSlowList'],
-        atIndices: [0],
-        hasNext: false,
-      },
+        {
+          data: [
+            {
+              name: 'Han',
+              id: '2',
+            },
+            {
+              name: 'Leia',
+              id: '3',
+            },
+          ],
+          path: ['asyncSlowList'],
+          atIndices: [1, 2],
+          hasNext: true,
+        },
+      ],
+      [
+        {
+          data: [
+            {
+              name: 'Luke',
+              id: '1',
+            },
+          ],
+          path: ['asyncSlowList'],
+          atIndices: [0],
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Handles rejections in a field that returns a list of promises before initialCount is reached', async () => {
@@ -647,41 +669,43 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expectJSON(result).toDeepEqual([
-      {
-        errors: [
-          {
-            message: 'bad',
-            locations: [
-              {
-                line: 3,
-                column: 9,
-              },
-            ],
-            path: ['asyncListError', 1],
-          },
-        ],
-        data: {
-          asyncListError: [
+      [
+        {
+          errors: [
             {
-              name: 'Luke',
-              id: '1',
+              message: 'bad',
+              locations: [
+                {
+                  line: 3,
+                  column: 9,
+                },
+              ],
+              path: ['asyncListError', 1],
             },
-            null,
           ],
-        },
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Leia',
-            id: '3',
+          data: {
+            asyncListError: [
+              {
+                name: 'Luke',
+                id: '1',
+              },
+              null,
+            ],
           },
-        ],
-        path: ['asyncListError'],
-        atIndex: 2,
-        hasNext: false,
-      },
+          hasNext: true,
+        },
+        {
+          data: [
+            {
+              name: 'Leia',
+              id: '3',
+            },
+          ],
+          path: ['asyncListError'],
+          atIndex: 2,
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Handles rejections in a field that returns a list of promises after initialCount is reached', async () => {
@@ -695,46 +719,48 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expectJSON(result).toDeepEqual([
-      {
-        data: {
-          asyncListError: [
-            {
-              name: 'Luke',
-              id: '1',
-            },
-          ],
-        },
-        hasNext: true,
-      },
-      {
-        data: [null],
-        path: ['asyncListError'],
-        atIndex: 1,
-        errors: [
-          {
-            message: 'bad',
-            locations: [
+      [
+        {
+          data: {
+            asyncListError: [
               {
-                line: 3,
-                column: 9,
+                name: 'Luke',
+                id: '1',
               },
             ],
-            path: ['asyncListError', 1],
           },
-        ],
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Leia',
-            id: '3',
-          },
-        ],
-        path: ['asyncListError'],
-        atIndex: 2,
-        hasNext: false,
-      },
+          hasNext: true,
+        },
+        {
+          data: [null],
+          path: ['asyncListError'],
+          atIndex: 1,
+          errors: [
+            {
+              message: 'bad',
+              locations: [
+                {
+                  line: 3,
+                  column: 9,
+                },
+              ],
+              path: ['asyncListError', 1],
+            },
+          ],
+          hasNext: true,
+        },
+        {
+          data: [
+            {
+              name: 'Leia',
+              id: '3',
+            },
+          ],
+          path: ['asyncListError'],
+          atIndex: 2,
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Can stream a field that returns an async iterable', async () => {
@@ -748,48 +774,54 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expect(result).to.deep.equal([
-      {
-        data: {
-          asyncIterableList: [],
+      [
+        {
+          data: {
+            asyncIterableList: [],
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Luke',
-            id: '1',
-          },
-        ],
-        path: ['asyncIterableList'],
-        atIndex: 0,
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Han',
-            id: '2',
-          },
-        ],
-        path: ['asyncIterableList'],
-        atIndex: 1,
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Leia',
-            id: '3',
-          },
-        ],
-        path: ['asyncIterableList'],
-        atIndex: 2,
-        hasNext: true,
-      },
-      {
-        hasNext: false,
-      },
+        {
+          data: [
+            {
+              name: 'Luke',
+              id: '1',
+            },
+          ],
+          path: ['asyncIterableList'],
+          atIndex: 0,
+          hasNext: true,
+        },
+      ],
+      [
+        {
+          data: [
+            {
+              name: 'Han',
+              id: '2',
+            },
+          ],
+          path: ['asyncIterableList'],
+          atIndex: 1,
+          hasNext: true,
+        },
+      ],
+      [
+        {
+          data: [
+            {
+              name: 'Leia',
+              id: '3',
+            },
+          ],
+          path: ['asyncIterableList'],
+          atIndex: 2,
+          hasNext: true,
+        },
+        {
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Can stream a field that returns an async iterable in chunks of size greater than 1', async () => {
@@ -803,41 +835,47 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expect(result).to.deep.equal([
-      {
-        data: {
-          asyncIterableList: [],
+      [
+        {
+          data: {
+            asyncIterableList: [],
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Luke',
-            id: '1',
-          },
-          {
-            name: 'Han',
-            id: '2',
-          },
-        ],
-        path: ['asyncIterableList'],
-        atIndex: 0,
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Leia',
-            id: '3',
-          },
-        ],
-        path: ['asyncIterableList'],
-        atIndex: 2,
-        hasNext: true,
-      },
-      {
-        hasNext: false,
-      },
+      ],
+      [
+        {
+          data: [
+            {
+              name: 'Luke',
+              id: '1',
+            },
+            {
+              name: 'Han',
+              id: '2',
+            },
+          ],
+          path: ['asyncIterableList'],
+          atIndex: 0,
+          hasNext: true,
+        },
+      ],
+      [
+        {
+          data: [
+            {
+              name: 'Leia',
+              id: '3',
+            },
+          ],
+          path: ['asyncIterableList'],
+          atIndex: 2,
+          hasNext: true,
+        },
+        {
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Can stream a field that returns an async iterable, using a non-zero initialCount', async () => {
@@ -851,35 +889,37 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expect(result).to.deep.equal([
-      {
-        data: {
-          asyncIterableList: [
+      [
+        {
+          data: {
+            asyncIterableList: [
+              {
+                name: 'Luke',
+                id: '1',
+              },
+              {
+                name: 'Han',
+                id: '2',
+              },
+            ],
+          },
+          hasNext: true,
+        },
+        {
+          data: [
             {
-              name: 'Luke',
-              id: '1',
-            },
-            {
-              name: 'Han',
-              id: '2',
+              name: 'Leia',
+              id: '3',
             },
           ],
+          path: ['asyncIterableList'],
+          atIndex: 2,
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Leia',
-            id: '3',
-          },
-        ],
-        path: ['asyncIterableList'],
-        atIndex: 2,
-        hasNext: true,
-      },
-      {
-        hasNext: false,
-      },
+        {
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Can use stream with a high initialCount to return a single result on a field that returns an async iterable', async () => {
@@ -949,45 +989,41 @@ describe('Execute: stream directive', () => {
         }
       }
     `);
-    const result = await completeAsync(document, 4);
+    const result = await completeAsync(document, 2);
     expect(result).to.deep.equal([
       {
         done: false,
-        value: {
-          data: {
-            asyncIterableList: [
+        value: [
+          {
+            data: {
+              asyncIterableList: [
+                {
+                  name: 'Luke',
+                  id: '1',
+                },
+                {
+                  name: 'Han',
+                  id: '2',
+                },
+              ],
+            },
+            hasNext: true,
+          },
+          {
+            data: [
               {
-                name: 'Luke',
-                id: '1',
-              },
-              {
-                name: 'Han',
-                id: '2',
+                name: 'Leia',
+                id: '3',
               },
             ],
+            path: ['asyncIterableList'],
+            atIndex: 2,
+            hasNext: true,
           },
-          hasNext: true,
-        },
-      },
-      {
-        done: false,
-        value: {
-          data: [
-            {
-              name: 'Leia',
-              id: '3',
-            },
-          ],
-          path: ['asyncIterableList'],
-          atIndex: 2,
-          hasNext: true,
-        },
-      },
-      {
-        done: false,
-        value: {
-          hasNext: false,
-        },
+          {
+            hasNext: false,
+          },
+        ],
       },
       {
         done: true,
@@ -1041,36 +1077,38 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expectJSON(result).toDeepEqual([
-      {
-        data: {
-          asyncIterableOfNonIterable: [
-            {
-              name: 'Luke',
-              id: '1',
-            },
-          ],
-        },
-        hasNext: true,
-      },
-      {
-        data: [null],
-        path: ['asyncIterableOfNonIterable'],
-        atIndex: 1,
-        errors: [
-          {
-            message:
-              'Expected Iterable, but did not find one for field "Query.asyncIterableOfNonIterable".',
-            locations: [
+      [
+        {
+          data: {
+            asyncIterableOfNonIterable: [
               {
-                line: 3,
-                column: 9,
+                name: 'Luke',
+                id: '1',
               },
             ],
-            path: ['asyncIterableOfNonIterable', 1],
           },
-        ],
-        hasNext: false,
-      },
+          hasNext: true,
+        },
+        {
+          data: [null],
+          path: ['asyncIterableOfNonIterable'],
+          atIndex: 1,
+          errors: [
+            {
+              message:
+                'Expected Iterable, but did not find one for field "Query.asyncIterableOfNonIterable".',
+              locations: [
+                {
+                  line: 3,
+                  column: 9,
+                },
+              ],
+              path: ['asyncIterableOfNonIterable', 1],
+            },
+          ],
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Handles error thrown in async iterable before initialCount is reached', async () => {
@@ -1118,35 +1156,37 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expectJSON(result).toDeepEqual([
-      {
-        data: {
-          asyncIterableError: [
-            {
-              name: 'Luke',
-              id: '1',
-            },
-          ],
-        },
-        hasNext: true,
-      },
-      {
-        data: [null],
-        path: ['asyncIterableError'],
-        atIndex: 1,
-        errors: [
-          {
-            message: 'bad',
-            locations: [
+      [
+        {
+          data: {
+            asyncIterableError: [
               {
-                line: 3,
-                column: 9,
+                name: 'Luke',
+                id: '1',
               },
             ],
-            path: ['asyncIterableError', 1],
           },
-        ],
-        hasNext: false,
-      },
+          hasNext: true,
+        },
+        {
+          data: [null],
+          path: ['asyncIterableError'],
+          atIndex: 1,
+          errors: [
+            {
+              message: 'bad',
+              locations: [
+                {
+                  line: 3,
+                  column: 9,
+                },
+              ],
+              path: ['asyncIterableError', 1],
+            },
+          ],
+          hasNext: false,
+        },
+      ],
     ]);
   });
 
@@ -1161,35 +1201,37 @@ describe('Execute: stream directive', () => {
     const result = await complete(document);
 
     expectJSON(result).toDeepEqual([
-      {
-        data: {
-          nonNullError: [
-            {
-              name: 'Luke',
-            },
-          ],
-        },
-        hasNext: true,
-      },
-      {
-        data: null,
-        path: ['nonNullError'],
-        atIndex: 1,
-        errors: [
-          {
-            message:
-              'Cannot return null for non-nullable field Query.nonNullError.',
-            locations: [
+      [
+        {
+          data: {
+            nonNullError: [
               {
-                line: 3,
-                column: 9,
+                name: 'Luke',
               },
             ],
-            path: ['nonNullError', 1],
           },
-        ],
-        hasNext: false,
-      },
+          hasNext: true,
+        },
+        {
+          data: null,
+          path: ['nonNullError'],
+          atIndex: 1,
+          errors: [
+            {
+              message:
+                'Cannot return null for non-nullable field Query.nonNullError.',
+              locations: [
+                {
+                  line: 3,
+                  column: 9,
+                },
+              ],
+              path: ['nonNullError', 1],
+            },
+          ],
+          hasNext: false,
+        },
+      ],
     ]);
   });
 
@@ -1203,57 +1245,61 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expectJSON(result).toDeepEqual([
-      {
-        data: {
-          asyncIterableNonNullError: [
+      [
+        {
+          data: {
+            asyncIterableNonNullError: [
+              {
+                name: 'Luke',
+              },
+            ],
+          },
+          hasNext: true,
+        },
+        {
+          data: null,
+          path: ['asyncIterableNonNullError'],
+          atIndex: 1,
+          errors: [
             {
-              name: 'Luke',
+              message:
+                'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
+              locations: [
+                {
+                  line: 3,
+                  column: 9,
+                },
+              ],
+              path: ['asyncIterableNonNullError', 1],
             },
           ],
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: null,
-        path: ['asyncIterableNonNullError'],
-        atIndex: 1,
-        errors: [
-          {
-            message:
-              'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
-            locations: [
-              {
-                line: 3,
-                column: 9,
-              },
-            ],
-            path: ['asyncIterableNonNullError', 1],
-          },
-        ],
-        hasNext: true,
-      },
-      {
-        data: null,
-        path: ['asyncIterableNonNullError'],
-        atIndex: 2,
-        errors: [
-          {
-            message:
-              'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
-            locations: [
-              {
-                line: 3,
-                column: 9,
-              },
-            ],
-            path: ['asyncIterableNonNullError', 2],
-          },
-        ],
-        hasNext: true,
-      },
-      {
-        hasNext: false,
-      },
+      ],
+      [
+        {
+          data: null,
+          path: ['asyncIterableNonNullError'],
+          atIndex: 2,
+          errors: [
+            {
+              message:
+                'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
+              locations: [
+                {
+                  line: 3,
+                  column: 9,
+                },
+              ],
+              path: ['asyncIterableNonNullError', 2],
+            },
+          ],
+          hasNext: true,
+        },
+        {
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Handles null returned in non-null async iterable list items after initialCount is reached with maxChunkSize greater than 1', async () => {
@@ -1266,55 +1312,61 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expectJSON(result).toDeepEqual([
-      {
-        data: {
-          asyncIterableNonNullError: [],
+      [
+        {
+          data: {
+            asyncIterableNonNullError: [],
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Luke',
-          },
-        ],
-        path: ['asyncIterableNonNullError'],
-        atIndex: 0,
-        hasNext: true,
-      },
-      {
-        data: null,
-        path: ['asyncIterableNonNullError'],
-        atIndex: 1,
-        errors: [
-          {
-            message:
-              'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
-            locations: [
-              {
-                line: 3,
-                column: 9,
-              },
-            ],
-            path: ['asyncIterableNonNullError', 1],
-          },
-          {
-            message:
-              'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
-            locations: [
-              {
-                line: 3,
-                column: 9,
-              },
-            ],
-            path: ['asyncIterableNonNullError', 2],
-          },
-        ],
-        hasNext: true,
-      },
-      {
-        hasNext: false,
-      },
+      ],
+      [
+        {
+          data: [
+            {
+              name: 'Luke',
+            },
+          ],
+          path: ['asyncIterableNonNullError'],
+          atIndex: 0,
+          hasNext: true,
+        },
+      ],
+      [
+        {
+          data: null,
+          path: ['asyncIterableNonNullError'],
+          atIndex: 1,
+          errors: [
+            {
+              message:
+                'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
+              locations: [
+                {
+                  line: 3,
+                  column: 9,
+                },
+              ],
+              path: ['asyncIterableNonNullError', 1],
+            },
+            {
+              message:
+                'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
+              locations: [
+                {
+                  line: 3,
+                  column: 9,
+                },
+              ],
+              path: ['asyncIterableNonNullError', 2],
+            },
+          ],
+          hasNext: true,
+        },
+        {
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Handles null returned in non-null async iterable list items after initialCount is reached with parallel streaming', async () => {
@@ -1327,55 +1379,61 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expectJSON(result).toDeepEqual([
-      {
-        data: {
-          asyncIterableNonNullError: [],
+      [
+        {
+          data: {
+            asyncIterableNonNullError: [],
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Luke',
-          },
-        ],
-        path: ['asyncIterableNonNullError'],
-        atIndices: [0],
-        hasNext: true,
-      },
-      {
-        data: null,
-        path: ['asyncIterableNonNullError'],
-        atIndices: [1, 2],
-        errors: [
-          {
-            message:
-              'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
-            locations: [
-              {
-                line: 3,
-                column: 9,
-              },
-            ],
-            path: ['asyncIterableNonNullError', 1],
-          },
-          {
-            message:
-              'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
-            locations: [
-              {
-                line: 3,
-                column: 9,
-              },
-            ],
-            path: ['asyncIterableNonNullError', 2],
-          },
-        ],
-        hasNext: true,
-      },
-      {
-        hasNext: false,
-      },
+      ],
+      [
+        {
+          data: [
+            {
+              name: 'Luke',
+            },
+          ],
+          path: ['asyncIterableNonNullError'],
+          atIndices: [0],
+          hasNext: true,
+        },
+      ],
+      [
+        {
+          data: null,
+          path: ['asyncIterableNonNullError'],
+          atIndices: [1, 2],
+          errors: [
+            {
+              message:
+                'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
+              locations: [
+                {
+                  line: 3,
+                  column: 9,
+                },
+              ],
+              path: ['asyncIterableNonNullError', 1],
+            },
+            {
+              message:
+                'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
+              locations: [
+                {
+                  line: 3,
+                  column: 9,
+                },
+              ],
+              path: ['asyncIterableNonNullError', 2],
+            },
+          ],
+          hasNext: true,
+        },
+        {
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Handles errors thrown by completeValue after initialCount is reached', async () => {
@@ -1386,33 +1444,35 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expectJSON(result).toDeepEqual([
-      {
-        data: {
-          asyncIterableInvalid: ['Luke'],
-        },
-        hasNext: true,
-      },
-      {
-        data: [null],
-        path: ['asyncIterableInvalid'],
-        atIndex: 1,
-        errors: [
-          {
-            message: 'String cannot represent value: {}',
-            locations: [
-              {
-                line: 3,
-                column: 9,
-              },
-            ],
-            path: ['asyncIterableInvalid', 1],
+      [
+        {
+          data: {
+            asyncIterableInvalid: ['Luke'],
           },
-        ],
-        hasNext: true,
-      },
-      {
-        hasNext: false,
-      },
+          hasNext: true,
+        },
+        {
+          data: [null],
+          path: ['asyncIterableInvalid'],
+          atIndex: 1,
+          errors: [
+            {
+              message: 'String cannot represent value: {}',
+              locations: [
+                {
+                  line: 3,
+                  column: 9,
+                },
+              ],
+              path: ['asyncIterableInvalid', 1],
+            },
+          ],
+          hasNext: true,
+        },
+        {
+          hasNext: false,
+        },
+      ],
     ]);
   });
 
@@ -1427,39 +1487,45 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expectJSON(result).toDeepEqual([
-      {
-        data: {
-          asyncIterableList: [
+      [
+        {
+          data: {
+            asyncIterableList: [
+              {
+                name: 'Luke',
+                asyncName: 'Luke',
+              },
+            ],
+          },
+          hasNext: true,
+        },
+      ],
+      [
+        {
+          data: [
             {
-              name: 'Luke',
-              asyncName: 'Luke',
+              name: 'Han',
+              asyncName: 'Han',
             },
           ],
+          path: ['asyncIterableList'],
+          atIndex: 1,
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Han',
-            asyncName: 'Han',
-          },
-        ],
-        path: ['asyncIterableList'],
-        atIndex: 1,
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            name: 'Leia',
-            asyncName: 'Leia',
-          },
-        ],
-        path: ['asyncIterableList'],
-        atIndex: 2,
-        hasNext: false,
-      },
+      ],
+      [
+        {
+          data: [
+            {
+              name: 'Leia',
+              asyncName: 'Leia',
+            },
+          ],
+          path: ['asyncIterableList'],
+          atIndex: 2,
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Returns payloads in correct order when parent deferred fragment resolves slower than stream', async () => {
@@ -1478,38 +1544,42 @@ describe('Execute: stream directive', () => {
     `);
     const result = await complete(document);
     expectJSON(result).toDeepEqual([
-      {
-        data: {
-          nestedObject: {},
+      [
+        {
+          data: {
+            nestedObject: {},
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: {
-          slowField: 'slow',
-          asyncIterableList: [],
+      ],
+      [
+        {
+          data: {
+            slowField: 'slow',
+            asyncIterableList: [],
+          },
+          path: ['nestedObject'],
+          hasNext: true,
         },
-        path: ['nestedObject'],
-        hasNext: true,
-      },
-      {
-        data: [{ name: 'Luke' }],
-        path: ['nestedObject', 'asyncIterableList'],
-        atIndex: 0,
-        hasNext: true,
-      },
-      {
-        data: [{ name: 'Han' }],
-        path: ['nestedObject', 'asyncIterableList'],
-        atIndex: 1,
-        hasNext: true,
-      },
-      {
-        data: [{ name: 'Leia' }],
-        path: ['nestedObject', 'asyncIterableList'],
-        atIndex: 2,
-        hasNext: false,
-      },
+        {
+          data: [{ name: 'Luke' }],
+          path: ['nestedObject', 'asyncIterableList'],
+          atIndex: 0,
+          hasNext: true,
+        },
+        {
+          data: [{ name: 'Han' }],
+          path: ['nestedObject', 'asyncIterableList'],
+          atIndex: 1,
+          hasNext: true,
+        },
+        {
+          data: [{ name: 'Leia' }],
+          path: ['nestedObject', 'asyncIterableList'],
+          atIndex: 2,
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Can @defer fields that are resolved after async iterable is complete', async () => {
@@ -1526,62 +1596,72 @@ describe('Execute: stream directive', () => {
   `);
     const result = await complete(document);
     expectJSON(result).toDeepEqual([
-      {
-        data: {
-          asyncIterableList: [
+      [
+        {
+          data: {
+            asyncIterableList: [
+              {
+                id: '1',
+              },
+            ],
+          },
+          hasNext: true,
+        },
+        {
+          data: [
             {
-              id: '1',
+              id: '2',
             },
           ],
+          path: ['asyncIterableList'],
+          atIndex: 1,
+          label: 'stream-label',
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            id: '2',
+      ],
+      [
+        {
+          data: [
+            {
+              id: '3',
+            },
+          ],
+          path: ['asyncIterableList'],
+          atIndex: 2,
+          label: 'stream-label',
+          hasNext: true,
+        },
+      ],
+      [
+        {
+          data: {
+            asyncName: 'Luke',
           },
-        ],
-        path: ['asyncIterableList'],
-        atIndex: 1,
-        label: 'stream-label',
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            id: '3',
+          path: ['asyncIterableList', 0],
+          label: 'DeferName',
+          hasNext: true,
+        },
+      ],
+      [
+        {
+          data: {
+            asyncName: 'Han',
           },
-        ],
-        path: ['asyncIterableList'],
-        atIndex: 2,
-        label: 'stream-label',
-        hasNext: true,
-      },
-      {
-        data: {
-          asyncName: 'Luke',
+          path: ['asyncIterableList', 1],
+          label: 'DeferName',
+          hasNext: true,
         },
-        path: ['asyncIterableList', 0],
-        label: 'DeferName',
-        hasNext: true,
-      },
-      {
-        data: {
-          asyncName: 'Han',
+      ],
+      [
+        {
+          data: {
+            asyncName: 'Leia',
+          },
+          path: ['asyncIterableList', 2],
+          label: 'DeferName',
+          hasNext: false,
         },
-        path: ['asyncIterableList', 1],
-        label: 'DeferName',
-        hasNext: true,
-      },
-      {
-        data: {
-          asyncName: 'Leia',
-        },
-        path: ['asyncIterableList', 2],
-        label: 'DeferName',
-        hasNext: false,
-      },
+      ],
     ]);
   });
   it('Can @defer fields that are resolved before async iterable is complete', async () => {
@@ -1598,65 +1678,71 @@ describe('Execute: stream directive', () => {
   `);
     const result = await complete(document);
     expect(result).to.deep.equal([
-      {
-        data: {
-          asyncIterableListDelayedClose: [
+      [
+        {
+          data: {
+            asyncIterableListDelayedClose: [
+              {
+                id: '1',
+              },
+            ],
+          },
+          hasNext: true,
+        },
+        {
+          data: {
+            name: 'Luke',
+          },
+          path: ['asyncIterableListDelayedClose', 0],
+          label: 'DeferName',
+          hasNext: true,
+        },
+        {
+          data: [
             {
-              id: '1',
+              id: '2',
             },
           ],
+          path: ['asyncIterableListDelayedClose'],
+          atIndex: 1,
+          label: 'stream-label',
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: {
-          name: 'Luke',
-        },
-        path: ['asyncIterableListDelayedClose', 0],
-        label: 'DeferName',
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            id: '2',
+        {
+          data: {
+            name: 'Han',
           },
-        ],
-        path: ['asyncIterableListDelayedClose'],
-        atIndex: 1,
-        label: 'stream-label',
-        hasNext: true,
-      },
-      {
-        data: {
-          name: 'Han',
+          path: ['asyncIterableListDelayedClose', 1],
+          label: 'DeferName',
+          hasNext: true,
         },
-        path: ['asyncIterableListDelayedClose', 1],
-        label: 'DeferName',
-        hasNext: true,
-      },
-      {
-        data: [
-          {
-            id: '3',
+      ],
+      [
+        {
+          data: [
+            {
+              id: '3',
+            },
+          ],
+          path: ['asyncIterableListDelayedClose'],
+          atIndex: 2,
+          label: 'stream-label',
+          hasNext: true,
+        },
+        {
+          data: {
+            name: 'Leia',
           },
-        ],
-        path: ['asyncIterableListDelayedClose'],
-        atIndex: 2,
-        label: 'stream-label',
-        hasNext: true,
-      },
-      {
-        data: {
-          name: 'Leia',
+          path: ['asyncIterableListDelayedClose', 2],
+          label: 'DeferName',
+          hasNext: true,
         },
-        path: ['asyncIterableListDelayedClose', 2],
-        label: 'DeferName',
-        hasNext: true,
-      },
-      {
-        hasNext: false,
-      },
+      ],
+      [
+        {
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Returns underlying async iterables when dispatcher is returned', async () => {
@@ -1684,17 +1770,19 @@ describe('Execute: stream directive', () => {
     const result1 = await iterator.next();
     expect(result1).to.deep.equal({
       done: false,
-      value: {
-        data: {
-          asyncIterableListDelayed: [
-            {
-              id: '1',
-              name: 'Luke',
-            },
-          ],
+      value: [
+        {
+          data: {
+            asyncIterableListDelayed: [
+              {
+                id: '1',
+                name: 'Luke',
+              },
+            ],
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
+      ],
     });
 
     const returnPromise = iterator.return();
@@ -1736,17 +1824,19 @@ describe('Execute: stream directive', () => {
     const result1 = await iterator.next();
     expect(result1).to.deep.equal({
       done: false,
-      value: {
-        data: {
-          asyncIterableListNoReturn: [
-            {
-              id: '1',
-              name: 'Luke',
-            },
-          ],
+      value: [
+        {
+          data: {
+            asyncIterableListNoReturn: [
+              {
+                id: '1',
+                name: 'Luke',
+              },
+            ],
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
+      ],
     });
 
     const returnPromise = iterator.return();
@@ -1788,17 +1878,19 @@ describe('Execute: stream directive', () => {
     const result1 = await iterator.next();
     expect(result1).to.deep.equal({
       done: false,
-      value: {
-        data: {
-          asyncIterableListDelayed: [
-            {
-              id: '1',
-              name: 'Luke',
-            },
-          ],
+      value: [
+        {
+          data: {
+            asyncIterableListDelayed: [
+              {
+                id: '1',
+                name: 'Luke',
+              },
+            ],
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
+      ],
     });
 
     const error = new Error('bad');

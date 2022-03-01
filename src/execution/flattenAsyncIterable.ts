@@ -10,9 +10,10 @@ import { isPromise } from '../jsutils/isPromise';
  * Given an AsyncIterable that could potentially yield other async iterators,
  * flatten all yielded results into a single AsyncIterable
  */
-export function flattenAsyncIterable<T, AT>(
+export function flattenAsyncIterable<T, AT, U = AT>(
   iterable: AsyncIterable<T | AsyncIterable<AT>>,
-): AsyncGenerator<T | AT, void, void> {
+  transformer: (item: T) => U,
+): AsyncGenerator<U | AT, void, void> {
   return new Repeater(async (push, stop) => {
     const iter = iterable[Symbol.asyncIterator]();
     let childIterator: AsyncIterator<AT> | undefined;
@@ -59,7 +60,7 @@ export function flattenAsyncIterable<T, AT>(
       }
 
       // eslint-disable-next-line no-await-in-loop
-      await push(value);
+      await push(transformer(value));
     }
 
     if (isPromise(finalIteration)) {

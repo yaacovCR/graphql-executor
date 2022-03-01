@@ -152,22 +152,24 @@ describe('Execute: defer directive', () => {
     const result = await complete(document);
 
     expect(result).to.deep.equal([
-      {
-        data: {
-          hero: {
-            id: '1',
+      [
+        {
+          data: {
+            hero: {
+              id: '1',
+            },
           },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: {
-          id: '1',
-          name: 'Luke',
+        {
+          data: {
+            id: '1',
+            name: 'Luke',
+          },
+          path: ['hero'],
+          hasNext: false,
         },
-        path: ['hero'],
-        hasNext: false,
-      },
+      ],
     ]);
   });
   it('Can disable defer using if argument', async () => {
@@ -207,20 +209,22 @@ describe('Execute: defer directive', () => {
     const result = await complete(document);
 
     expect(result).to.deep.equal([
-      {
-        data: {},
-        hasNext: true,
-      },
-      {
-        data: {
-          hero: {
-            id: '1',
-          },
+      [
+        {
+          data: {},
+          hasNext: true,
         },
-        path: [],
-        label: 'DeferQuery',
-        hasNext: false,
-      },
+        {
+          data: {
+            hero: {
+              id: '1',
+            },
+          },
+          path: [],
+          label: 'DeferQuery',
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Can defer fragments with errors on the top level Query field', async () => {
@@ -237,27 +241,29 @@ describe('Execute: defer directive', () => {
     const result = await complete(document);
 
     expectJSON(result).toDeepEqual([
-      {
-        data: {},
-        hasNext: true,
-      },
-      {
-        data: {
-          hero: {
-            errorField: null,
-          },
+      [
+        {
+          data: {},
+          hasNext: true,
         },
-        errors: [
-          {
-            message: 'bad',
-            locations: [{ line: 7, column: 11 }],
-            path: ['hero', 'errorField'],
+        {
+          data: {
+            hero: {
+              errorField: null,
+            },
           },
-        ],
-        path: [],
-        label: 'DeferQuery',
-        hasNext: false,
-      },
+          errors: [
+            {
+              message: 'bad',
+              locations: [{ line: 7, column: 11 }],
+              path: ['hero', 'errorField'],
+            },
+          ],
+          path: [],
+          label: 'DeferQuery',
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Can defer a fragment within an already deferred fragment', async () => {
@@ -281,30 +287,32 @@ describe('Execute: defer directive', () => {
     const result = await complete(document);
 
     expect(result).to.deep.equal([
-      {
-        data: {
-          hero: {
-            id: '1',
+      [
+        {
+          data: {
+            hero: {
+              id: '1',
+            },
           },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: {
-          friends: [{ name: 'Han' }, { name: 'Leia' }, { name: 'C-3PO' }],
+        {
+          data: {
+            friends: [{ name: 'Han' }, { name: 'Leia' }, { name: 'C-3PO' }],
+          },
+          path: ['hero'],
+          label: 'DeferNested',
+          hasNext: true,
         },
-        path: ['hero'],
-        label: 'DeferNested',
-        hasNext: true,
-      },
-      {
-        data: {
-          name: 'Luke',
+        {
+          data: {
+            name: 'Luke',
+          },
+          path: ['hero'],
+          label: 'DeferTop',
+          hasNext: false,
         },
-        path: ['hero'],
-        label: 'DeferTop',
-        hasNext: false,
-      },
+      ],
     ]);
   });
   it('Can defer an inline fragment', async () => {
@@ -321,16 +329,18 @@ describe('Execute: defer directive', () => {
     const result = await complete(document);
 
     expect(result).to.deep.equal([
-      {
-        data: { hero: { id: '1' } },
-        hasNext: true,
-      },
-      {
-        data: { name: 'Luke' },
-        path: ['hero'],
-        label: 'InlineDeferred',
-        hasNext: false,
-      },
+      [
+        {
+          data: { hero: { id: '1' } },
+          hasNext: true,
+        },
+        {
+          data: { name: 'Luke' },
+          path: ['hero'],
+          label: 'InlineDeferred',
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Handles errors thrown in deferred fragments', async () => {
@@ -347,22 +357,24 @@ describe('Execute: defer directive', () => {
     `);
     const result = await complete(document);
     expectJSON(result).toDeepEqual([
-      {
-        data: { hero: { id: '1' } },
-        hasNext: true,
-      },
-      {
-        data: { errorField: null },
-        path: ['hero'],
-        errors: [
-          {
-            message: 'bad',
-            locations: [{ line: 9, column: 9 }],
-            path: ['hero', 'errorField'],
-          },
-        ],
-        hasNext: false,
-      },
+      [
+        {
+          data: { hero: { id: '1' } },
+          hasNext: true,
+        },
+        {
+          data: { errorField: null },
+          path: ['hero'],
+          errors: [
+            {
+              message: 'bad',
+              locations: [{ line: 9, column: 9 }],
+              path: ['hero', 'errorField'],
+            },
+          ],
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Handles non-nullable errors thrown in deferred fragments', async () => {
@@ -379,23 +391,25 @@ describe('Execute: defer directive', () => {
     `);
     const result = await complete(document);
     expectJSON(result).toDeepEqual([
-      {
-        data: { hero: { id: '1' } },
-        hasNext: true,
-      },
-      {
-        data: null,
-        path: ['hero'],
-        errors: [
-          {
-            message:
-              'Cannot return null for non-nullable field Hero.nonNullErrorField.',
-            locations: [{ line: 9, column: 9 }],
-            path: ['hero', 'nonNullErrorField'],
-          },
-        ],
-        hasNext: false,
-      },
+      [
+        {
+          data: { hero: { id: '1' } },
+          hasNext: true,
+        },
+        {
+          data: null,
+          path: ['hero'],
+          errors: [
+            {
+              message:
+                'Cannot return null for non-nullable field Hero.nonNullErrorField.',
+              locations: [{ line: 9, column: 9 }],
+              path: ['hero', 'nonNullErrorField'],
+            },
+          ],
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Handles async non-nullable errors thrown in deferred fragments', async () => {
@@ -412,23 +426,27 @@ describe('Execute: defer directive', () => {
     `);
     const result = await complete(document);
     expectJSON(result).toDeepEqual([
-      {
-        data: { hero: { id: '1' } },
-        hasNext: true,
-      },
-      {
-        data: null,
-        path: ['hero'],
-        errors: [
-          {
-            message:
-              'Cannot return null for non-nullable field Hero.promiseNonNullErrorField.',
-            locations: [{ line: 9, column: 9 }],
-            path: ['hero', 'promiseNonNullErrorField'],
-          },
-        ],
-        hasNext: false,
-      },
+      [
+        {
+          data: { hero: { id: '1' } },
+          hasNext: true,
+        },
+      ],
+      [
+        {
+          data: null,
+          path: ['hero'],
+          errors: [
+            {
+              message:
+                'Cannot return null for non-nullable field Hero.promiseNonNullErrorField.',
+              locations: [{ line: 9, column: 9 }],
+              path: ['hero', 'promiseNonNullErrorField'],
+            },
+          ],
+          hasNext: false,
+        },
+      ],
     ]);
   });
   it('Returns payloads in correct order', async () => {
@@ -451,35 +469,39 @@ describe('Execute: defer directive', () => {
     `);
     const result = await complete(document);
     expect(result).to.deep.equal([
-      {
-        data: {
-          hero: { id: '1' },
+      [
+        {
+          data: {
+            hero: { id: '1' },
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        data: {
-          slowField: 'slow',
-          friends: [{}, {}, {}],
+      ],
+      [
+        {
+          data: {
+            slowField: 'slow',
+            friends: [{}, {}, {}],
+          },
+          path: ['hero'],
+          hasNext: true,
         },
-        path: ['hero'],
-        hasNext: true,
-      },
-      {
-        data: { name: 'Han' },
-        path: ['hero', 'friends', 0],
-        hasNext: true,
-      },
-      {
-        data: { name: 'Leia' },
-        path: ['hero', 'friends', 1],
-        hasNext: true,
-      },
-      {
-        data: { name: 'C-3PO' },
-        path: ['hero', 'friends', 2],
-        hasNext: false,
-      },
+        {
+          data: { name: 'Han' },
+          path: ['hero', 'friends', 0],
+          hasNext: true,
+        },
+        {
+          data: { name: 'Leia' },
+          path: ['hero', 'friends', 1],
+          hasNext: true,
+        },
+        {
+          data: { name: 'C-3PO' },
+          path: ['hero', 'friends', 2],
+          hasNext: false,
+        },
+      ],
     ]);
   });
 });

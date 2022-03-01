@@ -26,7 +26,8 @@ export interface ExecutionArgs extends ExecutorArgs, ExecutorExecutionArgs {}
 export function execute(
   args: ExecutionArgs,
 ): PromiseOrValue<
-  ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
+  | ExecutionResult
+  | AsyncGenerator<ReadonlyArray<AsyncExecutionResult>, void, void>
 > {
   // Temporary for v15 to v16 migration. Remove in v17
   devAssert(

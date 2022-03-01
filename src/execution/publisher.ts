@@ -27,7 +27,7 @@ export class Publisher<TSource, TPayload = TSource> {
     Array<{ keys: Array<object>; source: TSource }>
   >;
 
-  private _repeater: Repeater<TPayload>;
+  private _repeater: Repeater<ReadonlyArray<TPayload>>;
 
   constructor({
     payloadFromSource = (source) => source as unknown as TPayload,
@@ -56,11 +56,10 @@ export class Publisher<TSource, TPayload = TSource> {
         await this._trigger;
 
         while (this._buffer.length) {
-          // this is safe because we have checked the length;
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          const payload = this._buffer.shift()!;
+          const buffer = this._buffer;
+          this._buffer = [];
           // eslint-disable-next-line no-await-in-loop
-          await push(payload);
+          await push(buffer);
         }
 
         if (this._stopped) {
@@ -149,7 +148,7 @@ export class Publisher<TSource, TPayload = TSource> {
     }
   }
 
-  subscribe(): AsyncGenerator<TPayload> {
+  subscribe(): AsyncGenerator<ReadonlyArray<TPayload>> {
     return this._repeater;
   }
 }

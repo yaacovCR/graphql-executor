@@ -114,7 +114,8 @@ function executeQuery(
   query: string,
   rootValue: unknown,
 ): PromiseOrValue<
-  ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
+  | ExecutionResult
+  | AsyncGenerator<ReadonlyArray<AsyncExecutionResult>, void, void>
 > {
   return execute({ schema, document: parse(query), rootValue });
 }

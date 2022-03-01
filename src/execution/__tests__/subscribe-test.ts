@@ -186,7 +186,7 @@ describe('Subscription Initialization Phase', () => {
 
     expect(await subscription.next()).to.deep.equal({
       done: false,
-      value: { data: { foo: 'FooValue' } },
+      value: [{ data: { foo: 'FooValue' } }],
     });
 
     expect(await subscription.next()).to.deep.equal({
@@ -221,7 +221,7 @@ describe('Subscription Initialization Phase', () => {
 
     expect(await subscription.next()).to.deep.equal({
       done: false,
-      value: { data: { foo: 'FooValue' } },
+      value: [{ data: { foo: 'FooValue' } }],
     });
 
     expect(await subscription.next()).to.deep.equal({
@@ -259,7 +259,7 @@ describe('Subscription Initialization Phase', () => {
 
     expect(await subscription.next()).to.deep.equal({
       done: false,
-      value: { data: { foo: 'FooValue' } },
+      value: [{ data: { foo: 'FooValue' } }],
     });
 
     expect(await subscription.next()).to.deep.equal({
@@ -293,7 +293,7 @@ describe('Subscription Initialization Phase', () => {
 
     expect(await subscription.next()).to.deep.equal({
       done: false,
-      value: { data: { foo: 'FooValue' } },
+      value: [{ data: { foo: 'FooValue' } }],
     });
 
     expect(await subscription.next()).to.deep.equal({
@@ -581,20 +581,22 @@ describe('Subscription Publish Phase', () => {
 
     const expectedPayload = {
       done: false,
-      value: {
-        data: {
-          importantEmail: {
-            email: {
-              from: 'yuzhi@graphql.org',
-              subject: 'Alright',
-            },
-            inbox: {
-              unread: 1,
-              total: 2,
+      value: [
+        {
+          data: {
+            importantEmail: {
+              email: {
+                from: 'yuzhi@graphql.org',
+                subject: 'Alright',
+              },
+              inbox: {
+                unread: 1,
+                total: 2,
+              },
             },
           },
         },
-      },
+      ],
     };
 
     expect(await payload1).to.deep.equal(expectedPayload);
@@ -622,20 +624,22 @@ describe('Subscription Publish Phase', () => {
     // The previously waited on payload now has a value.
     expect(await payload).to.deep.equal({
       done: false,
-      value: {
-        data: {
-          importantEmail: {
-            email: {
-              from: 'yuzhi@graphql.org',
-              subject: 'Alright',
-            },
-            inbox: {
-              unread: 1,
-              total: 2,
+      value: [
+        {
+          data: {
+            importantEmail: {
+              email: {
+                from: 'yuzhi@graphql.org',
+                subject: 'Alright',
+              },
+              inbox: {
+                unread: 1,
+                total: 2,
+              },
             },
           },
         },
-      },
+      ],
     });
 
     // Another new email arrives, before subscription.next() is called.
@@ -651,20 +655,22 @@ describe('Subscription Publish Phase', () => {
     // The next waited on payload will have a value.
     expect(await subscription.next()).to.deep.equal({
       done: false,
-      value: {
-        data: {
-          importantEmail: {
-            email: {
-              from: 'hyo@graphql.org',
-              subject: 'Tools',
-            },
-            inbox: {
-              unread: 2,
-              total: 3,
+      value: [
+        {
+          data: {
+            importantEmail: {
+              email: {
+                from: 'hyo@graphql.org',
+                subject: 'Tools',
+              },
+              inbox: {
+                unread: 2,
+                total: 3,
+              },
             },
           },
         },
-      },
+      ],
     });
 
     // The client decides to disconnect.
@@ -712,32 +718,29 @@ describe('Subscription Publish Phase', () => {
     // The previously waited on payload now has a value.
     expect(await payload).to.deep.equal({
       done: false,
-      value: {
-        data: {
-          importantEmail: {
-            email: {
-              from: 'yuzhi@graphql.org',
-              subject: 'Alright',
+      value: [
+        {
+          data: {
+            importantEmail: {
+              email: {
+                from: 'yuzhi@graphql.org',
+                subject: 'Alright',
+              },
             },
           },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-    });
-
-    // Wait for the next payload from @defer
-    expect(await subscription.next()).to.deep.equal({
-      done: false,
-      value: {
-        data: {
-          inbox: {
-            unread: 1,
-            total: 2,
+        {
+          data: {
+            inbox: {
+              unread: 1,
+              total: 2,
+            },
           },
+          path: ['importantEmail'],
+          hasNext: false,
         },
-        path: ['importantEmail'],
-        hasNext: false,
-      },
+      ],
     });
 
     // Another new email arrives, after all incrementally delivered payloads are received.
@@ -753,20 +756,32 @@ describe('Subscription Publish Phase', () => {
     // The next waited on payload will have a value.
     expect(await subscription.next()).to.deep.equal({
       done: false,
-      value: {
-        data: {
-          importantEmail: {
-            email: {
-              from: 'hyo@graphql.org',
-              subject: 'Tools',
+      value: [
+        {
+          data: {
+            importantEmail: {
+              email: {
+                from: 'hyo@graphql.org',
+                subject: 'Tools',
+              },
             },
           },
+          hasNext: true,
         },
-        hasNext: true,
-      },
+        {
+          data: {
+            inbox: {
+              unread: 2,
+              total: 3,
+            },
+          },
+          path: ['importantEmail'],
+          hasNext: false,
+        },
+      ],
     });
 
-    // Another new email arrives, before the incrementally delivered payloads from the last email was received.
+    // Another new email arrives.
     expect(
       pubsub.emit({
         from: 'adam@graphql.org',
@@ -779,32 +794,29 @@ describe('Subscription Publish Phase', () => {
     // Deferred payload from previous event is received.
     expect(await subscription.next()).to.deep.equal({
       done: false,
-      value: {
-        data: {
-          inbox: {
-            unread: 2,
-            total: 3,
-          },
-        },
-        path: ['importantEmail'],
-        hasNext: false,
-      },
-    });
-
-    // Next payload from last event
-    expect(await subscription.next()).to.deep.equal({
-      done: false,
-      value: {
-        data: {
-          importantEmail: {
-            email: {
-              from: 'adam@graphql.org',
-              subject: 'Important',
+      value: [
+        {
+          data: {
+            importantEmail: {
+              email: {
+                from: 'adam@graphql.org',
+                subject: 'Important',
+              },
             },
           },
+          hasNext: true,
         },
-        hasNext: true,
-      },
+        {
+          data: {
+            inbox: {
+              unread: 3,
+              total: 4,
+            },
+          },
+          path: ['importantEmail'],
+          hasNext: false,
+        },
+      ],
     });
 
     // The client disconnects before the deferred payload is consumed.
@@ -839,20 +851,22 @@ describe('Subscription Publish Phase', () => {
 
     expect(await payload).to.deep.equal({
       done: false,
-      value: {
-        data: {
-          importantEmail: {
-            email: {
-              from: 'yuzhi@graphql.org',
-              subject: 'Alright',
-            },
-            inbox: {
-              unread: 1,
-              total: 2,
+      value: [
+        {
+          data: {
+            importantEmail: {
+              email: {
+                from: 'yuzhi@graphql.org',
+                subject: 'Alright',
+              },
+              inbox: {
+                unread: 1,
+                total: 2,
+              },
             },
           },
         },
-      },
+      ],
     });
 
     payload = subscription.next();
@@ -869,20 +883,22 @@ describe('Subscription Publish Phase', () => {
 
     expect(await payload).to.deep.equal({
       done: false,
-      value: {
-        data: {
-          importantEmail: {
-            email: {
-              from: 'yuzhi@graphql.org',
-              subject: 'Alright 2',
-            },
-            inbox: {
-              unread: 2,
-              total: 3,
+      value: [
+        {
+          data: {
+            importantEmail: {
+              email: {
+                from: 'yuzhi@graphql.org',
+                subject: 'Alright 2',
+              },
+              inbox: {
+                unread: 2,
+                total: 3,
+              },
             },
           },
         },
-      },
+      ],
     });
   });
 
@@ -905,20 +921,22 @@ describe('Subscription Publish Phase', () => {
 
     expect(await payload).to.deep.equal({
       done: false,
-      value: {
-        data: {
-          importantEmail: {
-            email: {
-              from: 'yuzhi@graphql.org',
-              subject: 'Alright',
-            },
-            inbox: {
-              unread: 1,
-              total: 2,
+      value: [
+        {
+          data: {
+            importantEmail: {
+              email: {
+                from: 'yuzhi@graphql.org',
+                subject: 'Alright',
+              },
+              inbox: {
+                unread: 1,
+                total: 2,
+              },
             },
           },
         },
-      },
+      ],
     });
 
     payload = subscription.next();
@@ -959,20 +977,22 @@ describe('Subscription Publish Phase', () => {
 
     expect(await payload).to.deep.equal({
       done: false,
-      value: {
-        data: {
-          importantEmail: {
-            email: {
-              from: 'yuzhi@graphql.org',
-              subject: 'Alright',
-            },
-            inbox: {
-              unread: 1,
-              total: 2,
+      value: [
+        {
+          data: {
+            importantEmail: {
+              email: {
+                from: 'yuzhi@graphql.org',
+                subject: 'Alright',
+              },
+              inbox: {
+                unread: 1,
+                total: 2,
+              },
             },
           },
         },
-      },
+      ],
     });
 
     // Throw error
@@ -1028,40 +1048,44 @@ describe('Subscription Publish Phase', () => {
 
     expect(await payload).to.deep.equal({
       done: false,
-      value: {
-        data: {
-          importantEmail: {
-            email: {
-              from: 'yuzhi@graphql.org',
-              subject: 'Message',
-            },
-            inbox: {
-              unread: 2,
-              total: 3,
+      value: [
+        {
+          data: {
+            importantEmail: {
+              email: {
+                from: 'yuzhi@graphql.org',
+                subject: 'Message',
+              },
+              inbox: {
+                unread: 2,
+                total: 3,
+              },
             },
           },
         },
-      },
+      ],
     });
 
     payload = subscription.next();
 
     expect(await payload).to.deep.equal({
       done: false,
-      value: {
-        data: {
-          importantEmail: {
-            email: {
-              from: 'yuzhi@graphql.org',
-              subject: 'Message 2',
-            },
-            inbox: {
-              unread: 2,
-              total: 3,
+      value: [
+        {
+          data: {
+            importantEmail: {
+              email: {
+                from: 'yuzhi@graphql.org',
+                subject: 'Message 2',
+              },
+              inbox: {
+                unread: 2,
+                total: 3,
+              },
             },
           },
         },
-      },
+      ],
     });
   });
 
@@ -1097,33 +1121,39 @@ describe('Subscription Publish Phase', () => {
 
     expect(await subscription.next()).to.deep.equal({
       done: false,
-      value: {
-        data: { newMessage: 'Hello' },
-      },
+      value: [
+        {
+          data: { newMessage: 'Hello' },
+        },
+      ],
     });
 
     // An error in execution is presented as such.
     expectJSON(await subscription.next()).toDeepEqual({
       done: false,
-      value: {
-        data: { newMessage: null },
-        errors: [
-          {
-            message: 'Never leave.',
-            locations: [{ line: 1, column: 16 }],
-            path: ['newMessage'],
-          },
-        ],
-      },
+      value: [
+        {
+          data: { newMessage: null },
+          errors: [
+            {
+              message: 'Never leave.',
+              locations: [{ line: 1, column: 16 }],
+              path: ['newMessage'],
+            },
+          ],
+        },
+      ],
     });
 
     // However that does not close the response event stream.
     // Subsequent events are still executed.
     expect(await subscription.next()).to.deep.equal({
       done: false,
-      value: {
-        data: { newMessage: 'Bonjour' },
-      },
+      value: [
+        {
+          data: { newMessage: 'Bonjour' },
+        },
+      ],
     });
 
     expect(await subscription.next()).to.deep.equal({
@@ -1160,9 +1190,11 @@ describe('Subscription Publish Phase', () => {
 
     expect(await subscription.next()).to.deep.equal({
       done: false,
-      value: {
-        data: { newMessage: 'Hello' },
-      },
+      value: [
+        {
+          data: { newMessage: 'Hello' },
+        },
+      ],
     });
 
     await expectPromise(subscription.next()).toRejectWith(error);

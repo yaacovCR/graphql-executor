@@ -87,7 +87,8 @@ describe('Execute: Accepts async iterables as list value', () => {
   function completeObjectList(
     resolve: GraphQLFieldResolver<{ index: number }, unknown>,
   ): PromiseOrValue<
-    ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void>
+    | ExecutionResult
+    | AsyncGenerator<ReadonlyArray<AsyncExecutionResult>, void, void>
   > {
     const schema = new GraphQLSchema({
       query: new GraphQLObjectType({

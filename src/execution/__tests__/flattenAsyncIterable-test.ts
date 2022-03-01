@@ -13,7 +13,7 @@ describe('flattenAsyncIterable', () => {
       yield await Promise.resolve(3);
     }
 
-    const result = flattenAsyncIterable(source());
+    const result = flattenAsyncIterable(source(), (item) => item);
 
     expect(await result.next()).to.deep.equal({ value: 1, done: false });
     expect(await result.next()).to.deep.equal({ value: 2, done: false });
@@ -39,7 +39,7 @@ describe('flattenAsyncIterable', () => {
       },
     };
 
-    const result = flattenAsyncIterable(iterator);
+    const result = flattenAsyncIterable(iterator, (item) => item);
 
     expect(await result.next()).to.deep.equal({ value: 1, done: false });
     expect(await result.next()).to.deep.equal({ value: 2, done: false });
@@ -63,7 +63,7 @@ describe('flattenAsyncIterable', () => {
       yield await Promise.resolve(2.2);
     }
 
-    const doubles = flattenAsyncIterable(source());
+    const doubles = flattenAsyncIterable(source(), (item) => item);
 
     const result = [];
     for await (const x of doubles) {
@@ -96,7 +96,7 @@ describe('flattenAsyncIterable', () => {
       },
     };
 
-    const result = flattenAsyncIterable(iterator);
+    const result = flattenAsyncIterable(iterator, (item) => item);
 
     expect(await result.next()).to.deep.equal({ value: 1, done: false });
     expect(await result.next()).to.deep.equal({ value: 2, done: false });
@@ -145,7 +145,7 @@ describe('flattenAsyncIterable', () => {
       }
     }
 
-    const doubles = flattenAsyncIterable(source());
+    const doubles = flattenAsyncIterable(source(), (item) => item);
 
     expect(await doubles.next()).to.deep.equal({ value: 1, done: false });
     expect(await doubles.next()).to.deep.equal({ value: 2, done: false });
@@ -183,7 +183,7 @@ describe('flattenAsyncIterable', () => {
       yield await Promise.resolve(2.1); /* c8 ignore start */
       yield await Promise.resolve(2.2);
     } /* c8 ignore stop */
-    const doubles = flattenAsyncIterable(source());
+    const doubles = flattenAsyncIterable(source(), (item) => item);
 
     expect(await doubles.next()).to.deep.equal({ value: 1, done: false });
     expect(await doubles.next()).to.deep.equal({ value: 2, done: false });

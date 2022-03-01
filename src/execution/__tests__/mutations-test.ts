@@ -229,21 +229,25 @@ describe('Execute: Handles mutation execution ordering', () => {
     }
 
     expect(patches).to.deep.equal([
-      {
-        data: {
-          first: {},
-          second: { theNumber: 2 },
+      [
+        {
+          data: {
+            first: {},
+            second: { theNumber: 2 },
+          },
+          hasNext: true,
         },
-        hasNext: true,
-      },
-      {
-        label: 'defer-label',
-        path: ['first'],
-        data: {
-          promiseToGetTheNumber: 2,
+      ],
+      [
+        {
+          label: 'defer-label',
+          path: ['first'],
+          data: {
+            promiseToGetTheNumber: 2,
+          },
+          hasNext: false,
         },
-        hasNext: false,
-      },
+      ],
     ]);
   });
   it('Mutation inside of a fragment', async () => {
@@ -300,22 +304,26 @@ describe('Execute: Handles mutation execution ordering', () => {
     }
 
     expect(patches).to.deep.equal([
-      {
-        data: {
-          second: { theNumber: 2 },
-        },
-        hasNext: true,
-      },
-      {
-        label: 'defer-label',
-        path: [],
-        data: {
-          first: {
-            theNumber: 1,
+      [
+        {
+          data: {
+            second: { theNumber: 2 },
           },
+          hasNext: true,
         },
-        hasNext: false,
-      },
+      ],
+      [
+        {
+          label: 'defer-label',
+          path: [],
+          data: {
+            first: {
+              theNumber: 1,
+            },
+          },
+          hasNext: false,
+        },
+      ],
     ]);
   });
 });
