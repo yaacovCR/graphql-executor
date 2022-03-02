@@ -1403,7 +1403,7 @@ export class Executor {
     promises: Array<Promise<void>>,
   ): void {
     const initialCount = stream.initialCount;
-    let index = _index; // eslint-disable-next-line no-constant-condition
+    let index = _index;
 
     while (true) {
       if (index >= initialCount) {
@@ -1464,7 +1464,7 @@ export class Executor {
     _index: number,
     promises: Array<Promise<void>>,
   ): number {
-    let index = _index; // eslint-disable-next-line no-constant-condition
+    let index = _index;
 
     while (true) {
       const iteration = iterator.next();
@@ -1558,7 +1558,6 @@ export class Executor {
     let index = 0;
 
     try {
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         if (index >= initialCount) {
           // eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -1628,7 +1627,6 @@ export class Executor {
     let index = 0;
 
     try {
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         // eslint-disable-next-line no-await-in-loop
         const iteration = await iterator.next();
