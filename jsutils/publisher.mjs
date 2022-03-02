@@ -25,7 +25,7 @@ export class Publisher {
       if (onStop) {
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
         stop.then(onStop);
-      } // eslint-disable-next-line no-constant-condition
+      }
 
       while (true) {
         // eslint-disable-next-line no-await-in-loop
