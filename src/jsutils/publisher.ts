@@ -45,7 +45,6 @@ export class Publisher<TSource, TPayload = TSource> {
         stop.then(onStop);
       }
 
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         // eslint-disable-next-line no-await-in-loop
         await this._trigger;
