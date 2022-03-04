@@ -2346,8 +2346,6 @@ export class Executor {
             continue;
           }
 
-          visitedFragmentNames.add(fragName);
-
           if (defer) {
             const patchFields = new Map();
             this.collectFieldsImpl(
@@ -2365,6 +2363,7 @@ export class Executor {
               fields: patchFields,
             });
           } else {
+            visitedFragmentNames.add(fragName);
             this.collectFieldsImpl(
               fragments,
               variableValues,
