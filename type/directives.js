@@ -53,6 +53,16 @@ const GraphQLStreamDirective = new _graphql.GraphQLDirective({
       type: _graphql.GraphQLInt,
       description: 'Number of items to return immediately',
     },
+    maxChunkSize: {
+      defaultValue: 1,
+      type: _graphql.GraphQLInt,
+      description: 'Maximum number of items to return within each payload',
+    },
+    maxInterval: {
+      type: _graphql.GraphQLInt,
+      description:
+        'Maximum time in ms to wait to collect items for each payload, will wait indefinitely if undefined',
+    },
     inParallel: {
       defaultValue: false,
       type: _graphql.GraphQLBoolean,

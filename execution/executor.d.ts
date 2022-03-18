@@ -108,6 +108,8 @@ interface IncrementalResult {
   responseContext: SubsequentResponseContext;
   data: unknown;
   path: Path | undefined;
+  atIndex?: number;
+  atIndices?: ReadonlyArray<number>;
   label: string | undefined;
 }
 export interface PatchFields {
@@ -170,6 +172,8 @@ export interface ExecutionPatchResult<
   errors?: ReadonlyArray<GraphQLError>;
   data?: TData | null;
   path?: ReadonlyArray<string | number>;
+  atIndex?: number;
+  atIndices?: ReadonlyArray<number>;
   label?: string;
   hasNext: boolean;
   extensions?: TExtensions;
@@ -225,6 +229,8 @@ export declare type DeferValuesGetter = (
     };
 export interface StreamValues {
   initialCount: number;
+  maxChunkSize: number;
+  maxInterval: Maybe<number>;
   inParallel: boolean;
   label?: string;
 }
@@ -552,6 +558,8 @@ export declare class Executor {
   createStreamContext(
     exeContext: ExecutionContext,
     initialCount: number,
+    maxChunkSize: number,
+    maxInterval: Maybe<number>,
     inParallel: boolean,
     path: Path,
     label: string | undefined,
