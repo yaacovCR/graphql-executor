@@ -22,7 +22,7 @@ export class Publisher<TSource, TPayload = TSource> {
   private _pending: WeakMap<
     object,
     Array<{
-      key: object;
+      keys: Array<object>;
       source: TSource;
     }>
   >;
@@ -55,8 +55,9 @@ export class Publisher<TSource, TPayload = TSource> {
         await this._trigger;
 
         while (this._buffer.length) {
-          // This is safe because _buffer has a non-zero length
-          const payload = this._buffer.shift() as TPayload; // eslint-disable-next-line no-await-in-loop
+          // this is safe because we have checked the length;
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          const payload = this._buffer.shift()!; // eslint-disable-next-line no-await-in-loop
 
           await push(payload);
         }
@@ -73,18 +74,22 @@ export class Publisher<TSource, TPayload = TSource> {
     });
   }
 
-  emit(key: object, payload: TPayload): void {
-    this._pushed.set(key, true);
+  emit(keys: Array<object>, payload: TPayload): void {
+    for (const key of keys) {
+      this._pushed.set(key, true);
+    }
 
     this._buffer.push(payload);
 
-    const dependents = this._pending.get(key);
+    for (const key of keys) {
+      const dependents = this._pending.get(key);
 
-    if (dependents) {
-      this._pushMany(dependents);
+      if (dependents) {
+        this._pushMany(dependents);
+      }
+
+      this._pending.delete(key);
     }
-
-    this._pending.delete(key);
 
     this._resolve();
   }
@@ -99,10 +104,10 @@ export class Publisher<TSource, TPayload = TSource> {
     this._resolve();
   }
 
-  queue(key: object, source: TSource, parentKey: object): void {
+  queue(keys: Array<object>, source: TSource, parentKey: object): void {
     if (this._pushed.get(parentKey)) {
       this._pushOne({
-        key,
+        keys,
         source,
       });
 
@@ -113,7 +118,7 @@ export class Publisher<TSource, TPayload = TSource> {
 
     if (dependents) {
       dependents.push({
-        key,
+        keys,
         source,
       });
       return;
@@ -121,41 +126,47 @@ export class Publisher<TSource, TPayload = TSource> {
 
     this._pending.set(parentKey, [
       {
-        key,
+        keys,
         source,
       },
     ]);
   }
 
-  _pushOne(keySource: { key: object; source: TSource }): void {
-    const hasNext = this._pushOneImpl(keySource);
+  _pushOne(context: { keys: Array<object>; source: TSource }): void {
+    const hasNext = this._pushOneImpl(context);
 
     if (!hasNext) {
       this.stop();
     }
   }
 
-  _pushOneImpl({ key, source }: { key: object; source: TSource }): boolean {
+  _pushOneImpl({
+    keys,
+    source,
+  }: {
+    keys: Array<object>;
+    source: TSource;
+  }): boolean {
     this._onReady?.();
 
     const hasNext = this._hasNext();
 
     const payload = this._payloadFromSource(source, hasNext);
 
-    this.emit(key, payload);
+    this.emit(keys, payload);
     return hasNext;
   }
 
   _pushMany(
-    keySources: Array<{
-      key: object;
+    contexts: Array<{
+      keys: Array<object>;
       source: TSource;
     }>,
   ): void {
     let hasNext = false;
 
-    for (const keySource of keySources) {
-      hasNext = this._pushOneImpl(keySource);
+    for (const context of contexts) {
+      hasNext = this._pushOneImpl(context);
     }
 
     if (!hasNext) {
