@@ -53,6 +53,8 @@ import { isAsyncIterable } from '../jsutils/isAsyncIterable';
 import { isIterableObject } from '../jsutils/isIterableObject';
 import { resolveAfterAll } from '../jsutils/resolveAfterAll';
 import { Publisher } from '../jsutils/publisher';
+import { Bundler } from '../jsutils/bundler';
+import { getSequentialBundler } from '../jsutils/getSequentialBundler';
 import { toError } from '../jsutils/toError';
 
 import type { ExecutorSchema } from './executorSchema';
@@ -104,13 +106,14 @@ export interface ExecutionContext {
   rootFieldCollector: RootFieldCollector;
   subFieldCollector: SubFieldCollector;
   resolveField: FieldResolver;
-  rootPayloadContext: PayloadContext;
+  rootResponseNode: ResponseNode;
   publisher: Publisher<IncrementalResult, AsyncExecutionResult>;
   state: ExecutionState;
 }
 
 interface ExecutionState {
   pendingPushes: number;
+  pendingStreamResults: number;
   iterators: Set<AsyncIterator<unknown>>;
 }
 
@@ -123,15 +126,58 @@ interface FieldContext {
   parentType: GraphQLObjectType;
 }
 
-interface PayloadContext {
+interface StreamContext {
+  initialCount: number;
+  path: Path;
+  bundler: BundlerInterface;
+}
+
+interface BundlerInterface {
+  queueData: (index: number, result: StreamDataResult) => void;
+  queueError: (index: number, result: ResponseNode) => void;
+  setTotal: (total: number) => void;
+}
+
+interface SequentialStreamResponseContext extends SubsequentResponseContext {
+  atIndex: number;
+}
+
+interface ParallelStreamResponseContext extends SubsequentResponseContext {
+  atIndices: Array<number>;
+}
+
+interface SequentialStreamDataBundleContext
+  extends SequentialStreamResponseContext {
+  results: Array<unknown>;
+}
+
+interface ParallelStreamDataBundleContext
+  extends ParallelStreamResponseContext {
+  results: Array<unknown>;
+}
+
+interface StreamDataResult {
+  responseNode: ResponseNode;
+  data: unknown;
+}
+
+interface ResponseNode {
   errors: Array<GraphQLError>;
-  label?: string;
+}
+
+interface ResponseContext {
+  responseNodes: Array<ResponseNode>;
+}
+
+interface SubsequentResponseContext extends ResponseContext {
+  parentResponseNode: ResponseNode;
 }
 
 interface IncrementalResult {
-  payloadContext: PayloadContext;
-  data: ObjMap<unknown> | unknown | null;
+  responseContext: SubsequentResponseContext;
+  data: unknown;
   path: Path | undefined;
+  label: string | undefined;
 }
 
 export interface PatchFields {
@@ -210,7 +256,7 @@ export type FieldsExecutor<TReturnType> = (
   sourceValue: unknown,
   path: Path | undefined,
   fields: Map<string, ReadonlyArray<FieldNode>>,
-  payloadContext: PayloadContext,
+  responseNode: ResponseNode,
 ) => PromiseOrValue<TReturnType>;
 
 export type ResponseBuilder<TRootFieldsExecutorReturnType, TReturnType> = (
@@ -231,7 +277,7 @@ export type ValueCompleter = (
   info: GraphQLResolveInfo,
   path: Path,
   result: unknown,
-  payloadContext: PayloadContext,
+  responseNode: ResponseNode,
 ) => PromiseOrValue<unknown>;
 
 export type ArgumentValuesGetter = (
@@ -247,6 +293,7 @@ export type DeferValuesGetter = (
 
 export interface StreamValues {
   initialCount: number;
+  inParallel: boolean;
   label?: string;
 }
 
@@ -470,7 +517,7 @@ export class Executor {
   ): PromiseOrValue<TReturnType> {
     let data: PromiseOrValue<TRootFieldsExecutorReturnType | null>;
     try {
-      const { rootValue, rootPayloadContext } = exeContext;
+      const { rootValue, rootResponseNode } = exeContext;
 
       const {
         rootType,
@@ -484,7 +531,7 @@ export class Executor {
         rootValue,
         path,
         fields,
-        rootPayloadContext,
+        rootResponseNode,
       );
 
       this.addPatches(
@@ -493,10 +540,10 @@ export class Executor {
         rootType,
         rootValue,
         path,
-        rootPayloadContext,
+        rootResponseNode,
       );
     } catch (error) {
-      exeContext.rootPayloadContext.errors.push(error);
+      exeContext.rootResponseNode.errors.push(error);
       data = null;
     }
 
@@ -504,7 +551,7 @@ export class Executor {
       return data.then(
         (resolvedData) => responseBuilder(exeContext, resolvedData),
         (error) => {
-          exeContext.rootPayloadContext.errors.push(error);
+          exeContext.rootResponseNode.errors.push(error);
           return responseBuilder(exeContext, null);
         },
       );
@@ -521,14 +568,14 @@ export class Executor {
     exeContext: ExecutionContext,
     data: ObjMap<unknown> | null,
   ): ExecutionResult | AsyncGenerator<AsyncExecutionResult, void, void> {
-    const rootPayloadContext = exeContext.rootPayloadContext;
+    const rootResponseNode = exeContext.rootResponseNode;
 
-    const errors = rootPayloadContext.errors;
+    const errors = rootResponseNode.errors;
     const initialResult = errors.length === 0 ? { data } : { errors, data };
 
     if (this.hasNext(exeContext.state)) {
       const publisher = exeContext.publisher;
-      publisher.emit(rootPayloadContext, {
+      publisher.emit([rootResponseNode], {
         ...initialResult,
         hasNext: true,
       });
@@ -647,8 +694,11 @@ export class Executor {
   ): Publisher<IncrementalResult, AsyncExecutionResult> {
     return new Publisher({
       payloadFromSource: (result, hasNext) => {
-        const { payloadContext, data, path } = result;
-        const { errors, label } = payloadContext;
+        const { responseContext, data, path, label } = result;
+        const errors = [];
+        for (const responseNode of responseContext.responseNodes) {
+          errors.push(...responseNode.errors);
+        }
 
         const value: ExecutionPatchResult = {
           data,
@@ -734,8 +784,9 @@ export class Executor {
     const coercedVariableValuesValues = coercedVariableValues.coerced;
 
     const state: ExecutionState = {
-      iterators: new Set(),
       pendingPushes: 0,
+      pendingStreamResults: 0,
+      iterators: new Set(),
     };
 
     return {
@@ -778,7 +829,7 @@ export class Executor {
               subscribeFieldResolver ?? defaultFieldResolver,
             )
           : this.buildFieldResolver('resolve', defaultResolveFieldValueFn),
-      rootPayloadContext: {
+      rootResponseNode: {
         errors: [],
       },
       state,
@@ -795,8 +846,9 @@ export class Executor {
     payload: unknown,
   ): ExecutionContext {
     const state: ExecutionState = {
-      iterators: new Set(),
       pendingPushes: 0,
+      pendingStreamResults: 0,
+      iterators: new Set(),
     };
 
     return {
@@ -807,7 +859,7 @@ export class Executor {
         'resolve',
         exeContext.fieldResolver,
       ),
-      rootPayloadContext: {
+      rootResponseNode: {
         errors: [],
       },
       state,
@@ -859,7 +911,7 @@ export class Executor {
           sourceValue,
           fieldNodes,
           fieldPath,
-          exeContext.rootPayloadContext,
+          exeContext.rootResponseNode,
         );
         if (result === undefined) {
           return results;
@@ -887,7 +939,7 @@ export class Executor {
     sourceValue: unknown,
     path: Path | undefined,
     fields: Map<string, ReadonlyArray<FieldNode>>,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): PromiseOrValue<ObjMap<unknown>> {
     const results = Object.create(null);
     const promises: Array<Promise<void>> = [];
@@ -901,7 +953,7 @@ export class Executor {
         sourceValue,
         fieldNodes,
         fieldPath,
-        payloadContext,
+        responseNode,
       );
 
       if (result !== undefined) {
@@ -941,7 +993,7 @@ export class Executor {
     source: unknown,
     fieldNodes: ReadonlyArray<FieldNode>,
     path: Path,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): PromiseOrValue<unknown> {
     const fieldContext = this.getFieldContext(parentType, fieldNodes);
     if (!fieldContext) {
@@ -972,7 +1024,7 @@ export class Executor {
             info,
             path,
             resolved,
-            payloadContext,
+            responseNode,
           ),
         );
       } else {
@@ -982,7 +1034,7 @@ export class Executor {
           info,
           path,
           result,
-          payloadContext,
+          responseNode,
         );
       }
 
@@ -995,7 +1047,7 @@ export class Executor {
             fieldNodes,
             path,
             returnType,
-            payloadContext.errors,
+            responseNode.errors,
           ),
         );
       }
@@ -1006,7 +1058,7 @@ export class Executor {
         fieldNodes,
         path,
         returnType,
-        payloadContext.errors,
+        responseNode.errors,
       );
     }
   }
@@ -1072,7 +1124,7 @@ export class Executor {
       info: GraphQLResolveInfo,
       path: Path,
       result: unknown,
-      payloadContext: PayloadContext,
+      responseNode: ResponseNode,
     ): PromiseOrValue<unknown> => {
       // If result is an Error, throw a located error.
       if (result instanceof Error) {
@@ -1090,7 +1142,7 @@ export class Executor {
         info,
         path,
         result,
-        payloadContext,
+        responseNode,
       );
     };
   }
@@ -1124,7 +1176,7 @@ export class Executor {
         info: GraphQLResolveInfo,
         path: Path,
         result: unknown,
-        payloadContext: PayloadContext,
+        responseNode: ResponseNode,
       ): PromiseOrValue<unknown> => {
         // If field type is NonNull, complete for inner type, and throw field error
         // if result is null.
@@ -1135,7 +1187,7 @@ export class Executor {
           info,
           path,
           result,
-          payloadContext,
+          responseNode,
         );
         if (completed === null) {
           throw new Error(
@@ -1154,7 +1206,7 @@ export class Executor {
           info: GraphQLResolveInfo,
           path: Path,
           result: unknown,
-          payloadContext: PayloadContext,
+          responseNode: ResponseNode,
         ): PromiseOrValue<unknown> =>
           // If field type is List, complete each item in the list with the inner type
           this.completeListValue(
@@ -1164,7 +1216,7 @@ export class Executor {
             info,
             path,
             result,
-            payloadContext,
+            responseNode,
           ),
       );
     }
@@ -1177,7 +1229,7 @@ export class Executor {
           _info: GraphQLResolveInfo,
           _path: Path,
           result: unknown,
-          _payloadContext: PayloadContext,
+          _responseNode: ResponseNode,
         ): PromiseOrValue<unknown> =>
           // If field type is a leaf type, Scalar or Enum, serialize to a valid value,
           // returning null if serialization is not possible.
@@ -1193,7 +1245,7 @@ export class Executor {
           info: GraphQLResolveInfo,
           path: Path,
           result: unknown,
-          payloadContext: PayloadContext,
+          responseNode: ResponseNode,
         ): PromiseOrValue<unknown> =>
           // If field type is an abstract type, Interface or Union, determine the
           // runtime Object type and complete for that type.
@@ -1204,7 +1256,7 @@ export class Executor {
             info,
             path,
             result,
-            payloadContext,
+            responseNode,
           ),
       );
     }
@@ -1217,7 +1269,7 @@ export class Executor {
           info: GraphQLResolveInfo,
           path: Path,
           result: unknown,
-          payloadContext: PayloadContext,
+          responseNode: ResponseNode,
         ): PromiseOrValue<unknown> =>
           // If field type is Object, execute and complete all sub-selections.
           this.completeObjectValue(
@@ -1227,7 +1279,7 @@ export class Executor {
             info,
             path,
             result,
-            payloadContext,
+            responseNode,
           ),
       );
     }
@@ -1250,7 +1302,7 @@ export class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): PromiseOrValue<ReadonlyArray<unknown>> {
     const itemType = returnType.ofType;
 
@@ -1277,7 +1329,7 @@ export class Executor {
         valueCompleter,
         path,
         iterator,
-        payloadContext,
+        responseNode,
         stream,
         completedResults,
         promises,
@@ -1299,7 +1351,7 @@ export class Executor {
       valueCompleter,
       path,
       iterator,
-      payloadContext,
+      responseNode,
       stream,
       completedResults,
       promises,
@@ -1336,19 +1388,19 @@ export class Executor {
       return;
     }
 
+    const { initialCount, inParallel, label } = stream;
+
     invariant(
-      typeof stream.initialCount === 'number',
+      typeof initialCount === 'number',
       'initialCount must be a number',
     );
 
-    invariant(
-      stream.initialCount >= 0,
-      'initialCount must be a positive integer',
-    );
+    invariant(initialCount >= 0, 'initialCount must be a positive integer');
 
     return {
-      initialCount: stream.initialCount,
-      label: typeof stream.label === 'string' ? stream.label : undefined,
+      initialCount,
+      inParallel: inParallel === true,
+      label: typeof label === 'string' ? label : undefined,
     };
   }
 
@@ -1363,7 +1415,7 @@ export class Executor {
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: Iterator<unknown>,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
     stream: StreamValues | undefined,
     completedResults: Array<unknown>,
     promises: Array<Promise<void>>,
@@ -1377,12 +1429,13 @@ export class Executor {
         valueCompleter,
         path,
         iterator,
-        payloadContext,
+        responseNode,
         stream,
         completedResults,
         0,
         promises,
       );
+      return;
     }
 
     this.completeIteratorValueWithoutStream(
@@ -1393,17 +1446,155 @@ export class Executor {
       valueCompleter,
       path,
       iterator,
-      payloadContext,
+      responseNode,
       completedResults,
       0,
       promises,
     );
   }
 
+  createStreamContext(
+    exeContext: ExecutionContext,
+    initialCount: number,
+    inParallel: boolean,
+    path: Path,
+    label: string | undefined,
+    parentResponseNode: ResponseNode,
+  ): StreamContext {
+    return {
+      initialCount,
+      path,
+      bundler: inParallel
+        ? new Bundler<
+            StreamDataResult,
+            ResponseNode,
+            ParallelStreamDataBundleContext,
+            ParallelStreamResponseContext
+          >({
+            initialIndex: initialCount,
+            maxBundleSize: 1,
+            maxInterval: undefined,
+            createDataBundleContext: () => {
+              exeContext.state.pendingPushes++;
+              return {
+                responseNodes: [],
+                parentResponseNode,
+                atIndices: [],
+                results: [],
+              };
+            },
+            createErrorBundleContext: () => {
+              exeContext.state.pendingPushes++;
+              return {
+                responseNodes: [],
+                parentResponseNode,
+                atIndices: [],
+              };
+            },
+            onData: (index, result, context) => {
+              exeContext.state.pendingStreamResults--;
+              context.responseNodes.push(result.responseNode);
+              context.results.push(result.data);
+              context.atIndices.push(index);
+            },
+            onError: (index, responseNode, context) => {
+              exeContext.state.pendingStreamResults--;
+              context.responseNodes.push(responseNode);
+              context.atIndices.push(index);
+            },
+            onDataBundle: (context) => {
+              exeContext.publisher.queue(
+                context.responseNodes,
+                {
+                  responseContext: context,
+                  data: context.results[0],
+                  path: addPath(path, context.atIndices[0], undefined),
+                  label,
+                },
+                parentResponseNode,
+              );
+            },
+            onErrorBundle: (context) => {
+              exeContext.publisher.queue(
+                context.responseNodes,
+                {
+                  responseContext: context,
+                  data: null,
+                  path: addPath(path, context.atIndices[0], undefined),
+                  label,
+                },
+                parentResponseNode,
+              );
+            },
+          })
+        : getSequentialBundler(
+            initialCount,
+            new Bundler<
+              StreamDataResult,
+              ResponseNode,
+              SequentialStreamDataBundleContext,
+              SequentialStreamResponseContext
+            >({
+              initialIndex: initialCount,
+              maxBundleSize: 1,
+              maxInterval: undefined,
+              createDataBundleContext: (count) => {
+                exeContext.state.pendingPushes++;
+                return {
+                  responseNodes: [],
+                  parentResponseNode,
+                  atIndex: count,
+                  results: [],
+                };
+              },
+              createErrorBundleContext: (count) => {
+                exeContext.state.pendingPushes++;
+                return {
+                  responseNodes: [],
+                  parentResponseNode,
+                  atIndex: count,
+                };
+              },
+              onData: (_index, result, context) => {
+                exeContext.state.pendingStreamResults--;
+                context.responseNodes.push(result.responseNode);
+                context.results.push(result.data);
+              },
+              onError: (_index, responseNode, context) => {
+                exeContext.state.pendingStreamResults--;
+                context.responseNodes.push(responseNode);
+              },
+              onDataBundle: (context) => {
+                exeContext.publisher.queue(
+                  context.responseNodes,
+                  {
+                    responseContext: context,
+                    data: context.results[0],
+                    path: addPath(path, context.atIndex, undefined),
+                    label,
+                  },
+                  parentResponseNode,
+                );
+              },
+              onErrorBundle: (context) => {
+                exeContext.publisher.queue(
+                  context.responseNodes,
+                  {
+                    responseContext: context,
+                    data: null,
+                    path: addPath(path, context.atIndex, undefined),
+                    label,
+                  },
+                  parentResponseNode,
+                );
+              },
+            }),
+          ),
+    };
+  }
+
   /**
    * Complete an iterator value by completing each result, possibly adding a new stream.
-   *
-   * Returns the next index or, if a stream was initiated, the last payload context.
    */
   completeIteratorValueWithStream(
     exeContext: ExecutionContext,
@@ -1413,7 +1604,7 @@ export class Executor {
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: Iterator<unknown>,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
     stream: StreamValues,
     completedResults: Array<unknown>,
     _index: number,
@@ -1424,7 +1615,16 @@ export class Executor {
     let index = _index;
     while (true) {
       if (index >= initialCount) {
-        this.addIteratorValue(
+        const { inParallel, label } = stream;
+        const streamContext = this.createStreamContext(
+          exeContext,
+          initialCount,
+          inParallel,
+          path,
+          label,
+          responseNode,
+        );
+        const nextIndex = this.addIteratorValue(
           index,
           iterator,
           exeContext,
@@ -1432,11 +1632,10 @@ export class Executor {
           fieldContext,
           info,
           valueCompleter,
-          path,
-          stream.label,
-          payloadContext,
+          streamContext,
         );
-        return;
+        streamContext.bundler.setTotal(nextIndex);
+        break;
       }
 
       const iteration = iterator.next();
@@ -1457,7 +1656,7 @@ export class Executor {
         fieldContext,
         info,
         itemPath,
-        payloadContext,
+        responseNode,
       );
 
       index++;
@@ -1477,7 +1676,7 @@ export class Executor {
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: Iterator<unknown>,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
     completedResults: Array<unknown>,
     _index: number,
     promises: Array<Promise<void>>,
@@ -1503,7 +1702,7 @@ export class Executor {
         fieldContext,
         info,
         itemPath,
-        payloadContext,
+        responseNode,
       );
 
       index++;
@@ -1521,7 +1720,7 @@ export class Executor {
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: AsyncIterator<unknown>,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
     stream: StreamValues | undefined,
     completedResults: Array<unknown>,
     promises: Array<Promise<void>>,
@@ -1535,7 +1734,7 @@ export class Executor {
         valueCompleter,
         path,
         iterator,
-        payloadContext,
+        responseNode,
         stream,
         completedResults,
         promises,
@@ -1549,7 +1748,7 @@ export class Executor {
         valueCompleter,
         path,
         iterator,
-        payloadContext,
+        responseNode,
         completedResults,
         promises,
       );
@@ -1568,7 +1767,7 @@ export class Executor {
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: AsyncIterator<unknown>,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
     stream: StreamValues,
     completedResults: Array<unknown>,
     promises: Array<Promise<void>>,
@@ -1578,6 +1777,15 @@ export class Executor {
     try {
       while (true) {
         if (index >= initialCount) {
+          const { inParallel, label } = stream;
+          const streamContext = this.createStreamContext(
+            exeContext,
+            initialCount,
+            inParallel,
+            path,
+            label,
+            responseNode,
+          );
           // eslint-disable-next-line @typescript-eslint/no-floating-promises
           this.addAsyncIteratorValue(
             index,
@@ -1587,9 +1795,7 @@ export class Executor {
             fieldContext,
             info,
             valueCompleter,
-            path,
-            stream.label,
-            payloadContext,
+            streamContext,
           );
           return;
         }
@@ -1613,7 +1819,7 @@ export class Executor {
           fieldContext,
           info,
           itemPath,
-          payloadContext,
+          responseNode,
         );
 
         index++;
@@ -1626,7 +1832,7 @@ export class Executor {
           fieldContext.fieldNodes,
           itemPath,
           itemType,
-          payloadContext.errors,
+          responseNode.errors,
         ),
       );
     }
@@ -1640,7 +1846,7 @@ export class Executor {
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: AsyncIterator<unknown>,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
     completedResults: Array<unknown>,
     promises: Array<Promise<void>>,
   ): Promise<void> {
@@ -1666,7 +1872,7 @@ export class Executor {
           fieldContext,
           info,
           itemPath,
-          payloadContext,
+          responseNode,
         );
 
         index++;
@@ -1679,7 +1885,7 @@ export class Executor {
           fieldContext.fieldNodes,
           itemPath,
           itemType,
-          payloadContext.errors,
+          responseNode.errors,
         ),
       );
     }
@@ -1696,7 +1902,7 @@ export class Executor {
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     itemPath: Path,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): void {
     try {
       let completedItem;
@@ -1708,7 +1914,7 @@ export class Executor {
             info,
             itemPath,
             resolved,
-            payloadContext,
+            responseNode,
           ),
         );
       } else {
@@ -1718,7 +1924,7 @@ export class Executor {
           info,
           itemPath,
           item,
-          payloadContext,
+          responseNode,
         );
       }
 
@@ -1737,7 +1943,7 @@ export class Executor {
             fieldContext.fieldNodes,
             itemPath,
             itemType,
-            payloadContext.errors,
+            responseNode.errors,
           ),
         )
         .then((resolved) => {
@@ -1751,7 +1957,7 @@ export class Executor {
         fieldContext.fieldNodes,
         itemPath,
         itemType,
-        payloadContext.errors,
+        responseNode.errors,
       );
     }
   }
@@ -1784,7 +1990,7 @@ export class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): PromiseOrValue<ObjMap<unknown>> {
     const resolveTypeFn = returnType.resolveType ?? exeContext.typeResolver;
     const contextValue = exeContext.contextValue;
@@ -1804,7 +2010,7 @@ export class Executor {
           info,
           path,
           result,
-          payloadContext,
+          responseNode,
         ),
       );
     }
@@ -1821,7 +2027,7 @@ export class Executor {
       info,
       path,
       result,
-      payloadContext,
+      responseNode,
     );
   }
 
@@ -1886,7 +2092,7 @@ export class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): PromiseOrValue<ObjMap<unknown>> {
     // If there is an isTypeOf predicate function, call it with the
     // current result. If isTypeOf returns false, then raise an error rather
@@ -1913,7 +2119,7 @@ export class Executor {
             fieldContext,
             path,
             result,
-            payloadContext,
+            responseNode,
           );
         });
       }
@@ -1933,7 +2139,7 @@ export class Executor {
       fieldContext,
       path,
       result,
-      payloadContext,
+      responseNode,
     );
   }
 
@@ -1956,7 +2162,7 @@ export class Executor {
     fieldContext: FieldContext,
     path: Path,
     result: unknown,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): PromiseOrValue<ObjMap<unknown>> {
     const { subFieldCollector } = exeContext;
     // Collect sub-fields to execute to complete this value.
@@ -1971,7 +2177,7 @@ export class Executor {
       result,
       path,
       subFieldNodes,
-      payloadContext,
+      responseNode,
     );
 
     this.addPatches(
@@ -1980,7 +2186,7 @@ export class Executor {
       returnType,
       result,
       path,
-      payloadContext,
+      responseNode,
     );
 
     return subFields;
@@ -2079,7 +2285,7 @@ export class Executor {
     sourceValue: unknown,
     path: Path | undefined,
     fields: Map<string, ReadonlyArray<FieldNode>>,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): Promise<unknown> {
     // TODO: consider allowing multiple root subscription fields
     const [responseName, fieldNodes] = [...fields.entries()][0];
@@ -2090,7 +2296,7 @@ export class Executor {
       sourceValue,
       fieldNodes,
       fieldPath,
-      payloadContext,
+      responseNode,
     );
   }
 
@@ -2098,9 +2304,9 @@ export class Executor {
     exeContext: ExecutionContext,
     eventStream: unknown,
   ): AsyncIterable<unknown> | ExecutionResult {
-    const { rootPayloadContext } = exeContext;
+    const { rootResponseNode } = exeContext;
 
-    const errors = rootPayloadContext.errors;
+    const errors = rootResponseNode.errors;
     if (errors.length) {
       return { errors };
     }
@@ -2164,13 +2370,13 @@ export class Executor {
     sourceValue: unknown,
     fieldNodes: ReadonlyArray<FieldNode>,
     fieldPath: Path,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): Promise<unknown> {
     const fieldContext = this.getFieldContext(parentType, fieldNodes);
 
     if (!fieldContext) {
       const fieldName = fieldNodes[0].name.value;
-      payloadContext.errors.push(
+      responseNode.errors.push(
         new GraphQLError(
           `The subscription field "${fieldName}" is not defined.`,
           fieldNodes,
@@ -2194,7 +2400,7 @@ export class Executor {
       }
       return eventStream;
     } catch (rawError) {
-      payloadContext.errors.push(
+      responseNode.errors.push(
         this.toLocatedError(rawError, fieldNodes, fieldPath),
       );
       return null;
@@ -2207,15 +2413,17 @@ export class Executor {
     parentType: GraphQLObjectType,
     source: unknown,
     path: Path | undefined,
-    parentPayloadContext: PayloadContext,
+    parentResponseNode: ResponseNode,
   ): void {
     const { state, publisher } = exeContext;
     for (const patch of patches) {
       state.pendingPushes++;
       const { label, fields: patchFields } = patch;
-      const payloadContext: PayloadContext = {
-        errors: [],
-        label,
+      const errors: Array<GraphQLError> = [];
+      const responseNode = { errors };
+      const responseContext: SubsequentResponseContext = {
+        responseNodes: [responseNode],
+        parentResponseNode,
       };
       Promise.resolve(source)
         .then(() =>
@@ -2225,23 +2433,23 @@ export class Executor {
             source,
             path,
             patchFields,
-            payloadContext,
+            responseNode,
           ),
         )
         .then(
           (data) =>
             publisher.queue(
-              payloadContext,
-              { payloadContext, data, path },
-              parentPayloadContext,
+              responseContext.responseNodes,
+              { responseContext, data, path, label },
+              responseContext.parentResponseNode,
             ),
           (error) => {
             // executeFields will never throw a raw error
-            payloadContext.errors.push(error);
+            errors.push(error);
             publisher.queue(
-              payloadContext,
-              { payloadContext, data: null, path },
-              parentPayloadContext,
+              responseContext.responseNodes,
+              { responseContext, data: null, path, label },
+              responseContext.parentResponseNode,
             );
           },
         );
@@ -2256,25 +2464,11 @@ export class Executor {
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     valueCompleter: ValueCompleter,
-    path: Path,
-    label: string | undefined,
-    parentPayloadContext: PayloadContext,
-  ): void {
-    const state = exeContext.state;
+    streamContext: StreamContext,
+  ): number {
     let index = initialIndex;
-    let prevPayloadContext = parentPayloadContext;
     let iteration = iterator.next();
     while (!iteration.done) {
-      // avoid unsafe reference of variable from functions inside a loop
-      // see https://eslint.org/docs/rules/no-loop-func
-      const _prevPayloadContext = prevPayloadContext;
-      const payloadContext: PayloadContext = {
-        errors: [],
-        label,
-      };
-      state.pendingPushes++;
-      const itemPath = addPath(path, index, undefined);
-
       this.addValue(
         iteration.value,
         exeContext,
@@ -2282,15 +2476,15 @@ export class Executor {
         fieldContext,
         info,
         valueCompleter,
-        itemPath,
-        payloadContext,
-        _prevPayloadContext,
+        index,
+        streamContext,
       );
 
       index++;
-      prevPayloadContext = payloadContext;
       iteration = iterator.next();
     }
+
+    return index;
   }
 
   async addAsyncIteratorValue(
@@ -2301,28 +2495,14 @@ export class Executor {
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     valueCompleter: ValueCompleter,
-    path: Path,
-    label: string | undefined,
-    parentPayloadContext: PayloadContext,
+    streamContext: StreamContext,
   ): Promise<void> {
-    const { state, publisher } = exeContext;
-    state.iterators.add(iterator);
+    exeContext.state.iterators.add(iterator);
 
     let index = initialIndex;
-    let prevPayloadContext = parentPayloadContext;
     try {
       let iteration = await iterator.next();
       while (!iteration.done) {
-        // avoid unsafe reference of variable from functions inside a loop
-        // see https://eslint.org/docs/rules/no-loop-func
-        const _prevPayloadContext = prevPayloadContext;
-        const payloadContext: PayloadContext = {
-          errors: [],
-          label,
-        };
-        state.pendingPushes++;
-        const itemPath = addPath(path, index, undefined);
-
         this.addValue(
           iteration.value,
           exeContext,
@@ -2330,33 +2510,55 @@ export class Executor {
           fieldContext,
           info,
           valueCompleter,
-          itemPath,
-          payloadContext,
-          _prevPayloadContext,
+          index,
+          streamContext,
         );
-
         index++;
-        prevPayloadContext = payloadContext;
         // eslint-disable-next-line no-await-in-loop
         iteration = await iterator.next();
       }
+
+      streamContext.bundler.setTotal(index);
     } catch (rawError) {
-      state.pendingPushes++;
-      const itemPath = addPath(path, index, undefined);
-      const currentPayloadContext = {
-        errors: [
-          this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
-        ],
-        label,
-      };
-      publisher.queue(
-        currentPayloadContext,
-        { payloadContext: currentPayloadContext, data: null, path: itemPath },
-        prevPayloadContext,
+      exeContext.state.pendingStreamResults++;
+
+      this.handleRawStreamError(
+        fieldContext,
+        itemType,
+        streamContext,
+        rawError,
+        index,
       );
+
+      streamContext.bundler.setTotal(index + 1);
     }
 
     this.closeAsyncIterator(exeContext, iterator);
+  }
+
+  handleRawStreamError(
+    fieldContext: FieldContext,
+    itemType: GraphQLOutputType,
+    streamContext: StreamContext,
+    rawError: unknown,
+    index: number,
+  ): void {
+    const { path } = streamContext;
+    const itemPath = addPath(path, index, undefined);
+    const error = this.toLocatedError(
+      rawError,
+      fieldContext.fieldNodes,
+      itemPath,
+    );
+
+    if (this._executorSchema.isNonNullType(itemType)) {
+      streamContext.bundler.queueError(index, { errors: [error] });
+    } else {
+      streamContext.bundler.queueData(index, {
+        responseNode: { errors: [error] },
+        data: null,
+      });
+    }
   }
 
   addValue(
@@ -2366,11 +2568,13 @@ export class Executor {
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     valueCompleter: ValueCompleter,
-    itemPath: Path,
-    payloadContext: PayloadContext,
-    prevPayloadContext: PayloadContext,
+    index: number,
+    streamContext: StreamContext,
   ): void {
-    const publisher = exeContext.publisher;
+    const itemPath = addPath(streamContext.path, index, undefined);
+
+    const responseNode: ResponseNode = { errors: [] };
+    exeContext.state.pendingStreamResults++;
     Promise.resolve(value)
       .then((resolved) =>
         valueCompleter(
@@ -2379,37 +2583,25 @@ export class Executor {
           info,
           itemPath,
           resolved,
-          payloadContext,
+          responseNode,
         ),
       )
       // Note: we don't rely on a `catch` method, but we do expect "thenable"
       // to take a second callback for the error case.
-      .then(undefined, (rawError) =>
-        this.handleRawError(
-          rawError,
-          fieldContext.fieldNodes,
-          itemPath,
-          itemType,
-          payloadContext.errors,
-        ),
-      )
       .then(
         (data) =>
-          publisher.queue(
-            payloadContext,
-            { payloadContext, data, path: itemPath },
-            prevPayloadContext,
+          streamContext.bundler.queueData(index, {
+            responseNode,
+            data,
+          }),
+        (rawError) =>
+          this.handleRawStreamError(
+            fieldContext,
+            itemType,
+            streamContext,
+            rawError,
+            index,
           ),
-        (rawError) => {
-          payloadContext.errors.push(
-            this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
-          );
-          publisher.queue(
-            payloadContext,
-            { payloadContext, data: null, path: itemPath },
-            prevPayloadContext,
-          );
-        },
       );
   }
 
@@ -2427,7 +2619,11 @@ export class Executor {
   }
 
   hasNext(state: ExecutionState): boolean {
-    return state.pendingPushes > 0 || state.iterators.size > 0;
+    return (
+      state.pendingPushes > 0 ||
+      state.pendingStreamResults > 0 ||
+      state.iterators.size > 0
+    );
   }
 
   /**
