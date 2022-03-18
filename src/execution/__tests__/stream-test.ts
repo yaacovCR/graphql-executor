@@ -266,6 +266,31 @@ describe('Execute: stream directive', () => {
       },
     ]);
   });
+  it('Can stream a list field in chunks of size greater than 1', async () => {
+    const document = parse('{ scalarList @stream(maxChunkSize: 2) }');
+    const result = await complete(document);
+
+    expect(result).to.deep.equal([
+      {
+        data: {
+          scalarList: [],
+        },
+        hasNext: true,
+      },
+      {
+        data: ['apple', 'banana'],
+        path: ['scalarList'],
+        atIndex: 0,
+        hasNext: true,
+      },
+      {
+        data: ['coconut'],
+        path: ['scalarList'],
+        atIndex: 2,
+        hasNext: false,
+      },
+    ]);
+  });
   it('Can use default value of initialCount', async () => {
     const document = parse('{ scalarList @stream }');
     const result = await complete(document);
@@ -311,7 +336,52 @@ describe('Execute: stream directive', () => {
     expectJSON(result).toDeepEqual({
       errors: [
         {
-          message: 'initialCount must be a positive integer',
+          message:
+            'initialCount must be an integer greater than or equal to zero',
+          locations: [
+            {
+              line: 1,
+              column: 3,
+            },
+          ],
+          path: ['scalarList'],
+        },
+      ],
+      data: {
+        scalarList: null,
+      },
+    });
+  });
+  it('maxChunkSize values less than one throw field errors', async () => {
+    const document = parse('{ scalarList @stream(maxChunkSize: 0) }');
+    const result = await complete(document);
+    expectJSON(result).toDeepEqual({
+      errors: [
+        {
+          message:
+            'maxChunkSize must be an integer greater than or equal to one',
+          locations: [
+            {
+              line: 1,
+              column: 3,
+            },
+          ],
+          path: ['scalarList'],
+        },
+      ],
+      data: {
+        scalarList: null,
+      },
+    });
+  });
+  it('maxInterval values less than zero throw field errors', async () => {
+    const document = parse('{ scalarList @stream(maxInterval: -1) }');
+    const result = await complete(document);
+    expectJSON(result).toDeepEqual({
+      errors: [
+        {
+          message:
+            'maxInterval must be an integer greater than or equal to zero',
           locations: [
             {
               line: 1,
@@ -460,27 +530,36 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          name: 'Han',
-          id: '2',
-        },
-        path: ['asyncSlowList', 1],
+        data: [
+          {
+            name: 'Han',
+            id: '2',
+          },
+        ],
+        path: ['asyncSlowList'],
+        atIndices: [1],
         hasNext: true,
       },
       {
-        data: {
-          name: 'Leia',
-          id: '3',
-        },
-        path: ['asyncSlowList', 2],
+        data: [
+          {
+            name: 'Leia',
+            id: '3',
+          },
+        ],
+        path: ['asyncSlowList'],
+        atIndices: [2],
         hasNext: true,
       },
       {
-        data: {
-          name: 'Luke',
-          id: '1',
-        },
-        path: ['asyncSlowList', 0],
+        data: [
+          {
+            name: 'Luke',
+            id: '1',
+          },
+        ],
+        path: ['asyncSlowList'],
+        atIndices: [0],
         hasNext: false,
       },
     ]);
@@ -622,6 +701,51 @@ describe('Execute: stream directive', () => {
       },
     ]);
   });
+  it('Can stream a field that returns an async iterable in chunks of size greater than 1', async () => {
+    const document = parse(`
+      query { 
+        asyncIterableList @stream(maxChunkSize: 2) {
+          name
+          id
+        }
+      }
+    `);
+    const result = await complete(document);
+    expect(result).to.deep.equal([
+      {
+        data: {
+          asyncIterableList: [],
+        },
+        hasNext: true,
+      },
+      {
+        data: [
+          {
+            name: 'Luke',
+            id: '1',
+          },
+          {
+            name: 'Han',
+            id: '2',
+          },
+        ],
+        path: ['asyncIterableList'],
+        atIndex: 0,
+        hasNext: true,
+      },
+      {
+        data: [
+          {
+            name: 'Leia',
+            id: '3',
+          },
+        ],
+        path: ['asyncIterableList'],
+        atIndex: 2,
+        hasNext: false,
+      },
+    ]);
+  });
   it('Can stream a field that returns an async iterable, using a non-zero initialCount', async () => {
     const document = parse(`
       query { 
@@ -700,7 +824,8 @@ describe('Execute: stream directive', () => {
     expectJSON(result).toDeepEqual({
       errors: [
         {
-          message: 'initialCount must be a positive integer',
+          message:
+            'initialCount must be an integer greater than or equal to zero',
           locations: [
             {
               line: 3,
@@ -930,6 +1055,63 @@ describe('Execute: stream directive', () => {
       },
     ]);
   });
+  it('Handles null returned in non-null async iterable list items after initialCount is reached with maxChunkSize greater than 1', async () => {
+    const document = parse(`
+      query { 
+        asyncIterableNonNullError @stream(initialCount: 0, maxChunkSize: 2) {
+          name
+        }
+      }
+    `);
+    const result = await complete(document);
+    expectJSON(result).toDeepEqual([
+      {
+        data: {
+          asyncIterableNonNullError: [],
+        },
+        hasNext: true,
+      },
+      {
+        data: [
+          {
+            name: 'Luke',
+          },
+        ],
+        path: ['asyncIterableNonNullError'],
+        atIndex: 0,
+        hasNext: true,
+      },
+      {
+        data: null,
+        path: ['asyncIterableNonNullError'],
+        atIndex: 1,
+        errors: [
+          {
+            message:
+              'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
+            locations: [
+              {
+                line: 3,
+                column: 9,
+              },
+            ],
+            path: ['asyncIterableNonNullError', 1],
+          },
+        ],
+        hasNext: true,
+      },
+      {
+        data: [
+          {
+            name: 'Han',
+          },
+        ],
+        path: ['asyncIterableNonNullError'],
+        atIndex: 2,
+        hasNext: false,
+      },
+    ]);
+  });
   it('Handles null returned in non-null async iterable list items after initialCount is reached with parallel streaming', async () => {
     const document = parse(`
       query { 
@@ -947,15 +1129,19 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          name: 'Luke',
-        },
-        path: ['asyncIterableNonNullError', 0],
+        data: [
+          {
+            name: 'Luke',
+          },
+        ],
+        path: ['asyncIterableNonNullError'],
+        atIndices: [0],
         hasNext: true,
       },
       {
         data: null,
-        path: ['asyncIterableNonNullError', 1],
+        path: ['asyncIterableNonNullError'],
+        atIndices: [1],
         errors: [
           {
             message:
@@ -972,10 +1158,13 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          name: 'Han',
-        },
-        path: ['asyncIterableNonNullError', 2],
+        data: [
+          {
+            name: 'Han',
+          },
+        ],
+        path: ['asyncIterableNonNullError'],
+        atIndices: [2],
         hasNext: false,
       },
     ]);
