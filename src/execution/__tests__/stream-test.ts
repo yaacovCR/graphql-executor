@@ -100,8 +100,8 @@ const query = new GraphQLObjectType({
       type: new GraphQLList(new GraphQLNonNull(friendType)),
       async *resolve() {
         yield await Promise.resolve(friends[0]);
-        yield await Promise.resolve(null); /* c8 ignore start */
-        // Not reachable, error from resolving null
+        yield await Promise.resolve(null);
+        yield await Promise.resolve(friends[1]);
       },
       /* c8 ignore stop */
     },
@@ -149,7 +149,7 @@ const query = new GraphQLObjectType({
         for (const friend of friends) {
           yield friend;
         }
-        await new Promise((r) => setTimeout(r, 1));
+        await new Promise((r) => setTimeout(r, 10));
       },
     },
     nestedObject: {
@@ -438,6 +438,49 @@ describe('Execute: stream directive', () => {
           id: '3',
         },
         path: ['asyncSlowList', 2],
+        hasNext: false,
+      },
+    ]);
+  });
+  it('Can stream in parallel', async () => {
+    const document = parse(`
+      query { 
+        asyncSlowList @stream(initialCount: 0, inParallel: true) {
+          name
+          id
+        }
+      }
+    `);
+    const result = await complete(document);
+    expect(result).to.deep.equal([
+      {
+        data: {
+          asyncSlowList: [],
+        },
+        hasNext: true,
+      },
+      {
+        data: {
+          name: 'Han',
+          id: '2',
+        },
+        path: ['asyncSlowList', 1],
+        hasNext: true,
+      },
+      {
+        data: {
+          name: 'Leia',
+          id: '3',
+        },
+        path: ['asyncSlowList', 2],
+        hasNext: true,
+      },
+      {
+        data: {
+          name: 'Luke',
+          id: '1',
+        },
+        path: ['asyncSlowList', 0],
         hasNext: false,
       },
     ]);
@@ -876,6 +919,63 @@ describe('Execute: stream directive', () => {
             path: ['asyncIterableNonNullError', 1],
           },
         ],
+        hasNext: true,
+      },
+      {
+        data: {
+          name: 'Han',
+        },
+        path: ['asyncIterableNonNullError', 2],
+        hasNext: false,
+      },
+    ]);
+  });
+  it('Handles null returned in non-null async iterable list items after initialCount is reached with parallel streaming', async () => {
+    const document = parse(`
+      query { 
+        asyncIterableNonNullError @stream(initialCount: 0, inParallel: true) {
+          name
+        }
+      }
+    `);
+    const result = await complete(document);
+    expectJSON(result).toDeepEqual([
+      {
+        data: {
+          asyncIterableNonNullError: [],
+        },
+        hasNext: true,
+      },
+      {
+        data: {
+          name: 'Luke',
+        },
+        path: ['asyncIterableNonNullError', 0],
+        hasNext: true,
+      },
+      {
+        data: null,
+        path: ['asyncIterableNonNullError', 1],
+        errors: [
+          {
+            message:
+              'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
+            locations: [
+              {
+                line: 3,
+                column: 9,
+              },
+            ],
+            path: ['asyncIterableNonNullError', 1],
+          },
+        ],
+        hasNext: true,
+      },
+      {
+        data: {
+          name: 'Han',
+        },
+        path: ['asyncIterableNonNullError', 2],
         hasNext: false,
       },
     ]);

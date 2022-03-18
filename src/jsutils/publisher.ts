@@ -14,13 +14,19 @@ export class Publisher<TSource, TPayload = TSource> {
   private _payloadFromSource: (source: TSource, hasNext: boolean) => TPayload;
   private _onReady: (() => void) | undefined;
   private _hasNext: () => boolean;
+
   private _buffer: Array<TPayload>;
   private _stopped: boolean;
   // This is safe because a promise executor within the constructor will assign this.
   private _resolve!: () => void;
   private _trigger: Promise<void>;
+
   private _pushed: WeakMap<object, boolean>;
-  private _pending: WeakMap<object, Array<{ key: object; source: TSource }>>;
+  private _pending: WeakMap<
+    object,
+    Array<{ keys: Array<object>; source: TSource }>
+  >;
+
   private _repeater: Repeater<TPayload>;
 
   constructor({
@@ -50,8 +56,9 @@ export class Publisher<TSource, TPayload = TSource> {
         await this._trigger;
 
         while (this._buffer.length) {
-          // This is safe because _buffer has a non-zero length
-          const payload = this._buffer.shift() as TPayload;
+          // this is safe because we have checked the length;
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          const payload = this._buffer.shift()!;
           // eslint-disable-next-line no-await-in-loop
           await push(payload);
         }
@@ -68,15 +75,19 @@ export class Publisher<TSource, TPayload = TSource> {
     });
   }
 
-  emit(key: object, payload: TPayload): void {
-    this._pushed.set(key, true);
+  emit(keys: Array<object>, payload: TPayload): void {
+    for (const key of keys) {
+      this._pushed.set(key, true);
+    }
     this._buffer.push(payload);
 
-    const dependents = this._pending.get(key);
-    if (dependents) {
-      this._pushMany(dependents);
+    for (const key of keys) {
+      const dependents = this._pending.get(key);
+      if (dependents) {
+        this._pushMany(dependents);
+      }
+      this._pending.delete(key);
     }
-    this._pending.delete(key);
 
     this._resolve();
   }
@@ -89,42 +100,48 @@ export class Publisher<TSource, TPayload = TSource> {
     this._resolve();
   }
 
-  queue(key: object, source: TSource, parentKey: object): void {
+  queue(keys: Array<object>, source: TSource, parentKey: object): void {
     if (this._pushed.get(parentKey)) {
-      this._pushOne({ key, source });
+      this._pushOne({ keys, source });
       return;
     }
 
     const dependents = this._pending.get(parentKey);
     if (dependents) {
-      dependents.push({ key, source });
+      dependents.push({ keys, source });
       return;
     }
 
-    this._pending.set(parentKey, [{ key, source }]);
+    this._pending.set(parentKey, [{ keys, source }]);
   }
 
-  _pushOne(keySource: { key: object; source: TSource }): void {
-    const hasNext = this._pushOneImpl(keySource);
+  _pushOne(context: { keys: Array<object>; source: TSource }): void {
+    const hasNext = this._pushOneImpl(context);
 
     if (!hasNext) {
       this.stop();
     }
   }
 
-  _pushOneImpl({ key, source }: { key: object; source: TSource }): boolean {
+  _pushOneImpl({
+    keys,
+    source,
+  }: {
+    keys: Array<object>;
+    source: TSource;
+  }): boolean {
     this._onReady?.();
     const hasNext = this._hasNext();
     const payload = this._payloadFromSource(source, hasNext);
-    this.emit(key, payload);
+    this.emit(keys, payload);
 
     return hasNext;
   }
 
-  _pushMany(keySources: Array<{ key: object; source: TSource }>): void {
+  _pushMany(contexts: Array<{ keys: Array<object>; source: TSource }>): void {
     let hasNext = false;
-    for (const keySource of keySources) {
-      hasNext = this._pushOneImpl(keySource);
+    for (const context of contexts) {
+      hasNext = this._pushOneImpl(context);
     }
 
     if (!hasNext) {
