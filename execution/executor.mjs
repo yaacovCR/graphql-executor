@@ -40,6 +40,8 @@ import { isAsyncIterable } from '../jsutils/isAsyncIterable.mjs';
 import { isIterableObject } from '../jsutils/isIterableObject.mjs';
 import { resolveAfterAll } from '../jsutils/resolveAfterAll.mjs';
 import { Publisher } from '../jsutils/publisher.mjs';
+import { Bundler } from '../jsutils/bundler.mjs';
+import { getSequentialBundler } from '../jsutils/getSequentialBundler.mjs';
 import { toError } from '../jsutils/toError.mjs';
 import { toExecutorSchema } from './toExecutorSchema.mjs';
 import {
@@ -358,7 +360,7 @@ export class Executor {
     let data;
 
     try {
-      const { rootValue, rootPayloadContext } = exeContext;
+      const { rootValue, rootResponseNode } = exeContext;
       const {
         rootType,
         fieldsAndPatches: { fields, patches },
@@ -370,7 +372,7 @@ export class Executor {
         rootValue,
         path,
         fields,
-        rootPayloadContext,
+        rootResponseNode,
       );
       this.addPatches(
         exeContext,
@@ -378,10 +380,10 @@ export class Executor {
         rootType,
         rootValue,
         path,
-        rootPayloadContext,
+        rootResponseNode,
       );
     } catch (error) {
-      exeContext.rootPayloadContext.errors.push(error);
+      exeContext.rootResponseNode.errors.push(error);
       data = null;
     }
 
@@ -389,7 +391,7 @@ export class Executor {
       return data.then(
         (resolvedData) => responseBuilder(exeContext, resolvedData),
         (error) => {
-          exeContext.rootPayloadContext.errors.push(error);
+          exeContext.rootResponseNode.errors.push(error);
           return responseBuilder(exeContext, null);
         },
       );
@@ -403,8 +405,8 @@ export class Executor {
    */
 
   buildResponse(exeContext, data) {
-    const rootPayloadContext = exeContext.rootPayloadContext;
-    const errors = rootPayloadContext.errors;
+    const rootResponseNode = exeContext.rootResponseNode;
+    const errors = rootResponseNode.errors;
     const initialResult =
       errors.length === 0
         ? {
@@ -417,7 +419,7 @@ export class Executor {
 
     if (this.hasNext(exeContext.state)) {
       const publisher = exeContext.publisher;
-      publisher.emit(rootPayloadContext, { ...initialResult, hasNext: true });
+      publisher.emit([rootResponseNode], { ...initialResult, hasNext: true });
       return publisher.subscribe();
     }
 
@@ -505,8 +507,13 @@ export class Executor {
   createPublisher(state) {
     return new Publisher({
       payloadFromSource: (result, hasNext) => {
-        const { payloadContext, data, path } = result;
-        const { errors, label } = payloadContext;
+        const { responseContext, data, path, label } = result;
+        const errors = [];
+
+        for (const responseNode of responseContext.responseNodes) {
+          errors.push(...responseNode.errors);
+        }
+
         const value = {
           data,
           path: path ? pathToArray(path) : [],
@@ -605,8 +612,9 @@ export class Executor {
       : () => undefined;
     const coercedVariableValuesValues = coercedVariableValues.coerced;
     const state = {
-      iterators: new Set(),
       pendingPushes: 0,
+      pendingStreamResults: 0,
+      iterators: new Set(),
     };
     return {
       fragments,
@@ -656,7 +664,7 @@ export class Executor {
                 : defaultFieldResolver,
             )
           : this.buildFieldResolver('resolve', defaultResolveFieldValueFn),
-      rootPayloadContext: {
+      rootResponseNode: {
         errors: [],
       },
       state,
@@ -670,8 +678,9 @@ export class Executor {
 
   buildPerPayloadExecutionContext(exeContext, payload) {
     const state = {
-      iterators: new Set(),
       pendingPushes: 0,
+      pendingStreamResults: 0,
+      iterators: new Set(),
     };
     return {
       ...exeContext,
@@ -681,7 +690,7 @@ export class Executor {
         'resolve',
         exeContext.fieldResolver,
       ),
-      rootPayloadContext: {
+      rootResponseNode: {
         errors: [],
       },
       state,
@@ -724,7 +733,7 @@ export class Executor {
           sourceValue,
           fieldNodes,
           fieldPath,
-          exeContext.rootPayloadContext,
+          exeContext.rootResponseNode,
         );
 
         if (result === undefined) {
@@ -755,7 +764,7 @@ export class Executor {
     sourceValue,
     path,
     fields,
-    payloadContext,
+    responseNode,
   ) {
     const results = Object.create(null);
     const promises = [];
@@ -769,7 +778,7 @@ export class Executor {
         sourceValue,
         fieldNodes,
         fieldPath,
-        payloadContext,
+        responseNode,
       );
 
       if (result !== undefined) {
@@ -801,14 +810,7 @@ export class Executor {
    * serialize scalars, or execute the sub-selection-set for objects.
    */
 
-  executeField(
-    exeContext,
-    parentType,
-    source,
-    fieldNodes,
-    path,
-    payloadContext,
-  ) {
+  executeField(exeContext, parentType, source, fieldNodes, path, responseNode) {
     const fieldContext = this.getFieldContext(parentType, fieldNodes);
 
     if (!fieldContext) {
@@ -837,7 +839,7 @@ export class Executor {
             info,
             path,
             resolved,
-            payloadContext,
+            responseNode,
           ),
         );
       } else {
@@ -847,7 +849,7 @@ export class Executor {
           info,
           path,
           result,
-          payloadContext,
+          responseNode,
         );
       }
 
@@ -860,7 +862,7 @@ export class Executor {
             fieldNodes,
             path,
             returnType,
-            payloadContext.errors,
+            responseNode.errors,
           ),
         );
       }
@@ -872,7 +874,7 @@ export class Executor {
         fieldNodes,
         path,
         returnType,
-        payloadContext.errors,
+        responseNode.errors,
       );
     }
   }
@@ -916,7 +918,7 @@ export class Executor {
   }
 
   buildNullableValueCompleter(valueCompleter) {
-    return (exeContext, fieldContext, info, path, result, payloadContext) => {
+    return (exeContext, fieldContext, info, path, result, responseNode) => {
       // If result is an Error, throw a located error.
       if (result instanceof Error) {
         throw result;
@@ -932,7 +934,7 @@ export class Executor {
         info,
         path,
         result,
-        payloadContext,
+        responseNode,
       );
     };
   }
@@ -960,7 +962,7 @@ export class Executor {
 
   _getValueCompleter(returnType) {
     if (this._executorSchema.isNonNullType(returnType)) {
-      return (exeContext, fieldContext, info, path, result, payloadContext) => {
+      return (exeContext, fieldContext, info, path, result, responseNode) => {
         // If field type is NonNull, complete for inner type, and throw field error
         // if result is null.
         const innerValueCompleter = this.getValueCompleter(returnType.ofType);
@@ -970,7 +972,7 @@ export class Executor {
           info,
           path,
           result,
-          payloadContext,
+          responseNode,
         );
 
         if (completed === null) {
@@ -991,7 +993,7 @@ export class Executor {
           info,
           path,
           result,
-          payloadContext, // If field type is List, complete each item in the list with the inner type
+          responseNode, // If field type is List, complete each item in the list with the inner type
         ) =>
           this.completeListValue(
             exeContext,
@@ -1000,7 +1002,7 @@ export class Executor {
             info,
             path,
             result,
-            payloadContext,
+            responseNode,
           ),
       );
     }
@@ -1013,7 +1015,7 @@ export class Executor {
           _info,
           _path,
           result,
-          _payloadContext, // If field type is a leaf type, Scalar or Enum, serialize to a valid value,
+          _responseNode, // If field type is a leaf type, Scalar or Enum, serialize to a valid value,
         ) =>
           // returning null if serialization is not possible.
           this.completeLeafValue(returnType, result),
@@ -1028,7 +1030,7 @@ export class Executor {
           info,
           path,
           result,
-          payloadContext, // If field type is an abstract type, Interface or Union, determine the
+          responseNode, // If field type is an abstract type, Interface or Union, determine the
         ) =>
           // runtime Object type and complete for that type.
           this.completeAbstractValue(
@@ -1038,7 +1040,7 @@ export class Executor {
             info,
             path,
             result,
-            payloadContext,
+            responseNode,
           ),
       );
     }
@@ -1051,7 +1053,7 @@ export class Executor {
           info,
           path,
           result,
-          payloadContext, // If field type is Object, execute and complete all sub-selections.
+          responseNode, // If field type is Object, execute and complete all sub-selections.
         ) =>
           this.completeObjectValue(
             exeContext,
@@ -1060,7 +1062,7 @@ export class Executor {
             info,
             path,
             result,
-            payloadContext,
+            responseNode,
           ),
       );
     }
@@ -1086,7 +1088,7 @@ export class Executor {
     info,
     path,
     result,
-    payloadContext,
+    responseNode,
   ) {
     const itemType = returnType.ofType;
     const valueCompleter = this.getValueCompleter(itemType); // This is specified as a simple map, however we're optimizing the path
@@ -1109,7 +1111,7 @@ export class Executor {
         valueCompleter,
         path,
         iterator,
-        payloadContext,
+        responseNode,
         stream,
         completedResults,
         promises,
@@ -1131,7 +1133,7 @@ export class Executor {
       valueCompleter,
       path,
       iterator,
-      payloadContext,
+      responseNode,
       stream,
       completedResults,
       promises,
@@ -1164,13 +1166,15 @@ export class Executor {
       return;
     }
 
-    typeof stream.initialCount === 'number' ||
+    const { initialCount, inParallel, label } = stream;
+    typeof initialCount === 'number' ||
       invariant(false, 'initialCount must be a number');
-    stream.initialCount >= 0 ||
+    initialCount >= 0 ||
       invariant(false, 'initialCount must be a positive integer');
     return {
-      initialCount: stream.initialCount,
-      label: typeof stream.label === 'string' ? stream.label : undefined,
+      initialCount,
+      inParallel: inParallel === true,
+      label: typeof label === 'string' ? label : undefined,
     };
   }
   /**
@@ -1185,7 +1189,7 @@ export class Executor {
     valueCompleter,
     path,
     iterator,
-    payloadContext,
+    responseNode,
     stream,
     completedResults,
     promises,
@@ -1199,12 +1203,13 @@ export class Executor {
         valueCompleter,
         path,
         iterator,
-        payloadContext,
+        responseNode,
         stream,
         completedResults,
         0,
         promises,
       );
+      return;
     }
 
     this.completeIteratorValueWithoutStream(
@@ -1215,16 +1220,144 @@ export class Executor {
       valueCompleter,
       path,
       iterator,
-      payloadContext,
+      responseNode,
       completedResults,
       0,
       promises,
     );
   }
+
+  createStreamContext(
+    exeContext,
+    initialCount,
+    inParallel,
+    path,
+    label,
+    parentResponseNode,
+  ) {
+    return {
+      initialCount,
+      path,
+      bundler: inParallel
+        ? new Bundler({
+            initialIndex: initialCount,
+            maxBundleSize: 1,
+            maxInterval: undefined,
+            createDataBundleContext: () => {
+              exeContext.state.pendingPushes++;
+              return {
+                responseNodes: [],
+                parentResponseNode,
+                atIndices: [],
+                results: [],
+              };
+            },
+            createErrorBundleContext: () => {
+              exeContext.state.pendingPushes++;
+              return {
+                responseNodes: [],
+                parentResponseNode,
+                atIndices: [],
+              };
+            },
+            onData: (index, result, context) => {
+              exeContext.state.pendingStreamResults--;
+              context.responseNodes.push(result.responseNode);
+              context.results.push(result.data);
+              context.atIndices.push(index);
+            },
+            onError: (index, responseNode, context) => {
+              exeContext.state.pendingStreamResults--;
+              context.responseNodes.push(responseNode);
+              context.atIndices.push(index);
+            },
+            onDataBundle: (context) => {
+              exeContext.publisher.queue(
+                context.responseNodes,
+                {
+                  responseContext: context,
+                  data: context.results[0],
+                  path: addPath(path, context.atIndices[0], undefined),
+                  label,
+                },
+                parentResponseNode,
+              );
+            },
+            onErrorBundle: (context) => {
+              exeContext.publisher.queue(
+                context.responseNodes,
+                {
+                  responseContext: context,
+                  data: null,
+                  path: addPath(path, context.atIndices[0], undefined),
+                  label,
+                },
+                parentResponseNode,
+              );
+            },
+          })
+        : getSequentialBundler(
+            initialCount,
+            new Bundler({
+              initialIndex: initialCount,
+              maxBundleSize: 1,
+              maxInterval: undefined,
+              createDataBundleContext: (count) => {
+                exeContext.state.pendingPushes++;
+                return {
+                  responseNodes: [],
+                  parentResponseNode,
+                  atIndex: count,
+                  results: [],
+                };
+              },
+              createErrorBundleContext: (count) => {
+                exeContext.state.pendingPushes++;
+                return {
+                  responseNodes: [],
+                  parentResponseNode,
+                  atIndex: count,
+                };
+              },
+              onData: (_index, result, context) => {
+                exeContext.state.pendingStreamResults--;
+                context.responseNodes.push(result.responseNode);
+                context.results.push(result.data);
+              },
+              onError: (_index, responseNode, context) => {
+                exeContext.state.pendingStreamResults--;
+                context.responseNodes.push(responseNode);
+              },
+              onDataBundle: (context) => {
+                exeContext.publisher.queue(
+                  context.responseNodes,
+                  {
+                    responseContext: context,
+                    data: context.results[0],
+                    path: addPath(path, context.atIndex, undefined),
+                    label,
+                  },
+                  parentResponseNode,
+                );
+              },
+              onErrorBundle: (context) => {
+                exeContext.publisher.queue(
+                  context.responseNodes,
+                  {
+                    responseContext: context,
+                    data: null,
+                    path: addPath(path, context.atIndex, undefined),
+                    label,
+                  },
+                  parentResponseNode,
+                );
+              },
+            }),
+          ),
+    };
+  }
   /**
    * Complete an iterator value by completing each result, possibly adding a new stream.
-   *
-   * Returns the next index or, if a stream was initiated, the last payload context.
    */
 
   completeIteratorValueWithStream(
@@ -1235,7 +1368,7 @@ export class Executor {
     valueCompleter,
     path,
     iterator,
-    payloadContext,
+    responseNode,
     stream,
     completedResults,
     _index,
@@ -1246,7 +1379,16 @@ export class Executor {
 
     while (true) {
       if (index >= initialCount) {
-        this.addIteratorValue(
+        const { inParallel, label } = stream;
+        const streamContext = this.createStreamContext(
+          exeContext,
+          initialCount,
+          inParallel,
+          path,
+          label,
+          responseNode,
+        );
+        const nextIndex = this.addIteratorValue(
           index,
           iterator,
           exeContext,
@@ -1254,11 +1396,10 @@ export class Executor {
           fieldContext,
           info,
           valueCompleter,
-          path,
-          stream.label,
-          payloadContext,
+          streamContext,
         );
-        return;
+        streamContext.bundler.setTotal(nextIndex);
+        break;
       }
 
       const iteration = iterator.next();
@@ -1279,7 +1420,7 @@ export class Executor {
         fieldContext,
         info,
         itemPath,
-        payloadContext,
+        responseNode,
       );
       index++;
     }
@@ -1298,7 +1439,7 @@ export class Executor {
     valueCompleter,
     path,
     iterator,
-    payloadContext,
+    responseNode,
     completedResults,
     _index,
     promises,
@@ -1324,7 +1465,7 @@ export class Executor {
         fieldContext,
         info,
         itemPath,
-        payloadContext,
+        responseNode,
       );
       index++;
     }
@@ -1341,7 +1482,7 @@ export class Executor {
     valueCompleter,
     path,
     iterator,
-    payloadContext,
+    responseNode,
     stream,
     completedResults,
     promises,
@@ -1355,7 +1496,7 @@ export class Executor {
         valueCompleter,
         path,
         iterator,
-        payloadContext,
+        responseNode,
         stream,
         completedResults,
         promises,
@@ -1369,7 +1510,7 @@ export class Executor {
         valueCompleter,
         path,
         iterator,
-        payloadContext,
+        responseNode,
         completedResults,
         promises,
       );
@@ -1388,7 +1529,7 @@ export class Executor {
     valueCompleter,
     path,
     iterator,
-    payloadContext,
+    responseNode,
     stream,
     completedResults,
     promises,
@@ -1399,7 +1540,16 @@ export class Executor {
     try {
       while (true) {
         if (index >= initialCount) {
-          // eslint-disable-next-line @typescript-eslint/no-floating-promises
+          const { inParallel, label } = stream;
+          const streamContext = this.createStreamContext(
+            exeContext,
+            initialCount,
+            inParallel,
+            path,
+            label,
+            responseNode,
+          ); // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
           this.addAsyncIteratorValue(
             index,
             iterator,
@@ -1408,9 +1558,7 @@ export class Executor {
             fieldContext,
             info,
             valueCompleter,
-            path,
-            stream.label,
-            payloadContext,
+            streamContext,
           );
           return;
         } // eslint-disable-next-line no-await-in-loop
@@ -1433,7 +1581,7 @@ export class Executor {
           fieldContext,
           info,
           itemPath,
-          payloadContext,
+          responseNode,
         );
         index++;
       }
@@ -1445,7 +1593,7 @@ export class Executor {
           fieldContext.fieldNodes,
           itemPath,
           itemType,
-          payloadContext.errors,
+          responseNode.errors,
         ),
       );
     }
@@ -1459,7 +1607,7 @@ export class Executor {
     valueCompleter,
     path,
     iterator,
-    payloadContext,
+    responseNode,
     completedResults,
     promises,
   ) {
@@ -1486,7 +1634,7 @@ export class Executor {
           fieldContext,
           info,
           itemPath,
-          payloadContext,
+          responseNode,
         );
         index++;
       }
@@ -1498,7 +1646,7 @@ export class Executor {
           fieldContext.fieldNodes,
           itemPath,
           itemType,
-          payloadContext.errors,
+          responseNode.errors,
         ),
       );
     }
@@ -1515,7 +1663,7 @@ export class Executor {
     fieldContext,
     info,
     itemPath,
-    payloadContext,
+    responseNode,
   ) {
     try {
       let completedItem;
@@ -1528,7 +1676,7 @@ export class Executor {
             info,
             itemPath,
             resolved,
-            payloadContext,
+            responseNode,
           ),
         );
       } else {
@@ -1538,7 +1686,7 @@ export class Executor {
           info,
           itemPath,
           item,
-          payloadContext,
+          responseNode,
         );
       }
 
@@ -1556,7 +1704,7 @@ export class Executor {
             fieldContext.fieldNodes,
             itemPath,
             itemType,
-            payloadContext.errors,
+            responseNode.errors,
           ),
         )
         .then((resolved) => {
@@ -1569,7 +1717,7 @@ export class Executor {
         fieldContext.fieldNodes,
         itemPath,
         itemType,
-        payloadContext.errors,
+        responseNode.errors,
       );
     }
   }
@@ -1604,7 +1752,7 @@ export class Executor {
     info,
     path,
     result,
-    payloadContext,
+    responseNode,
   ) {
     var _returnType$resolveTy;
 
@@ -1630,7 +1778,7 @@ export class Executor {
           info,
           path,
           result,
-          payloadContext,
+          responseNode,
         ),
       );
     }
@@ -1647,7 +1795,7 @@ export class Executor {
       info,
       path,
       result,
-      payloadContext,
+      responseNode,
     );
   }
 
@@ -1708,7 +1856,7 @@ export class Executor {
     info,
     path,
     result,
-    payloadContext,
+    responseNode,
   ) {
     // If there is an isTypeOf predicate function, call it with the
     // current result. If isTypeOf returns false, then raise an error rather
@@ -1736,7 +1884,7 @@ export class Executor {
             fieldContext,
             path,
             result,
-            payloadContext,
+            responseNode,
           );
         });
       }
@@ -1756,7 +1904,7 @@ export class Executor {
       fieldContext,
       path,
       result,
-      payloadContext,
+      responseNode,
     );
   }
 
@@ -1775,7 +1923,7 @@ export class Executor {
     fieldContext,
     path,
     result,
-    payloadContext,
+    responseNode,
   ) {
     const { subFieldCollector } = exeContext; // Collect sub-fields to execute to complete this value.
 
@@ -1789,7 +1937,7 @@ export class Executor {
       result,
       path,
       subFieldNodes,
-      payloadContext,
+      responseNode,
     );
     this.addPatches(
       exeContext,
@@ -1797,7 +1945,7 @@ export class Executor {
       returnType,
       result,
       path,
-      payloadContext,
+      responseNode,
     );
     return subFields;
   }
@@ -1886,7 +2034,7 @@ export class Executor {
     sourceValue,
     path,
     fields,
-    payloadContext,
+    responseNode,
   ) {
     // TODO: consider allowing multiple root subscription fields
     const [responseName, fieldNodes] = [...fields.entries()][0];
@@ -1897,13 +2045,13 @@ export class Executor {
       sourceValue,
       fieldNodes,
       fieldPath,
-      payloadContext,
+      responseNode,
     );
   }
 
   buildCreateSourceEventStreamResponse(exeContext, eventStream) {
-    const { rootPayloadContext } = exeContext;
-    const errors = rootPayloadContext.errors;
+    const { rootResponseNode } = exeContext;
+    const errors = rootResponseNode.errors;
 
     if (errors.length) {
       return {
@@ -1963,13 +2111,13 @@ export class Executor {
     sourceValue,
     fieldNodes,
     fieldPath,
-    payloadContext,
+    responseNode,
   ) {
     const fieldContext = this.getFieldContext(parentType, fieldNodes);
 
     if (!fieldContext) {
       const fieldName = fieldNodes[0].name.value;
-      payloadContext.errors.push(
+      responseNode.errors.push(
         new GraphQLError(
           `The subscription field "${fieldName}" is not defined.`,
           fieldNodes,
@@ -1994,7 +2142,7 @@ export class Executor {
 
       return eventStream;
     } catch (rawError) {
-      payloadContext.errors.push(
+      responseNode.errors.push(
         this.toLocatedError(rawError, fieldNodes, fieldPath),
       );
       return null;
@@ -2007,16 +2155,20 @@ export class Executor {
     parentType,
     source,
     path,
-    parentPayloadContext,
+    parentResponseNode,
   ) {
     const { state, publisher } = exeContext;
 
     for (const patch of patches) {
       state.pendingPushes++;
       const { label, fields: patchFields } = patch;
-      const payloadContext = {
-        errors: [],
-        label,
+      const errors = [];
+      const responseNode = {
+        errors,
+      };
+      const responseContext = {
+        responseNodes: [responseNode],
+        parentResponseNode,
       };
       Promise.resolve(source)
         .then(() =>
@@ -2026,31 +2178,33 @@ export class Executor {
             source,
             path,
             patchFields,
-            payloadContext,
+            responseNode,
           ),
         )
         .then(
           (data) =>
             publisher.queue(
-              payloadContext,
+              responseContext.responseNodes,
               {
-                payloadContext,
+                responseContext,
                 data,
                 path,
+                label,
               },
-              parentPayloadContext,
+              responseContext.parentResponseNode,
             ),
           (error) => {
             // executeFields will never throw a raw error
-            payloadContext.errors.push(error);
+            errors.push(error);
             publisher.queue(
-              payloadContext,
+              responseContext.responseNodes,
               {
-                payloadContext,
+                responseContext,
                 data: null,
                 path,
+                label,
               },
-              parentPayloadContext,
+              responseContext.parentResponseNode,
             );
           },
         );
@@ -2065,25 +2219,12 @@ export class Executor {
     fieldContext,
     info,
     valueCompleter,
-    path,
-    label,
-    parentPayloadContext,
+    streamContext,
   ) {
-    const state = exeContext.state;
     let index = initialIndex;
-    let prevPayloadContext = parentPayloadContext;
     let iteration = iterator.next();
 
     while (!iteration.done) {
-      // avoid unsafe reference of variable from functions inside a loop
-      // see https://eslint.org/docs/rules/no-loop-func
-      const _prevPayloadContext = prevPayloadContext;
-      const payloadContext = {
-        errors: [],
-        label,
-      };
-      state.pendingPushes++;
-      const itemPath = addPath(path, index, undefined);
       this.addValue(
         iteration.value,
         exeContext,
@@ -2091,14 +2232,14 @@ export class Executor {
         fieldContext,
         info,
         valueCompleter,
-        itemPath,
-        payloadContext,
-        _prevPayloadContext,
+        index,
+        streamContext,
       );
       index++;
-      prevPayloadContext = payloadContext;
       iteration = iterator.next();
     }
+
+    return index;
   }
 
   async addAsyncIteratorValue(
@@ -2109,28 +2250,15 @@ export class Executor {
     fieldContext,
     info,
     valueCompleter,
-    path,
-    label,
-    parentPayloadContext,
+    streamContext,
   ) {
-    const { state, publisher } = exeContext;
-    state.iterators.add(iterator);
+    exeContext.state.iterators.add(iterator);
     let index = initialIndex;
-    let prevPayloadContext = parentPayloadContext;
 
     try {
       let iteration = await iterator.next();
 
       while (!iteration.done) {
-        // avoid unsafe reference of variable from functions inside a loop
-        // see https://eslint.org/docs/rules/no-loop-func
-        const _prevPayloadContext = prevPayloadContext;
-        const payloadContext = {
-          errors: [],
-          label,
-        };
-        state.pendingPushes++;
-        const itemPath = addPath(path, index, undefined);
         this.addValue(
           iteration.value,
           exeContext,
@@ -2138,36 +2266,51 @@ export class Executor {
           fieldContext,
           info,
           valueCompleter,
-          itemPath,
-          payloadContext,
-          _prevPayloadContext,
+          index,
+          streamContext,
         );
-        index++;
-        prevPayloadContext = payloadContext; // eslint-disable-next-line no-await-in-loop
+        index++; // eslint-disable-next-line no-await-in-loop
 
         iteration = await iterator.next();
       }
+
+      streamContext.bundler.setTotal(index);
     } catch (rawError) {
-      state.pendingPushes++;
-      const itemPath = addPath(path, index, undefined);
-      const currentPayloadContext = {
-        errors: [
-          this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
-        ],
-        label,
-      };
-      publisher.queue(
-        currentPayloadContext,
-        {
-          payloadContext: currentPayloadContext,
-          data: null,
-          path: itemPath,
-        },
-        prevPayloadContext,
+      exeContext.state.pendingStreamResults++;
+      this.handleRawStreamError(
+        fieldContext,
+        itemType,
+        streamContext,
+        rawError,
+        index,
       );
+      streamContext.bundler.setTotal(index + 1);
     }
 
     this.closeAsyncIterator(exeContext, iterator);
+  }
+
+  handleRawStreamError(fieldContext, itemType, streamContext, rawError, index) {
+    const { path } = streamContext;
+    const itemPath = addPath(path, index, undefined);
+    const error = this.toLocatedError(
+      rawError,
+      fieldContext.fieldNodes,
+      itemPath,
+    );
+
+    if (this._executorSchema.isNonNullType(itemType)) {
+      streamContext.bundler.queueError(index, {
+        errors: [error],
+      });
+    } else {
+      streamContext.bundler.queueData(index, {
+        responseNode: {
+          errors: [error],
+        },
+        data: null,
+      });
+    }
   }
 
   addValue(
@@ -2177,11 +2320,14 @@ export class Executor {
     fieldContext,
     info,
     valueCompleter,
-    itemPath,
-    payloadContext,
-    prevPayloadContext,
+    index,
+    streamContext,
   ) {
-    const publisher = exeContext.publisher;
+    const itemPath = addPath(streamContext.path, index, undefined);
+    const responseNode = {
+      errors: [],
+    };
+    exeContext.state.pendingStreamResults++;
     Promise.resolve(value)
       .then((resolved) =>
         valueCompleter(
@@ -2190,44 +2336,24 @@ export class Executor {
           info,
           itemPath,
           resolved,
-          payloadContext,
+          responseNode,
         ),
       ) // Note: we don't rely on a `catch` method, but we do expect "thenable"
       // to take a second callback for the error case.
-      .then(undefined, (rawError) =>
-        this.handleRawError(
-          rawError,
-          fieldContext.fieldNodes,
-          itemPath,
-          itemType,
-          payloadContext.errors,
-        ),
-      )
       .then(
         (data) =>
-          publisher.queue(
-            payloadContext,
-            {
-              payloadContext,
-              data,
-              path: itemPath,
-            },
-            prevPayloadContext,
+          streamContext.bundler.queueData(index, {
+            responseNode,
+            data,
+          }),
+        (rawError) =>
+          this.handleRawStreamError(
+            fieldContext,
+            itemType,
+            streamContext,
+            rawError,
+            index,
           ),
-        (rawError) => {
-          payloadContext.errors.push(
-            this.toLocatedError(rawError, fieldContext.fieldNodes, itemPath),
-          );
-          publisher.queue(
-            payloadContext,
-            {
-              payloadContext,
-              data: null,
-              path: itemPath,
-            },
-            prevPayloadContext,
-          );
-        },
       );
   }
 
@@ -2243,7 +2369,11 @@ export class Executor {
   }
 
   hasNext(state) {
-    return state.pendingPushes > 0 || state.iterators.size > 0;
+    return (
+      state.pendingPushes > 0 ||
+      state.pendingStreamResults > 0 ||
+      state.iterators.size > 0
+    );
   }
   /**
    * Given an operation, collects all of the root fields and returns them.

@@ -53,6 +53,11 @@ const GraphQLStreamDirective = new _graphql.GraphQLDirective({
       type: _graphql.GraphQLInt,
       description: 'Number of items to return immediately',
     },
+    inParallel: {
+      defaultValue: false,
+      type: _graphql.GraphQLBoolean,
+      description: 'Stream items non-sequentially on completion if true',
+    },
   },
 });
 exports.GraphQLStreamDirective = GraphQLStreamDirective;

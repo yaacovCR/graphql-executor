@@ -24,14 +24,20 @@ export declare class Publisher<TSource, TPayload = TSource> {
     hasNext,
     onStop,
   }?: PublisherOptions<TSource, TPayload>);
-  emit(key: object, payload: TPayload): void;
+  emit(keys: Array<object>, payload: TPayload): void;
   stop(finalPayload?: TPayload): void;
-  queue(key: object, source: TSource, parentKey: object): void;
-  _pushOne(keySource: { key: object; source: TSource }): void;
-  _pushOneImpl({ key, source }: { key: object; source: TSource }): boolean;
+  queue(keys: Array<object>, source: TSource, parentKey: object): void;
+  _pushOne(context: { keys: Array<object>; source: TSource }): void;
+  _pushOneImpl({
+    keys,
+    source,
+  }: {
+    keys: Array<object>;
+    source: TSource;
+  }): boolean;
   _pushMany(
-    keySources: Array<{
-      key: object;
+    contexts: Array<{
+      keys: Array<object>;
       source: TSource;
     }>,
   ): void;

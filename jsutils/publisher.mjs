@@ -32,7 +32,8 @@ export class Publisher {
         await this._trigger;
 
         while (this._buffer.length) {
-          // This is safe because _buffer has a non-zero length
+          // this is safe because we have checked the length;
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
           const payload = this._buffer.shift(); // eslint-disable-next-line no-await-in-loop
 
           await push(payload);
@@ -50,18 +51,22 @@ export class Publisher {
     });
   }
 
-  emit(key, payload) {
-    this._pushed.set(key, true);
+  emit(keys, payload) {
+    for (const key of keys) {
+      this._pushed.set(key, true);
+    }
 
     this._buffer.push(payload);
 
-    const dependents = this._pending.get(key);
+    for (const key of keys) {
+      const dependents = this._pending.get(key);
 
-    if (dependents) {
-      this._pushMany(dependents);
+      if (dependents) {
+        this._pushMany(dependents);
+      }
+
+      this._pending.delete(key);
     }
-
-    this._pending.delete(key);
 
     this._resolve();
   }
@@ -76,10 +81,10 @@ export class Publisher {
     this._resolve();
   }
 
-  queue(key, source, parentKey) {
+  queue(keys, source, parentKey) {
     if (this._pushed.get(parentKey)) {
       this._pushOne({
-        key,
+        keys,
         source,
       });
 
@@ -90,7 +95,7 @@ export class Publisher {
 
     if (dependents) {
       dependents.push({
-        key,
+        keys,
         source,
       });
       return;
@@ -98,21 +103,21 @@ export class Publisher {
 
     this._pending.set(parentKey, [
       {
-        key,
+        keys,
         source,
       },
     ]);
   }
 
-  _pushOne(keySource) {
-    const hasNext = this._pushOneImpl(keySource);
+  _pushOne(context) {
+    const hasNext = this._pushOneImpl(context);
 
     if (!hasNext) {
       this.stop();
     }
   }
 
-  _pushOneImpl({ key, source }) {
+  _pushOneImpl({ keys, source }) {
     var _this$_onReady;
 
     (_this$_onReady = this._onReady) === null || _this$_onReady === void 0
@@ -123,15 +128,15 @@ export class Publisher {
 
     const payload = this._payloadFromSource(source, hasNext);
 
-    this.emit(key, payload);
+    this.emit(keys, payload);
     return hasNext;
   }
 
-  _pushMany(keySources) {
+  _pushMany(contexts) {
     let hasNext = false;
 
-    for (const keySource of keySources) {
-      hasNext = this._pushOneImpl(keySource);
+    for (const context of contexts) {
+      hasNext = this._pushOneImpl(context);
     }
 
     if (!hasNext) {

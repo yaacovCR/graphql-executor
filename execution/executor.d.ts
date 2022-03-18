@@ -64,12 +64,13 @@ export interface ExecutionContext {
   rootFieldCollector: RootFieldCollector;
   subFieldCollector: SubFieldCollector;
   resolveField: FieldResolver;
-  rootPayloadContext: PayloadContext;
+  rootResponseNode: ResponseNode;
   publisher: Publisher<IncrementalResult, AsyncExecutionResult>;
   state: ExecutionState;
 }
 interface ExecutionState {
   pendingPushes: number;
+  pendingStreamResults: number;
   iterators: Set<AsyncIterator<unknown>>;
 }
 interface FieldContext {
@@ -80,14 +81,34 @@ interface FieldContext {
   returnType: GraphQLOutputType;
   parentType: GraphQLObjectType;
 }
-interface PayloadContext {
+interface StreamContext {
+  initialCount: number;
+  path: Path;
+  bundler: BundlerInterface;
+}
+interface BundlerInterface {
+  queueData: (index: number, result: StreamDataResult) => void;
+  queueError: (index: number, result: ResponseNode) => void;
+  setTotal: (total: number) => void;
+}
+interface StreamDataResult {
+  responseNode: ResponseNode;
+  data: unknown;
+}
+interface ResponseNode {
   errors: Array<GraphQLError>;
-  label?: string;
+}
+interface ResponseContext {
+  responseNodes: Array<ResponseNode>;
+}
+interface SubsequentResponseContext extends ResponseContext {
+  parentResponseNode: ResponseNode;
 }
 interface IncrementalResult {
-  payloadContext: PayloadContext;
-  data: ObjMap<unknown> | unknown | null;
+  responseContext: SubsequentResponseContext;
+  data: unknown;
   path: Path | undefined;
+  label: string | undefined;
 }
 export interface PatchFields {
   label?: string;
@@ -162,7 +183,7 @@ export declare type FieldsExecutor<TReturnType> = (
   sourceValue: unknown,
   path: Path | undefined,
   fields: Map<string, ReadonlyArray<FieldNode>>,
-  payloadContext: PayloadContext,
+  responseNode: ResponseNode,
 ) => PromiseOrValue<TReturnType>;
 export declare type ResponseBuilder<
   TRootFieldsExecutorReturnType,
@@ -183,7 +204,7 @@ export declare type ValueCompleter = (
   info: GraphQLResolveInfo,
   path: Path,
   result: unknown,
-  payloadContext: PayloadContext,
+  responseNode: ResponseNode,
 ) => PromiseOrValue<unknown>;
 export declare type ArgumentValuesGetter = (
   def: GraphQLField<unknown, unknown>,
@@ -204,6 +225,7 @@ export declare type DeferValuesGetter = (
     };
 export interface StreamValues {
   initialCount: number;
+  inParallel: boolean;
   label?: string;
 }
 export declare type StreamValuesGetter = (
@@ -431,7 +453,7 @@ export declare class Executor {
     sourceValue: unknown,
     path: Path | undefined,
     fields: Map<string, ReadonlyArray<FieldNode>>,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): PromiseOrValue<ObjMap<unknown>>;
   /**
    * Implements the "Executing field" section of the spec
@@ -445,7 +467,7 @@ export declare class Executor {
     source: unknown,
     fieldNodes: ReadonlyArray<FieldNode>,
     path: Path,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): PromiseOrValue<unknown>;
   buildResolveInfo(
     exeContext: ExecutionContext,
@@ -498,7 +520,7 @@ export declare class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): PromiseOrValue<ReadonlyArray<unknown>>;
   /**
    * Returns an object containing the `@stream` arguments if a field should be
@@ -522,15 +544,21 @@ export declare class Executor {
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: Iterator<unknown>,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
     stream: StreamValues | undefined,
     completedResults: Array<unknown>,
     promises: Array<Promise<void>>,
   ): void;
+  createStreamContext(
+    exeContext: ExecutionContext,
+    initialCount: number,
+    inParallel: boolean,
+    path: Path,
+    label: string | undefined,
+    parentResponseNode: ResponseNode,
+  ): StreamContext;
   /**
    * Complete an iterator value by completing each result, possibly adding a new stream.
-   *
-   * Returns the next index or, if a stream was initiated, the last payload context.
    */
   completeIteratorValueWithStream(
     exeContext: ExecutionContext,
@@ -540,7 +568,7 @@ export declare class Executor {
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: Iterator<unknown>,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
     stream: StreamValues,
     completedResults: Array<unknown>,
     _index: number,
@@ -559,7 +587,7 @@ export declare class Executor {
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: Iterator<unknown>,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
     completedResults: Array<unknown>,
     _index: number,
     promises: Array<Promise<void>>,
@@ -575,7 +603,7 @@ export declare class Executor {
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: AsyncIterator<unknown>,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
     stream: StreamValues | undefined,
     completedResults: Array<unknown>,
     promises: Array<Promise<void>>,
@@ -588,7 +616,7 @@ export declare class Executor {
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: AsyncIterator<unknown>,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
     stream: StreamValues,
     completedResults: Array<unknown>,
     promises: Array<Promise<void>>,
@@ -601,7 +629,7 @@ export declare class Executor {
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: AsyncIterator<unknown>,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
     completedResults: Array<unknown>,
     promises: Array<Promise<void>>,
   ): Promise<void>;
@@ -616,7 +644,7 @@ export declare class Executor {
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     itemPath: Path,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): void;
   /**
    * Complete a Scalar or Enum by serializing to a valid value, returning
@@ -634,7 +662,7 @@ export declare class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): PromiseOrValue<ObjMap<unknown>>;
   ensureValidRuntimeType(
     runtimeTypeOrName: unknown,
@@ -652,7 +680,7 @@ export declare class Executor {
     info: GraphQLResolveInfo,
     path: Path,
     result: unknown,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): PromiseOrValue<ObjMap<unknown>>;
   invalidReturnTypeError(
     returnType: GraphQLObjectType,
@@ -665,7 +693,7 @@ export declare class Executor {
     fieldContext: FieldContext,
     path: Path,
     result: unknown,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): PromiseOrValue<ObjMap<unknown>>;
   /**
    * This method looks up the field on the given type definition.
@@ -717,7 +745,7 @@ export declare class Executor {
     sourceValue: unknown,
     path: Path | undefined,
     fields: Map<string, ReadonlyArray<FieldNode>>,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): Promise<unknown>;
   buildCreateSourceEventStreamResponse(
     exeContext: ExecutionContext,
@@ -736,7 +764,7 @@ export declare class Executor {
     sourceValue: unknown,
     fieldNodes: ReadonlyArray<FieldNode>,
     fieldPath: Path,
-    payloadContext: PayloadContext,
+    responseNode: ResponseNode,
   ): Promise<unknown>;
   addPatches(
     exeContext: ExecutionContext,
@@ -744,7 +772,7 @@ export declare class Executor {
     parentType: GraphQLObjectType,
     source: unknown,
     path: Path | undefined,
-    parentPayloadContext: PayloadContext,
+    parentResponseNode: ResponseNode,
   ): void;
   addIteratorValue(
     initialIndex: number,
@@ -754,10 +782,8 @@ export declare class Executor {
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     valueCompleter: ValueCompleter,
-    path: Path,
-    label: string | undefined,
-    parentPayloadContext: PayloadContext,
-  ): void;
+    streamContext: StreamContext,
+  ): number;
   addAsyncIteratorValue(
     initialIndex: number,
     iterator: AsyncIterator<unknown>,
@@ -766,10 +792,15 @@ export declare class Executor {
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     valueCompleter: ValueCompleter,
-    path: Path,
-    label: string | undefined,
-    parentPayloadContext: PayloadContext,
+    streamContext: StreamContext,
   ): Promise<void>;
+  handleRawStreamError(
+    fieldContext: FieldContext,
+    itemType: GraphQLOutputType,
+    streamContext: StreamContext,
+    rawError: unknown,
+    index: number,
+  ): void;
   addValue(
     value: unknown,
     exeContext: ExecutionContext,
@@ -777,9 +808,8 @@ export declare class Executor {
     fieldContext: FieldContext,
     info: GraphQLResolveInfo,
     valueCompleter: ValueCompleter,
-    itemPath: Path,
-    payloadContext: PayloadContext,
-    prevPayloadContext: PayloadContext,
+    index: number,
+    streamContext: StreamContext,
   ): void;
   closeAsyncIterator(
     exeContext: ExecutionContext,
