@@ -162,6 +162,8 @@ interface IncrementalResult {
   responseContext: SubsequentResponseContext;
   data: unknown;
   path: Path | undefined;
+  atIndex?: number;
+  atIndices?: ReadonlyArray<number>;
   label: string | undefined;
 }
 export interface PatchFields {
@@ -226,6 +228,8 @@ export interface ExecutionPatchResult<
   errors?: ReadonlyArray<GraphQLError>;
   data?: TData | null;
   path?: ReadonlyArray<string | number>;
+  atIndex?: number;
+  atIndices?: ReadonlyArray<number>;
   label?: string;
   hasNext: boolean;
   extensions?: TExtensions;
@@ -276,6 +280,8 @@ export type DeferValuesGetter = (
     };
 export interface StreamValues {
   initialCount: number;
+  maxChunkSize: number;
+  maxInterval: Maybe<number>;
   inParallel: boolean;
   label?: string;
 }
@@ -683,7 +689,8 @@ export class Executor {
   ): Publisher<IncrementalResult, AsyncExecutionResult> {
     return new Publisher({
       payloadFromSource: (result, hasNext) => {
-        const { responseContext, data, path, label } = result;
+        const { responseContext, data, path, atIndex, atIndices, label } =
+          result;
         const errors = [];
 
         for (const responseNode of responseContext.responseNodes) {
@@ -695,6 +702,12 @@ export class Executor {
           path: path ? pathToArray(path) : [],
           hasNext,
         };
+
+        if (atIndex != null) {
+          value.atIndex = atIndex;
+        } else if (atIndices != null) {
+          value.atIndices = atIndices;
+        }
 
         if (label != null) {
           value.label = label;
@@ -1370,13 +1383,37 @@ export class Executor {
       return;
     }
 
-    const { initialCount, inParallel, label } = stream;
+    const { initialCount, maxChunkSize, maxInterval, inParallel, label } =
+      stream;
     typeof initialCount === 'number' ||
       invariant(false, 'initialCount must be a number');
     initialCount >= 0 ||
-      invariant(false, 'initialCount must be a positive integer');
+      invariant(
+        false,
+        'initialCount must be an integer greater than or equal to zero',
+      );
+    typeof maxChunkSize === 'number' ||
+      invariant(false, 'maxChunkSize must be a number');
+    maxChunkSize >= 1 ||
+      invariant(
+        false,
+        'maxChunkSize must be an integer greater than or equal to one',
+      );
+
+    if (maxInterval != null) {
+      typeof maxInterval === 'number' ||
+        invariant(false, 'maxInterval must be a number');
+      maxInterval >= 0 ||
+        invariant(
+          false,
+          'maxInterval must be an integer greater than or equal to zero',
+        );
+    }
+
     return {
       initialCount,
+      maxChunkSize,
+      maxInterval,
       inParallel: inParallel === true,
       label: typeof label === 'string' ? label : undefined,
     };
@@ -1434,6 +1471,8 @@ export class Executor {
   createStreamContext(
     exeContext: ExecutionContext,
     initialCount: number,
+    maxChunkSize: number,
+    maxInterval: Maybe<number>,
     inParallel: boolean,
     path: Path,
     label: string | undefined,
@@ -1450,8 +1489,8 @@ export class Executor {
             ParallelStreamResponseContext
           >({
             initialIndex: initialCount,
-            maxBundleSize: 1,
-            maxInterval: undefined,
+            maxBundleSize: maxChunkSize,
+            maxInterval,
             createDataBundleContext: () => {
               exeContext.state.pendingPushes++;
               return {
@@ -1485,8 +1524,9 @@ export class Executor {
                 context.responseNodes,
                 {
                   responseContext: context,
-                  data: context.results[0],
-                  path: addPath(path, context.atIndices[0], undefined),
+                  data: context.results,
+                  path,
+                  atIndices: context.atIndices,
                   label,
                 },
                 parentResponseNode,
@@ -1498,13 +1538,80 @@ export class Executor {
                 {
                   responseContext: context,
                   data: null,
-                  path: addPath(path, context.atIndices[0], undefined),
+                  path,
+                  atIndices: context.atIndices,
                   label,
                 },
                 parentResponseNode,
               );
             },
           })
+        : maxChunkSize > 1
+        ? getSequentialBundler(
+            initialCount,
+            new Bundler<
+              StreamDataResult,
+              ResponseNode,
+              SequentialStreamDataBundleContext,
+              SequentialStreamResponseContext
+            >({
+              initialIndex: initialCount,
+              maxBundleSize: maxChunkSize,
+              maxInterval,
+              createDataBundleContext: (count) => {
+                exeContext.state.pendingPushes++;
+                return {
+                  responseNodes: [],
+                  parentResponseNode,
+                  atIndex: count,
+                  results: [],
+                };
+              },
+              createErrorBundleContext: (count) => {
+                exeContext.state.pendingPushes++;
+                return {
+                  responseNodes: [],
+                  parentResponseNode,
+                  atIndex: count,
+                };
+              },
+              onData: (_index, result, context) => {
+                exeContext.state.pendingStreamResults--;
+                context.responseNodes.push(result.responseNode);
+                context.results.push(result.data);
+              },
+              onError: (_index, responseNode, context) => {
+                exeContext.state.pendingStreamResults--;
+                context.responseNodes.push(responseNode);
+              },
+              onDataBundle: (context) => {
+                exeContext.publisher.queue(
+                  context.responseNodes,
+                  {
+                    responseContext: context,
+                    data: context.results,
+                    path,
+                    atIndex: context.atIndex,
+                    label,
+                  },
+                  parentResponseNode,
+                );
+              },
+              onErrorBundle: (context) => {
+                exeContext.publisher.queue(
+                  context.responseNodes,
+                  {
+                    responseContext: context,
+                    data: null,
+                    path,
+                    atIndex: context.atIndex,
+                    label,
+                  },
+                  parentResponseNode,
+                );
+              },
+            }),
+          )
         : getSequentialBundler(
             initialCount,
             new Bundler<
@@ -1514,8 +1621,8 @@ export class Executor {
               SequentialStreamResponseContext
             >({
               initialIndex: initialCount,
-              maxBundleSize: 1,
-              maxInterval: undefined,
+              maxBundleSize: maxChunkSize,
+              maxInterval,
               createDataBundleContext: (count) => {
                 exeContext.state.pendingPushes++;
                 return {
@@ -1593,10 +1700,12 @@ export class Executor {
 
     while (true) {
       if (index >= initialCount) {
-        const { inParallel, label } = stream;
+        const { maxChunkSize, maxInterval, inParallel, label } = stream;
         const streamContext = this.createStreamContext(
           exeContext,
           initialCount,
+          maxChunkSize,
+          maxInterval,
           inParallel,
           path,
           label,
@@ -1754,10 +1863,12 @@ export class Executor {
     try {
       while (true) {
         if (index >= initialCount) {
-          const { inParallel, label } = stream;
+          const { maxChunkSize, maxInterval, inParallel, label } = stream;
           const streamContext = this.createStreamContext(
             exeContext,
             initialCount,
+            maxChunkSize,
+            maxInterval,
             inParallel,
             path,
             label,
