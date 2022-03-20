@@ -22,13 +22,19 @@ function createHarness() {
     initialIndex: 0,
     maxBundleSize: 2,
     maxInterval: 50,
-    createDataBundleContext: () => ({ atIndices: [], results: [] }),
-    createErrorBundleContext: () => ({ atIndices: [], results: [] }),
-    onData: (index, result, context) => {
+    createDataBundleContext: (index, result) => ({
+      atIndices: [index],
+      results: [result],
+    }),
+    createErrorBundleContext: (index, result) => ({
+      atIndices: [index],
+      results: [result],
+    }),
+    onSubsequentData: (index, result, context) => {
       context.atIndices.push(index);
       context.results.push(result);
     },
-    onError: (index, result, context) => {
+    onSubsequentError: (index, result, context) => {
       context.atIndices.push(index);
       context.results.push(result);
     },
