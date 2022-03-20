@@ -15,8 +15,8 @@ class Bundler {
     maxInterval,
     createDataBundleContext,
     createErrorBundleContext,
-    onData,
-    onError,
+    onSubsequentData,
+    onSubsequentError,
     onDataBundle,
     onErrorBundle,
   }) {
@@ -24,8 +24,8 @@ class Bundler {
     this._maxInterval = maxInterval;
     this._createDataBundleContext = createDataBundleContext;
     this._createErrorBundleContext = createErrorBundleContext;
-    this._onData = onData;
-    this._onError = onError;
+    this._onSubsequentData = onSubsequentData;
+    this._onSubsequentError = onSubsequentError;
     this._onDataBundle = onDataBundle;
     this._onErrorBundle = onErrorBundle;
 
@@ -42,9 +42,7 @@ class Bundler {
   }
 
   queueData(index, result) {
-    const context = this._getDataContext();
-
-    this._onData(index, result, context);
+    const context = this._updateDataContext(index, result);
 
     this._currentBundleSize++;
     this._count++;
@@ -85,9 +83,7 @@ class Bundler {
   }
 
   queueError(index, result) {
-    const context = this._getErrorContext();
-
-    this._onError(index, result, context);
+    const context = this._updateErrorContext(index, result);
 
     this._currentBundleSize++;
     this._count++;
@@ -174,22 +170,24 @@ class Bundler {
     this._startNewTimer(timingContext);
   }
 
-  _getDataContext() {
+  _updateDataContext(index, result) {
     if (this._currentContext === undefined) {
-      return this._getNewDataContext();
+      return this._getNewDataContext(index, result);
     } else if (!this._currentContext.isData) {
       this._onErrorBundle(this._currentContext.context);
 
-      return this._getNewDataContext();
+      return this._getNewDataContext(index, result);
     }
+
+    this._onSubsequentData(index, result, this._currentContext.context);
 
     return this._currentContext.context;
   }
 
-  _getNewDataContext() {
+  _getNewDataContext(index, result) {
     this._currentBundleSize = 0;
 
-    const context = this._createDataBundleContext(this._count);
+    const context = this._createDataBundleContext(index, result);
 
     this._currentContext = {
       isData: true,
@@ -207,22 +205,24 @@ class Bundler {
     return context;
   }
 
-  _getErrorContext() {
+  _updateErrorContext(index, result) {
     if (this._currentContext === undefined) {
-      return this._getNewErrorContext();
+      return this._getNewErrorContext(index, result);
     } else if (this._currentContext.isData) {
       this._onDataBundle(this._currentContext.context);
 
-      return this._getNewErrorContext();
+      return this._getNewErrorContext(index, result);
     }
+
+    this._onSubsequentError(index, result, this._currentContext.context);
 
     return this._currentContext.context;
   }
 
-  _getNewErrorContext() {
+  _getNewErrorContext(index, result) {
     this._currentBundleSize = 0;
 
-    const context = this._createErrorBundleContext(this._count);
+    const context = this._createErrorBundleContext(index, result);
 
     this._currentContext = {
       isData: false,

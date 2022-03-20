@@ -14,10 +14,17 @@ export interface BundlerOptions<
   initialIndex: number;
   maxBundleSize: number;
   maxInterval: Maybe<number>;
-  createDataBundleContext: (count: number) => TDataContext;
-  createErrorBundleContext: (count: number) => TErrorContext;
-  onData: (index: number, result: TDataResult, context: TDataContext) => void;
-  onError: (
+  createDataBundleContext: (index: number, result: TDataResult) => TDataContext;
+  createErrorBundleContext: (
+    index: number,
+    result: TErrorResult,
+  ) => TErrorContext;
+  onSubsequentData: (
+    index: number,
+    result: TDataResult,
+    context: TDataContext,
+  ) => void;
+  onSubsequentError: (
     index: number,
     result: TErrorResult,
     context: TErrorContext,
@@ -44,8 +51,8 @@ export declare class Bundler<
   private _maxInterval;
   private _createDataBundleContext;
   private _createErrorBundleContext;
-  private _onData;
-  private _onError;
+  private _onSubsequentData;
+  private _onSubsequentError;
   private _onDataBundle;
   private _onErrorBundle;
   private _timingContext;
@@ -59,8 +66,8 @@ export declare class Bundler<
     maxInterval,
     createDataBundleContext,
     createErrorBundleContext,
-    onData,
-    onError,
+    onSubsequentData,
+    onSubsequentError,
     onDataBundle,
     onErrorBundle,
   }: BundlerOptions<TDataResult, TErrorResult, TDataContext, TErrorContext>);
@@ -71,10 +78,10 @@ export declare class Bundler<
   _startNewTimer(timingContext: BundleTimingContext): void;
   _flushCurrentBundle(timingContext: BundleTimingContext): void;
   _restartTimer(timingContext: BundleTimingContext): void;
-  _getDataContext(): TDataContext;
-  _getNewDataContext(): TDataContext;
-  _getErrorContext(): TErrorContext;
-  _getNewErrorContext(): TErrorContext;
+  _updateDataContext(index: number, result: TDataResult): TDataContext;
+  _getNewDataContext(index: number, result: TDataResult): TDataContext;
+  _updateErrorContext(index: number, result: TErrorResult): TErrorContext;
+  _getNewErrorContext(index: number, result: TErrorResult): TErrorContext;
   _onBundle(
     bundleContext:
       | {

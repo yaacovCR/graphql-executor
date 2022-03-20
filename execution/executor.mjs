@@ -1268,188 +1268,205 @@ export class Executor {
     label,
     parentResponseNode,
   ) {
+    if (maxChunkSize === 1) {
+      const bundler = new Bundler({
+        initialIndex: initialCount,
+        maxBundleSize: maxChunkSize,
+        maxInterval,
+        createDataBundleContext: (index, result) => {
+          exeContext.state.pendingPushes++;
+          exeContext.state.pendingStreamResults--;
+          return {
+            responseNodes: [result.responseNode],
+            parentResponseNode,
+            result: result.data,
+            atIndex: index,
+          };
+        },
+        createErrorBundleContext: (index, responseNode) => {
+          exeContext.state.pendingPushes++;
+          exeContext.state.pendingStreamResults--;
+          return {
+            responseNodes: [responseNode],
+            parentResponseNode,
+            atIndex: index,
+          };
+        },
+        /* c8 ignore start */
+        onSubsequentData: () => {
+          /* with maxBundleSize of 1, this function will never be called */
+        },
+        onSubsequentError: () => {
+          /* with maxBundleSize of 1, this function will never be called */
+        },
+        /* c8 ignore stop */
+        onDataBundle: (context) => {
+          exeContext.publisher.queue(
+            context.responseNodes,
+            {
+              responseContext: context,
+              data: context.result,
+              path: addPath(path, context.atIndex, undefined),
+              label,
+            },
+            parentResponseNode,
+          );
+        },
+        onErrorBundle: (context) => {
+          exeContext.publisher.queue(
+            context.responseNodes,
+            {
+              responseContext: context,
+              data: null,
+              path: addPath(path, context.atIndex, undefined),
+              label,
+            },
+            parentResponseNode,
+          );
+        },
+      });
+      return {
+        initialCount,
+        path,
+        bundler: inParallel
+          ? bundler
+          : getSequentialBundler(initialCount, bundler),
+      };
+    }
+
+    if (inParallel) {
+      return {
+        initialCount,
+        path,
+        bundler: new Bundler({
+          initialIndex: initialCount,
+          maxBundleSize: maxChunkSize,
+          maxInterval,
+          createDataBundleContext: (index, result) => {
+            exeContext.state.pendingPushes++;
+            exeContext.state.pendingStreamResults--;
+            return {
+              responseNodes: [result.responseNode],
+              parentResponseNode,
+              atIndices: [index],
+              results: [result.data],
+            };
+          },
+          createErrorBundleContext: (index, responseNode) => {
+            exeContext.state.pendingPushes++;
+            exeContext.state.pendingStreamResults--;
+            return {
+              responseNodes: [responseNode],
+              parentResponseNode,
+              atIndices: [index],
+            };
+          },
+          onSubsequentData: (index, result, context) => {
+            exeContext.state.pendingStreamResults--;
+            context.responseNodes.push(result.responseNode);
+            context.results.push(result.data);
+            context.atIndices.push(index);
+          },
+          onSubsequentError: (index, responseNode, context) => {
+            exeContext.state.pendingStreamResults--;
+            context.responseNodes.push(responseNode);
+            context.atIndices.push(index);
+          },
+          onDataBundle: (context) => {
+            exeContext.publisher.queue(
+              context.responseNodes,
+              {
+                responseContext: context,
+                data: context.results,
+                path,
+                atIndices: context.atIndices,
+                label,
+              },
+              parentResponseNode,
+            );
+          },
+          onErrorBundle: (context) => {
+            exeContext.publisher.queue(
+              context.responseNodes,
+              {
+                responseContext: context,
+                data: null,
+                path,
+                atIndices: context.atIndices,
+                label,
+              },
+              parentResponseNode,
+            );
+          },
+        }),
+      };
+    }
+
     return {
       initialCount,
       path,
-      bundler: inParallel
-        ? new Bundler({
-            initialIndex: initialCount,
-            maxBundleSize: maxChunkSize,
-            maxInterval,
-            createDataBundleContext: () => {
-              exeContext.state.pendingPushes++;
-              return {
-                responseNodes: [],
-                parentResponseNode,
-                atIndices: [],
-                results: [],
-              };
-            },
-            createErrorBundleContext: () => {
-              exeContext.state.pendingPushes++;
-              return {
-                responseNodes: [],
-                parentResponseNode,
-                atIndices: [],
-              };
-            },
-            onData: (index, result, context) => {
-              exeContext.state.pendingStreamResults--;
-              context.responseNodes.push(result.responseNode);
-              context.results.push(result.data);
-              context.atIndices.push(index);
-            },
-            onError: (index, responseNode, context) => {
-              exeContext.state.pendingStreamResults--;
-              context.responseNodes.push(responseNode);
-              context.atIndices.push(index);
-            },
-            onDataBundle: (context) => {
-              exeContext.publisher.queue(
-                context.responseNodes,
-                {
-                  responseContext: context,
-                  data: context.results,
-                  path,
-                  atIndices: context.atIndices,
-                  label,
-                },
-                parentResponseNode,
-              );
-            },
-            onErrorBundle: (context) => {
-              exeContext.publisher.queue(
-                context.responseNodes,
-                {
-                  responseContext: context,
-                  data: null,
-                  path,
-                  atIndices: context.atIndices,
-                  label,
-                },
-                parentResponseNode,
-              );
-            },
-          })
-        : maxChunkSize > 1
-        ? getSequentialBundler(
-            initialCount,
-            new Bundler({
-              initialIndex: initialCount,
-              maxBundleSize: maxChunkSize,
-              maxInterval,
-              createDataBundleContext: (count) => {
-                exeContext.state.pendingPushes++;
-                return {
-                  responseNodes: [],
-                  parentResponseNode,
-                  atIndex: count,
-                  results: [],
-                };
+      bundler: getSequentialBundler(
+        initialCount,
+        new Bundler({
+          initialIndex: initialCount,
+          maxBundleSize: maxChunkSize,
+          maxInterval,
+          createDataBundleContext: (index, result) => {
+            exeContext.state.pendingPushes++;
+            exeContext.state.pendingStreamResults--;
+            return {
+              responseNodes: [],
+              parentResponseNode,
+              atIndex: index,
+              results: [result.data],
+            };
+          },
+          createErrorBundleContext: (index, responseNode) => {
+            exeContext.state.pendingPushes++;
+            exeContext.state.pendingStreamResults--;
+            return {
+              responseNodes: [responseNode],
+              parentResponseNode,
+              atIndex: index,
+            };
+          },
+          onSubsequentData: (_index, result, context) => {
+            exeContext.state.pendingStreamResults--;
+            context.responseNodes.push(result.responseNode);
+            context.results.push(result.data);
+          },
+          onSubsequentError: (_index, responseNode, context) => {
+            exeContext.state.pendingStreamResults--;
+            context.responseNodes.push(responseNode);
+          },
+          onDataBundle: (context) => {
+            exeContext.publisher.queue(
+              context.responseNodes,
+              {
+                responseContext: context,
+                data: context.results,
+                path,
+                atIndex: context.atIndex,
+                label,
               },
-              createErrorBundleContext: (count) => {
-                exeContext.state.pendingPushes++;
-                return {
-                  responseNodes: [],
-                  parentResponseNode,
-                  atIndex: count,
-                };
+              parentResponseNode,
+            );
+          },
+          onErrorBundle: (context) => {
+            exeContext.publisher.queue(
+              context.responseNodes,
+              {
+                responseContext: context,
+                data: null,
+                path,
+                atIndex: context.atIndex,
+                label,
               },
-              onData: (_index, result, context) => {
-                exeContext.state.pendingStreamResults--;
-                context.responseNodes.push(result.responseNode);
-                context.results.push(result.data);
-              },
-              onError: (_index, responseNode, context) => {
-                exeContext.state.pendingStreamResults--;
-                context.responseNodes.push(responseNode);
-              },
-              onDataBundle: (context) => {
-                exeContext.publisher.queue(
-                  context.responseNodes,
-                  {
-                    responseContext: context,
-                    data: context.results,
-                    path,
-                    atIndex: context.atIndex,
-                    label,
-                  },
-                  parentResponseNode,
-                );
-              },
-              onErrorBundle: (context) => {
-                exeContext.publisher.queue(
-                  context.responseNodes,
-                  {
-                    responseContext: context,
-                    data: null,
-                    path,
-                    atIndex: context.atIndex,
-                    label,
-                  },
-                  parentResponseNode,
-                );
-              },
-            }),
-          )
-        : getSequentialBundler(
-            initialCount,
-            new Bundler({
-              initialIndex: initialCount,
-              maxBundleSize: maxChunkSize,
-              maxInterval,
-              createDataBundleContext: (count) => {
-                exeContext.state.pendingPushes++;
-                return {
-                  responseNodes: [],
-                  parentResponseNode,
-                  atIndex: count,
-                  results: [],
-                };
-              },
-              createErrorBundleContext: (count) => {
-                exeContext.state.pendingPushes++;
-                return {
-                  responseNodes: [],
-                  parentResponseNode,
-                  atIndex: count,
-                };
-              },
-              onData: (_index, result, context) => {
-                exeContext.state.pendingStreamResults--;
-                context.responseNodes.push(result.responseNode);
-                context.results.push(result.data);
-              },
-              onError: (_index, responseNode, context) => {
-                exeContext.state.pendingStreamResults--;
-                context.responseNodes.push(responseNode);
-              },
-              onDataBundle: (context) => {
-                exeContext.publisher.queue(
-                  context.responseNodes,
-                  {
-                    responseContext: context,
-                    data: context.results[0],
-                    path: addPath(path, context.atIndex, undefined),
-                    label,
-                  },
-                  parentResponseNode,
-                );
-              },
-              onErrorBundle: (context) => {
-                exeContext.publisher.queue(
-                  context.responseNodes,
-                  {
-                    responseContext: context,
-                    data: null,
-                    path: addPath(path, context.atIndex, undefined),
-                    label,
-                  },
-                  parentResponseNode,
-                );
-              },
-            }),
-          ),
+              parentResponseNode,
+            );
+          },
+        }),
+      ),
     };
   }
   /**
