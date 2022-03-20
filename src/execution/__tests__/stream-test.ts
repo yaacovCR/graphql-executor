@@ -101,7 +101,7 @@ const query = new GraphQLObjectType({
       async *resolve() {
         yield await Promise.resolve(friends[0]);
         yield await Promise.resolve(null);
-        yield await Promise.resolve(friends[1]);
+        yield await Promise.resolve(null);
       },
       /* c8 ignore stop */
     },
@@ -530,25 +530,62 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
+        data: {
+          name: 'Han',
+          id: '2',
+        },
+        path: ['asyncSlowList', 1],
+        hasNext: true,
+      },
+      {
+        data: {
+          name: 'Leia',
+          id: '3',
+        },
+        path: ['asyncSlowList', 2],
+        hasNext: true,
+      },
+      {
+        data: {
+          name: 'Luke',
+          id: '1',
+        },
+
+        path: ['asyncSlowList', 0],
+        hasNext: false,
+      },
+    ]);
+  });
+  it('Can batch stream in parallel', async () => {
+    const document = parse(`
+      query { 
+        asyncSlowList @stream(initialCount: 0, inParallel: true, maxChunkSize: 2) {
+          name
+          id
+        }
+      }
+    `);
+    const result = await complete(document);
+    expect(result).to.deep.equal([
+      {
+        data: {
+          asyncSlowList: [],
+        },
+        hasNext: true,
+      },
+      {
         data: [
           {
             name: 'Han',
             id: '2',
           },
-        ],
-        path: ['asyncSlowList'],
-        atIndices: [1],
-        hasNext: true,
-      },
-      {
-        data: [
           {
             name: 'Leia',
             id: '3',
           },
         ],
         path: ['asyncSlowList'],
-        atIndices: [2],
+        atIndices: [1, 2],
         hasNext: true,
       },
       {
@@ -1047,10 +1084,21 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          name: 'Han',
-        },
+        data: null,
         path: ['asyncIterableNonNullError', 2],
+        errors: [
+          {
+            message:
+              'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
+            locations: [
+              {
+                line: 3,
+                column: 9,
+              },
+            ],
+            path: ['asyncIterableNonNullError', 2],
+          },
+        ],
         hasNext: false,
       },
     ]);
@@ -1097,17 +1145,18 @@ describe('Execute: stream directive', () => {
             ],
             path: ['asyncIterableNonNullError', 1],
           },
-        ],
-        hasNext: true,
-      },
-      {
-        data: [
           {
-            name: 'Han',
+            message:
+              'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
+            locations: [
+              {
+                line: 3,
+                column: 9,
+              },
+            ],
+            path: ['asyncIterableNonNullError', 2],
           },
         ],
-        path: ['asyncIterableNonNullError'],
-        atIndex: 2,
         hasNext: false,
       },
     ]);
@@ -1115,7 +1164,7 @@ describe('Execute: stream directive', () => {
   it('Handles null returned in non-null async iterable list items after initialCount is reached with parallel streaming', async () => {
     const document = parse(`
       query { 
-        asyncIterableNonNullError @stream(initialCount: 0, inParallel: true) {
+        asyncIterableNonNullError @stream(initialCount: 0, inParallel: true, maxChunkSize: 2) {
           name
         }
       }
@@ -1141,7 +1190,7 @@ describe('Execute: stream directive', () => {
       {
         data: null,
         path: ['asyncIterableNonNullError'],
-        atIndices: [1],
+        atIndices: [1, 2],
         errors: [
           {
             message:
@@ -1154,17 +1203,18 @@ describe('Execute: stream directive', () => {
             ],
             path: ['asyncIterableNonNullError', 1],
           },
-        ],
-        hasNext: true,
-      },
-      {
-        data: [
           {
-            name: 'Han',
+            message:
+              'Cannot return null for non-nullable field Query.asyncIterableNonNullError.',
+            locations: [
+              {
+                line: 3,
+                column: 9,
+              },
+            ],
+            path: ['asyncIterableNonNullError', 2],
           },
         ],
-        path: ['asyncIterableNonNullError'],
-        atIndices: [2],
         hasNext: false,
       },
     ]);

@@ -23,10 +23,18 @@ function createHarness() {
       initialIndex: 0,
       maxBundleSize: 2,
       maxInterval: null,
-      createDataBundleContext: (count) => ({ atIndex: count, results: [] }),
-      createErrorBundleContext: (count) => ({ atIndex: count, results: [] }),
-      onData: (_index, result, context) => context.results.push(result),
-      onError: (_index, result, context) => context.results.push(result),
+      createDataBundleContext: (index, result) => ({
+        atIndex: index,
+        results: [result],
+      }),
+      createErrorBundleContext: (index, result) => ({
+        atIndex: index,
+        results: [result],
+      }),
+      onSubsequentData: (_index, result, context) =>
+        context.results.push(result),
+      onSubsequentError: (_index, result, context) =>
+        context.results.push(result),
       onDataBundle: (context) => {
         dataContext.atIndex = context.atIndex;
         dataContext.results = context.results;

@@ -15,10 +15,17 @@ export interface BundlerOptions<
   initialIndex: number;
   maxBundleSize: number;
   maxInterval: Maybe<number>;
-  createDataBundleContext: (count: number) => TDataContext;
-  createErrorBundleContext: (count: number) => TErrorContext;
-  onData: (index: number, result: TDataResult, context: TDataContext) => void;
-  onError: (
+  createDataBundleContext: (index: number, result: TDataResult) => TDataContext;
+  createErrorBundleContext: (
+    index: number,
+    result: TErrorResult,
+  ) => TErrorContext;
+  onSubsequentData: (
+    index: number,
+    result: TDataResult,
+    context: TDataContext,
+  ) => void;
+  onSubsequentError: (
     index: number,
     result: TErrorResult,
     context: TErrorContext,
@@ -41,16 +48,23 @@ export class Bundler<TDataResult, TErrorResult, TDataContext, TErrorContext>
 {
   private _maxBundleSize: number;
   private _maxInterval: Maybe<number>;
-  private _createDataBundleContext: (count: number) => TDataContext;
-  private _createErrorBundleContext: (count: number) => TErrorContext;
+  private _createDataBundleContext: (
+    index: number,
+    result: TDataResult,
+  ) => TDataContext;
 
-  private _onData: (
+  private _createErrorBundleContext: (
+    index: number,
+    result: TErrorResult,
+  ) => TErrorContext;
+
+  private _onSubsequentData: (
     index: number,
     result: TDataResult,
     context: TDataContext,
   ) => void;
 
-  private _onError: (
+  private _onSubsequentError: (
     index: number,
     result: TErrorResult,
     context: TErrorContext,
@@ -82,8 +96,8 @@ export class Bundler<TDataResult, TErrorResult, TDataContext, TErrorContext>
     maxInterval,
     createDataBundleContext,
     createErrorBundleContext,
-    onData,
-    onError,
+    onSubsequentData,
+    onSubsequentError,
     onDataBundle,
     onErrorBundle,
   }: BundlerOptions<TDataResult, TErrorResult, TDataContext, TErrorContext>) {
@@ -91,8 +105,8 @@ export class Bundler<TDataResult, TErrorResult, TDataContext, TErrorContext>
     this._maxInterval = maxInterval;
     this._createDataBundleContext = createDataBundleContext;
     this._createErrorBundleContext = createErrorBundleContext;
-    this._onData = onData;
-    this._onError = onError;
+    this._onSubsequentData = onSubsequentData;
+    this._onSubsequentError = onSubsequentError;
     this._onDataBundle = onDataBundle;
     this._onErrorBundle = onErrorBundle;
 
@@ -109,10 +123,7 @@ export class Bundler<TDataResult, TErrorResult, TDataContext, TErrorContext>
   }
 
   queueData(index: number, result: TDataResult): void {
-    const context = this._getDataContext();
-
-    this._onData(index, result, context);
-
+    const context = this._updateDataContext(index, result);
     this._currentBundleSize++;
     this._count++;
 
@@ -146,10 +157,7 @@ export class Bundler<TDataResult, TErrorResult, TDataContext, TErrorContext>
   }
 
   queueError(index: number, result: TErrorResult): void {
-    const context = this._getErrorContext();
-
-    this._onError(index, result, context);
-
+    const context = this._updateErrorContext(index, result);
     this._currentBundleSize++;
     this._count++;
 
@@ -224,20 +232,22 @@ export class Bundler<TDataResult, TErrorResult, TDataContext, TErrorContext>
     this._startNewTimer(timingContext);
   }
 
-  _getDataContext(): TDataContext {
+  _updateDataContext(index: number, result: TDataResult): TDataContext {
     if (this._currentContext === undefined) {
-      return this._getNewDataContext();
+      return this._getNewDataContext(index, result);
     } else if (!this._currentContext.isData) {
       this._onErrorBundle(this._currentContext.context);
-      return this._getNewDataContext();
+      return this._getNewDataContext(index, result);
     }
+
+    this._onSubsequentData(index, result, this._currentContext.context);
 
     return this._currentContext.context;
   }
 
-  _getNewDataContext(): TDataContext {
+  _getNewDataContext(index: number, result: TDataResult): TDataContext {
     this._currentBundleSize = 0;
-    const context = this._createDataBundleContext(this._count);
+    const context = this._createDataBundleContext(index, result);
     this._currentContext = {
       isData: true,
       context,
@@ -252,20 +262,22 @@ export class Bundler<TDataResult, TErrorResult, TDataContext, TErrorContext>
     return context;
   }
 
-  _getErrorContext(): TErrorContext {
+  _updateErrorContext(index: number, result: TErrorResult): TErrorContext {
     if (this._currentContext === undefined) {
-      return this._getNewErrorContext();
+      return this._getNewErrorContext(index, result);
     } else if (this._currentContext.isData) {
       this._onDataBundle(this._currentContext.context);
-      return this._getNewErrorContext();
+      return this._getNewErrorContext(index, result);
     }
+
+    this._onSubsequentError(index, result, this._currentContext.context);
 
     return this._currentContext.context;
   }
 
-  _getNewErrorContext(): TErrorContext {
+  _getNewErrorContext(index: number, result: TErrorResult): TErrorContext {
     this._currentBundleSize = 0;
-    const context = this._createErrorBundleContext(this._count);
+    const context = this._createErrorBundleContext(index, result);
     this._currentContext = {
       isData: false,
       context,
