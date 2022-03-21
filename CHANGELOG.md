@@ -1,5 +1,11 @@
 # graphql-executor
 
+## 0.0.21
+
+### Patch Changes
+
+- 83d92585: fix batch parallel streaming in combination with deferred fragments
+
 ## 0.0.20
 
 ### Patch Changes
