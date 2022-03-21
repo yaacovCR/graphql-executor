@@ -21,7 +21,6 @@ class Bundler {
     onErrorBundle,
   }) {
     this._maxBundleSize = maxBundleSize;
-    this._maxInterval = maxInterval;
     this._createDataBundleContext = createDataBundleContext;
     this._createErrorBundleContext = createErrorBundleContext;
     this._onSubsequentData = onSubsequentData;

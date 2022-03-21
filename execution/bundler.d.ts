@@ -48,7 +48,6 @@ export declare class Bundler<
 > implements IBundler<TDataResult, TErrorResult>
 {
   private _maxBundleSize;
-  private _maxInterval;
   private _createDataBundleContext;
   private _createErrorBundleContext;
   private _onSubsequentData;
