@@ -1688,9 +1688,47 @@ export class Executor {
     responseNode: ResponseNode,
     stream: StreamValues,
     completedResults: Array<unknown>,
-    _index: number,
+    index: number,
     promises: Array<Promise<void>>,
   ): void {
+    const { nextIndex: length, streamContext } =
+      this.completeIteratorValueWithStreamImpl(
+        exeContext,
+        itemType,
+        fieldContext,
+        info,
+        valueCompleter,
+        path,
+        iterator,
+        responseNode,
+        stream,
+        completedResults,
+        index,
+        promises,
+      );
+
+    if (streamContext) {
+      streamContext.bundler.setTotal(length);
+    }
+  }
+
+  completeIteratorValueWithStreamImpl(
+    exeContext: ExecutionContext,
+    itemType: GraphQLOutputType,
+    fieldContext: FieldContext,
+    info: GraphQLResolveInfo,
+    valueCompleter: ValueCompleter,
+    path: Path,
+    iterator: Iterator<unknown>,
+    responseNode: ResponseNode,
+    stream: StreamValues,
+    completedResults: Array<unknown>,
+    _index: number,
+    promises: Array<Promise<void>>,
+  ): {
+    nextIndex: number;
+    streamContext: StreamContext | undefined;
+  } {
     const initialCount = stream.initialCount;
 
     let index = _index;
@@ -1717,13 +1755,12 @@ export class Executor {
           valueCompleter,
           streamContext,
         );
-        streamContext.bundler.setTotal(nextIndex);
-        break;
+        return { nextIndex, streamContext };
       }
 
       const iteration = iterator.next();
       if (iteration.done) {
-        return;
+        return { nextIndex: index, streamContext: undefined };
       }
 
       const itemPath = addPath(path, index, undefined);
@@ -1842,6 +1879,22 @@ export class Executor {
       : completedResults;
   }
 
+  async getNextIterable(
+    iterator: AsyncIterator<unknown>,
+    info: GraphQLResolveInfo,
+  ): Promise<Iterable<unknown> | undefined> {
+    const iteration = await iterator.next();
+    if (iteration.done) {
+      return;
+    }
+    if (!isIterableObject(iteration.value)) {
+      throw new GraphQLError(
+        `Expected Iterable, but did not find one for field "${info.parentType.name}.${info.fieldName}".`,
+      );
+    }
+    return iteration.value;
+  }
+
   async completeAsyncIteratorValueWithStream(
     exeContext: ExecutionContext,
     itemType: GraphQLOutputType,
@@ -1886,28 +1939,45 @@ export class Executor {
         }
 
         // eslint-disable-next-line no-await-in-loop
-        const iteration = await iterator.next();
-        if (iteration.done) {
+        const iterable = await this.getNextIterable(iterator, info);
+        if (iterable === undefined) {
           break;
         }
 
-        const itemPath = addPath(path, index, undefined);
+        const innerIterator = iterable[Symbol.iterator]();
+        const { nextIndex, streamContext } =
+          this.completeIteratorValueWithStreamImpl(
+            exeContext,
+            itemType,
+            fieldContext,
+            info,
+            valueCompleter,
+            path,
+            innerIterator,
+            responseNode,
+            stream,
+            completedResults,
+            index,
+            promises,
+          );
 
-        this.completeListItemValue(
-          completedResults,
-          index,
-          promises,
-          iteration.value,
-          exeContext,
-          itemType,
-          valueCompleter,
-          fieldContext,
-          info,
-          itemPath,
-          responseNode,
-        );
+        if (streamContext) {
+          // eslint-disable-next-line @typescript-eslint/no-floating-promises
+          this.addAsyncIteratorValue(
+            nextIndex,
+            iterator,
+            exeContext,
+            itemType,
+            fieldContext,
+            info,
+            valueCompleter,
+            streamContext,
+          );
 
-        index++;
+          return;
+        }
+
+        index = nextIndex;
       }
     } catch (rawError) {
       const itemPath = addPath(path, index, undefined);
@@ -1939,28 +2009,25 @@ export class Executor {
     try {
       while (true) {
         // eslint-disable-next-line no-await-in-loop
-        const iteration = await iterator.next();
-        if (iteration.done) {
+        const iterable = await this.getNextIterable(iterator, info);
+        if (!iterable) {
           break;
         }
 
-        const itemPath = addPath(path, index, undefined);
-
-        this.completeListItemValue(
+        const innerIterator = iterable[Symbol.iterator]();
+        index = this.completeIteratorValueWithoutStream(
+          exeContext,
+          itemType,
+          fieldContext,
+          info,
+          valueCompleter,
+          path,
+          innerIterator,
+          responseNode,
           completedResults,
           index,
           promises,
-          iteration.value,
-          exeContext,
-          itemType,
-          valueCompleter,
-          fieldContext,
-          info,
-          itemPath,
-          responseNode,
         );
-
-        index++;
       }
     } catch (rawError) {
       const itemPath = addPath(path, index, undefined);
@@ -2586,21 +2653,22 @@ export class Executor {
 
     let index = initialIndex;
     try {
-      let iteration = await iterator.next();
-      while (!iteration.done) {
-        this.addValue(
-          iteration.value,
+      let iterable = await this.getNextIterable(iterator, info);
+      while (iterable) {
+        const nextIndex = this.addIteratorValue(
+          index,
+          iterable[Symbol.iterator](),
           exeContext,
           itemType,
           fieldContext,
           info,
           valueCompleter,
-          index,
           streamContext,
         );
-        index++;
+
+        index = nextIndex;
         // eslint-disable-next-line no-await-in-loop
-        iteration = await iterator.next();
+        iterable = await this.getNextIterable(iterator, info);
       }
 
       streamContext.bundler.setTotal(index);

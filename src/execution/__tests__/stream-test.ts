@@ -84,32 +84,40 @@ const query = new GraphQLObjectType({
     asyncIterableList: {
       type: new GraphQLList(friendType),
       async *resolve() {
-        yield await Promise.resolve(friends[0]);
-        yield await Promise.resolve(friends[1]);
-        yield await Promise.resolve(friends[2]);
+        yield await Promise.resolve([friends[0]]);
+        yield await Promise.resolve([friends[1]]);
+        yield await Promise.resolve([friends[2]]);
       },
+    },
+    asyncIterableOfNonIterable: {
+      type: new GraphQLList(friendType),
+      async *resolve() {
+        yield await Promise.resolve([friends[0]]);
+        yield await Promise.resolve('bad'); /* c8 ignore start */
+      },
+      /* c8 ignore stop */
     },
     asyncIterableError: {
       type: new GraphQLList(friendType),
       async *resolve() {
-        yield await Promise.resolve(friends[0]);
+        yield await Promise.resolve([friends[0]]);
         throw new Error('bad');
       },
     },
     asyncIterableNonNullError: {
       type: new GraphQLList(new GraphQLNonNull(friendType)),
       async *resolve() {
-        yield await Promise.resolve(friends[0]);
-        yield await Promise.resolve(null);
-        yield await Promise.resolve(null);
+        yield await Promise.resolve([friends[0]]);
+        yield await Promise.resolve([null]);
+        yield await Promise.resolve([null]);
       },
       /* c8 ignore stop */
     },
     asyncIterableInvalid: {
       type: new GraphQLList(GraphQLString),
       async *resolve() {
-        yield await Promise.resolve(friends[0].name);
-        yield await Promise.resolve({});
+        yield await Promise.resolve([friends[0].name]);
+        yield await Promise.resolve([{}]);
       },
     },
     asyncIterableListDelayed: {
@@ -120,7 +128,7 @@ const query = new GraphQLObjectType({
           // for tests to return or throw before next value is processed.
           // eslint-disable-next-line no-await-in-loop
           await new Promise((r) => setTimeout(r, 1));
-          yield friend; /* c8 ignore start */
+          yield [friend]; /* c8 ignore start */
           // Not reachable, early return
         }
       } /* c8 ignore stop */,
@@ -135,7 +143,7 @@ const query = new GraphQLObjectType({
               const friend = friends[i++];
               if (friend) {
                 await new Promise((r) => setTimeout(r, 1));
-                return { value: friend, done: false };
+                return { value: [friend], done: false };
               }
               return { value: undefined, done: true };
             },
@@ -147,7 +155,7 @@ const query = new GraphQLObjectType({
       type: new GraphQLList(friendType),
       async *resolve() {
         for (const friend of friends) {
-          yield friend;
+          yield [friend];
         }
         await new Promise((r) => setTimeout(r, 10));
       },
@@ -166,9 +174,9 @@ const query = new GraphQLObjectType({
           asyncIterableList: {
             type: new GraphQLList(friendType),
             async *resolve() {
-              yield await Promise.resolve(friends[0]);
-              yield await Promise.resolve(friends[1]);
-              yield await Promise.resolve(friends[2]);
+              yield await Promise.resolve([friends[0]]);
+              yield await Promise.resolve([friends[1]]);
+              yield await Promise.resolve([friends[2]]);
             },
           },
         },
@@ -777,6 +785,9 @@ describe('Execute: stream directive', () => {
         ],
         path: ['asyncIterableList'],
         atIndex: 2,
+        hasNext: true,
+      },
+      {
         hasNext: false,
       },
     ]);
@@ -822,6 +833,9 @@ describe('Execute: stream directive', () => {
         ],
         path: ['asyncIterableList'],
         atIndex: 2,
+        hasNext: true,
+      },
+      {
         hasNext: false,
       },
     ]);
@@ -861,6 +875,9 @@ describe('Execute: stream directive', () => {
         ],
         path: ['asyncIterableList'],
         atIndex: 2,
+        hasNext: true,
+      },
+      {
         hasNext: false,
       },
     ]);
@@ -963,6 +980,12 @@ describe('Execute: stream directive', () => {
           ],
           path: ['asyncIterableList'],
           atIndex: 2,
+          hasNext: true,
+        },
+      },
+      {
+        done: false,
+        value: {
           hasNext: false,
         },
       },
@@ -970,9 +993,83 @@ describe('Execute: stream directive', () => {
         done: true,
         value: undefined,
       },
+    ]);
+  });
+  it('Handles non-iterable returned by async iterable before initialCount is reached', async () => {
+    const document = parse(`
+      query { 
+        asyncIterableOfNonIterable @stream(initialCount: 2) {
+          name
+          id
+        }
+      }
+    `);
+    const result = await complete(document);
+    expectJSON(result).toDeepEqual({
+      data: {
+        asyncIterableOfNonIterable: [
+          {
+            name: 'Luke',
+            id: '1',
+          },
+          null,
+        ],
+      },
+      errors: [
+        {
+          message:
+            'Expected Iterable, but did not find one for field "Query.asyncIterableOfNonIterable".',
+          locations: [
+            {
+              line: 3,
+              column: 9,
+            },
+          ],
+          path: ['asyncIterableOfNonIterable', 1],
+        },
+      ],
+    });
+  });
+  it('Handles non-iterable returned by async iterable after initialCount is reached', async () => {
+    const document = parse(`
+      query { 
+        asyncIterableOfNonIterable @stream(initialCount: 1) {
+          name
+          id
+        }
+      }
+    `);
+    const result = await complete(document);
+    expectJSON(result).toDeepEqual([
       {
-        done: true,
-        value: undefined,
+        data: {
+          asyncIterableOfNonIterable: [
+            {
+              name: 'Luke',
+              id: '1',
+            },
+          ],
+        },
+        hasNext: true,
+      },
+      {
+        data: [null],
+        path: ['asyncIterableOfNonIterable'],
+        atIndex: 1,
+        errors: [
+          {
+            message:
+              'Expected Iterable, but did not find one for field "Query.asyncIterableOfNonIterable".',
+            locations: [
+              {
+                line: 3,
+                column: 9,
+              },
+            ],
+            path: ['asyncIterableOfNonIterable', 1],
+          },
+        ],
+        hasNext: false,
       },
     ]);
   });
@@ -1152,6 +1249,9 @@ describe('Execute: stream directive', () => {
             path: ['asyncIterableNonNullError', 2],
           },
         ],
+        hasNext: true,
+      },
+      {
         hasNext: false,
       },
     ]);
@@ -1210,6 +1310,9 @@ describe('Execute: stream directive', () => {
             path: ['asyncIterableNonNullError', 2],
           },
         ],
+        hasNext: true,
+      },
+      {
         hasNext: false,
       },
     ]);
@@ -1268,6 +1371,9 @@ describe('Execute: stream directive', () => {
             path: ['asyncIterableNonNullError', 2],
           },
         ],
+        hasNext: true,
+      },
+      {
         hasNext: false,
       },
     ]);
@@ -1302,6 +1408,9 @@ describe('Execute: stream directive', () => {
             path: ['asyncIterableInvalid', 1],
           },
         ],
+        hasNext: true,
+      },
+      {
         hasNext: false,
       },
     ]);

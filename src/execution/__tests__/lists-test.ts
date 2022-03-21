@@ -95,9 +95,9 @@ describe('Execute: Accepts async iterables as list value', () => {
         fields: {
           listField: {
             resolve: async function* listField() {
-              yield await Promise.resolve({ index: 0 });
-              yield await Promise.resolve({ index: 1 });
-              yield await Promise.resolve({ index: 2 });
+              yield await Promise.resolve([{ index: 0 }]);
+              yield await Promise.resolve([{ index: 1 }]);
+              yield await Promise.resolve([{ index: 2 }]);
             },
             type: new GraphQLList(
               new GraphQLObjectType({
@@ -122,9 +122,9 @@ describe('Execute: Accepts async iterables as list value', () => {
 
   it('Accepts an AsyncGenerator function as a List value', async () => {
     async function* listField() {
-      yield await Promise.resolve('two');
-      yield await Promise.resolve(4);
-      yield await Promise.resolve(false);
+      yield await Promise.resolve(['two']);
+      yield await Promise.resolve([4]);
+      yield await Promise.resolve([false]);
     }
 
     expect(await complete({ listField })).to.deep.equal({
@@ -134,8 +134,8 @@ describe('Execute: Accepts async iterables as list value', () => {
 
   it('Handles an AsyncGenerator function that throws', async () => {
     async function* listField() {
-      yield await Promise.resolve('two');
-      yield await Promise.resolve(4);
+      yield await Promise.resolve(['two']);
+      yield await Promise.resolve([4]);
       throw new Error('bad');
     }
 
@@ -153,9 +153,9 @@ describe('Execute: Accepts async iterables as list value', () => {
 
   it('Handles an AsyncGenerator function where an intermediate value triggers an error', async () => {
     async function* listField() {
-      yield await Promise.resolve('two');
-      yield await Promise.resolve({});
-      yield await Promise.resolve(4);
+      yield await Promise.resolve(['two']);
+      yield await Promise.resolve([{}]);
+      yield await Promise.resolve([4]);
     }
 
     expectJSON(await complete({ listField })).toDeepEqual({
@@ -172,8 +172,8 @@ describe('Execute: Accepts async iterables as list value', () => {
 
   it('Handles errors from `completeValue` in AsyncIterables', async () => {
     async function* listField() {
-      yield await Promise.resolve('two');
-      yield await Promise.resolve({});
+      yield await Promise.resolve(['two']);
+      yield await Promise.resolve([{}]);
     }
 
     expectJSON(await complete({ listField })).toDeepEqual({
@@ -217,9 +217,9 @@ describe('Execute: Accepts async iterables as list value', () => {
   });
   it('Handles nulls yielded by async generator', async () => {
     async function* listField() {
-      yield await Promise.resolve(1);
-      yield await Promise.resolve(null);
-      yield await Promise.resolve(2);
+      yield await Promise.resolve([1]);
+      yield await Promise.resolve([null]);
+      yield await Promise.resolve([2]);
     }
     const errors = [
       {
