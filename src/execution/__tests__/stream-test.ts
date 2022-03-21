@@ -255,13 +255,15 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: 'banana',
-        path: ['scalarList', 1],
+        data: ['banana'],
+        path: ['scalarList'],
+        atIndex: 1,
         hasNext: true,
       },
       {
-        data: 'coconut',
-        path: ['scalarList', 2],
+        data: ['coconut'],
+        path: ['scalarList'],
+        atIndex: 2,
         hasNext: false,
       },
     ]);
@@ -303,18 +305,21 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: 'apple',
-        path: ['scalarList', 0],
+        data: ['apple'],
+        path: ['scalarList'],
+        atIndex: 0,
         hasNext: true,
       },
       {
-        data: 'banana',
-        path: ['scalarList', 1],
+        data: ['banana'],
+        path: ['scalarList'],
+        atIndex: 1,
         hasNext: true,
       },
       {
-        data: 'coconut',
-        path: ['scalarList', 2],
+        data: ['coconut'],
+        path: ['scalarList'],
+        atIndex: 2,
         hasNext: false,
       },
     ]);
@@ -410,14 +415,16 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: 'banana',
-        path: ['scalarList', 1],
+        data: ['banana'],
+        path: ['scalarList'],
+        atIndex: 1,
         label: 'scalar-stream',
         hasNext: true,
       },
       {
-        data: 'coconut',
-        path: ['scalarList', 2],
+        data: ['coconut'],
+        path: ['scalarList'],
+        atIndex: 2,
         label: 'scalar-stream',
         hasNext: false,
       },
@@ -460,11 +467,14 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          name: 'Leia',
-          id: '3',
-        },
-        path: ['asyncList', 2],
+        data: [
+          {
+            name: 'Leia',
+            id: '3',
+          },
+        ],
+        path: ['asyncList'],
+        atIndex: 2,
         hasNext: false,
       },
     ]);
@@ -487,27 +497,36 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          name: 'Luke',
-          id: '1',
-        },
-        path: ['asyncSlowList', 0],
+        data: [
+          {
+            name: 'Luke',
+            id: '1',
+          },
+        ],
+        path: ['asyncSlowList'],
+        atIndex: 0,
         hasNext: true,
       },
       {
-        data: {
-          name: 'Han',
-          id: '2',
-        },
-        path: ['asyncSlowList', 1],
+        data: [
+          {
+            name: 'Han',
+            id: '2',
+          },
+        ],
+        path: ['asyncSlowList'],
+        atIndex: 1,
         hasNext: true,
       },
       {
-        data: {
-          name: 'Leia',
-          id: '3',
-        },
-        path: ['asyncSlowList', 2],
+        data: [
+          {
+            name: 'Leia',
+            id: '3',
+          },
+        ],
+        path: ['asyncSlowList'],
+        atIndex: 2,
         hasNext: false,
       },
     ]);
@@ -530,28 +549,36 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          name: 'Han',
-          id: '2',
-        },
-        path: ['asyncSlowList', 1],
+        data: [
+          {
+            name: 'Han',
+            id: '2',
+          },
+        ],
+        path: ['asyncSlowList'],
+        atIndices: [1],
         hasNext: true,
       },
       {
-        data: {
-          name: 'Leia',
-          id: '3',
-        },
-        path: ['asyncSlowList', 2],
+        data: [
+          {
+            name: 'Leia',
+            id: '3',
+          },
+        ],
+        path: ['asyncSlowList'],
+        atIndices: [2],
         hasNext: true,
       },
       {
-        data: {
-          name: 'Luke',
-          id: '1',
-        },
-
-        path: ['asyncSlowList', 0],
+        data: [
+          {
+            name: 'Luke',
+            id: '1',
+          },
+        ],
+        path: ['asyncSlowList'],
+        atIndices: [0],
         hasNext: false,
       },
     ]);
@@ -637,11 +664,14 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          name: 'Leia',
-          id: '3',
-        },
-        path: ['asyncListError', 2],
+        data: [
+          {
+            name: 'Leia',
+            id: '3',
+          },
+        ],
+        path: ['asyncListError'],
+        atIndex: 2,
         hasNext: false,
       },
     ]);
@@ -669,8 +699,9 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: null,
-        path: ['asyncListError', 1],
+        data: [null],
+        path: ['asyncListError'],
+        atIndex: 1,
         errors: [
           {
             message: 'bad',
@@ -686,11 +717,14 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          name: 'Leia',
-          id: '3',
-        },
-        path: ['asyncListError', 2],
+        data: [
+          {
+            name: 'Leia',
+            id: '3',
+          },
+        ],
+        path: ['asyncListError'],
+        atIndex: 2,
         hasNext: false,
       },
     ]);
@@ -713,27 +747,36 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          name: 'Luke',
-          id: '1',
-        },
-        path: ['asyncIterableList', 0],
+        data: [
+          {
+            name: 'Luke',
+            id: '1',
+          },
+        ],
+        path: ['asyncIterableList'],
+        atIndex: 0,
         hasNext: true,
       },
       {
-        data: {
-          name: 'Han',
-          id: '2',
-        },
-        path: ['asyncIterableList', 1],
+        data: [
+          {
+            name: 'Han',
+            id: '2',
+          },
+        ],
+        path: ['asyncIterableList'],
+        atIndex: 1,
         hasNext: true,
       },
       {
-        data: {
-          name: 'Leia',
-          id: '3',
-        },
-        path: ['asyncIterableList', 2],
+        data: [
+          {
+            name: 'Leia',
+            id: '3',
+          },
+        ],
+        path: ['asyncIterableList'],
+        atIndex: 2,
         hasNext: false,
       },
     ]);
@@ -810,11 +853,14 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          name: 'Leia',
-          id: '3',
-        },
-        path: ['asyncIterableList', 2],
+        data: [
+          {
+            name: 'Leia',
+            id: '3',
+          },
+        ],
+        path: ['asyncIterableList'],
+        atIndex: 2,
         hasNext: false,
       },
     ]);
@@ -909,11 +955,14 @@ describe('Execute: stream directive', () => {
       {
         done: false,
         value: {
-          data: {
-            name: 'Leia',
-            id: '3',
-          },
-          path: ['asyncIterableList', 2],
+          data: [
+            {
+              name: 'Leia',
+              id: '3',
+            },
+          ],
+          path: ['asyncIterableList'],
+          atIndex: 2,
           hasNext: false,
         },
       },
@@ -984,8 +1033,9 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: null,
-        path: ['asyncIterableError', 1],
+        data: [null],
+        path: ['asyncIterableError'],
+        atIndex: 1,
         errors: [
           {
             message: 'bad',
@@ -1026,7 +1076,8 @@ describe('Execute: stream directive', () => {
       },
       {
         data: null,
-        path: ['nonNullError', 1],
+        path: ['nonNullError'],
+        atIndex: 1,
         errors: [
           {
             message:
@@ -1067,7 +1118,8 @@ describe('Execute: stream directive', () => {
       },
       {
         data: null,
-        path: ['asyncIterableNonNullError', 1],
+        path: ['asyncIterableNonNullError'],
+        atIndex: 1,
         errors: [
           {
             message:
@@ -1085,7 +1137,8 @@ describe('Execute: stream directive', () => {
       },
       {
         data: null,
-        path: ['asyncIterableNonNullError', 2],
+        path: ['asyncIterableNonNullError'],
+        atIndex: 2,
         errors: [
           {
             message:
@@ -1234,8 +1287,9 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: null,
-        path: ['asyncIterableInvalid', 1],
+        data: [null],
+        path: ['asyncIterableInvalid'],
+        atIndex: 1,
         errors: [
           {
             message: 'String cannot represent value: {}',
@@ -1276,19 +1330,25 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          name: 'Han',
-          asyncName: 'Han',
-        },
-        path: ['asyncIterableList', 1],
+        data: [
+          {
+            name: 'Han',
+            asyncName: 'Han',
+          },
+        ],
+        path: ['asyncIterableList'],
+        atIndex: 1,
         hasNext: true,
       },
       {
-        data: {
-          name: 'Leia',
-          asyncName: 'Leia',
-        },
-        path: ['asyncIterableList', 2],
+        data: [
+          {
+            name: 'Leia',
+            asyncName: 'Leia',
+          },
+        ],
+        path: ['asyncIterableList'],
+        atIndex: 2,
         hasNext: false,
       },
     ]);
@@ -1324,18 +1384,21 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: { name: 'Luke' },
-        path: ['nestedObject', 'asyncIterableList', 0],
+        data: [{ name: 'Luke' }],
+        path: ['nestedObject', 'asyncIterableList'],
+        atIndex: 0,
         hasNext: true,
       },
       {
-        data: { name: 'Han' },
-        path: ['nestedObject', 'asyncIterableList', 1],
+        data: [{ name: 'Han' }],
+        path: ['nestedObject', 'asyncIterableList'],
+        atIndex: 1,
         hasNext: true,
       },
       {
-        data: { name: 'Leia' },
-        path: ['nestedObject', 'asyncIterableList', 2],
+        data: [{ name: 'Leia' }],
+        path: ['nestedObject', 'asyncIterableList'],
+        atIndex: 2,
         hasNext: false,
       },
     ]);
@@ -1365,18 +1428,24 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          id: '2',
-        },
-        path: ['asyncIterableList', 1],
+        data: [
+          {
+            id: '2',
+          },
+        ],
+        path: ['asyncIterableList'],
+        atIndex: 1,
         label: 'stream-label',
         hasNext: true,
       },
       {
-        data: {
-          id: '3',
-        },
-        path: ['asyncIterableList', 2],
+        data: [
+          {
+            id: '3',
+          },
+        ],
+        path: ['asyncIterableList'],
+        atIndex: 2,
         label: 'stream-label',
         hasNext: true,
       },
@@ -1439,10 +1508,13 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          id: '2',
-        },
-        path: ['asyncIterableListDelayedClose', 1],
+        data: [
+          {
+            id: '2',
+          },
+        ],
+        path: ['asyncIterableListDelayedClose'],
+        atIndex: 1,
         label: 'stream-label',
         hasNext: true,
       },
@@ -1455,10 +1527,13 @@ describe('Execute: stream directive', () => {
         hasNext: true,
       },
       {
-        data: {
-          id: '3',
-        },
-        path: ['asyncIterableListDelayedClose', 2],
+        data: [
+          {
+            id: '3',
+          },
+        ],
+        path: ['asyncIterableListDelayedClose'],
+        atIndex: 2,
         label: 'stream-label',
         hasNext: true,
       },

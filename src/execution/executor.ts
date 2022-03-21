@@ -1581,53 +1581,6 @@ export class Executor {
     label: string | undefined,
     parentResponseNode: ResponseNode,
   ): StreamContext {
-    if (maxChunkSize === 1) {
-      const bundler = this.createBundler(
-        exeContext,
-        parentResponseNode,
-        initialCount,
-        maxChunkSize,
-        maxInterval,
-        (index, result) => ({
-          responseNodes: [],
-          parentResponseNode,
-          result: result.data,
-          atIndex: index,
-        }),
-        (index) => ({
-          responseNodes: [],
-          parentResponseNode,
-          atIndex: index,
-        }) /* c8 ignore start */,
-        () => {
-          /* with maxBundleSize of 1, this function will never be called */
-        },
-        () => {
-          /* with maxBundleSize of 1, this function will never be called */
-        } /* c8 ignore stop */,
-        (context) => ({
-          responseContext: context,
-          data: context.result,
-          path: addPath(path, context.atIndex, undefined),
-          label,
-        }),
-        (context) => ({
-          responseContext: context,
-          data: null,
-          path: addPath(path, context.atIndex, undefined),
-          label,
-        }),
-      );
-
-      return {
-        initialCount,
-        path,
-        bundler: inParallel
-          ? bundler
-          : getSequentialBundler(initialCount, bundler),
-      };
-    }
-
     if (inParallel) {
       return {
         initialCount,
