@@ -1270,6 +1270,62 @@ export class Executor {
     context.responseNodes.push(responseNode);
   }
 
+  createBundler(
+    exeContext,
+    parentResponseNode,
+    initialCount,
+    maxChunkSize,
+    maxInterval,
+    resultToNewDataContext,
+    indexToNewErrorContext,
+    onSubsequentData,
+    onSubsequentError,
+    dataContextToIncrementalResult,
+    errorContextToIncrementalResult,
+  ) {
+    return new Bundler({
+      initialIndex: initialCount,
+      maxBundleSize: maxChunkSize,
+      maxInterval,
+      createDataBundleContext: (index, result) =>
+        this.onNewBundleContext(
+          exeContext.state,
+          resultToNewDataContext(index, result),
+          result.responseNode,
+        ),
+      createErrorBundleContext: (index, responseNode) =>
+        this.onNewBundleContext(
+          exeContext.state,
+          indexToNewErrorContext(index),
+          responseNode,
+        ),
+      onSubsequentData: (index, result, context) => {
+        this.onSubsequentResponseNode(
+          exeContext.state,
+          context,
+          result.responseNode,
+        );
+        onSubsequentData(index, result, context);
+      },
+      onSubsequentError: (index, responseNode, context) => {
+        this.onSubsequentResponseNode(exeContext.state, context, responseNode);
+        onSubsequentError(index, context);
+      },
+      onDataBundle: (context) =>
+        exeContext.publisher.queue(
+          context.responseNodes,
+          dataContextToIncrementalResult(context),
+          parentResponseNode,
+        ),
+      onErrorBundle: (context) =>
+        exeContext.publisher.queue(
+          context.responseNodes,
+          errorContextToIncrementalResult(context),
+          parentResponseNode,
+        ),
+    });
+  }
+
   createStreamContext(
     exeContext,
     initialCount,
@@ -1281,62 +1337,44 @@ export class Executor {
     parentResponseNode,
   ) {
     if (maxChunkSize === 1) {
-      const bundler = new Bundler({
-        initialIndex: initialCount,
-        maxBundleSize: maxChunkSize,
+      const bundler = this.createBundler(
+        exeContext,
+        parentResponseNode,
+        initialCount,
+        maxChunkSize,
         maxInterval,
-        createDataBundleContext: (index, result) =>
-          this.onNewBundleContext(
-            exeContext.state,
-            {
-              responseNodes: [],
-              parentResponseNode,
-              result: result.data,
-              atIndex: index,
-            },
-            result.responseNode,
-          ),
-        createErrorBundleContext: (index, responseNode) =>
-          this.onNewBundleContext(
-            exeContext.state,
-            {
-              responseNodes: [],
-              parentResponseNode,
-              atIndex: index,
-            },
-            responseNode,
-          ),
+        (index, result) => ({
+          responseNodes: [],
+          parentResponseNode,
+          result: result.data,
+          atIndex: index,
+        }),
+        (index) => ({
+          responseNodes: [],
+          parentResponseNode,
+          atIndex: index,
+        }),
         /* c8 ignore start */
-        onSubsequentData: () => {
+        () => {
           /* with maxBundleSize of 1, this function will never be called */
         },
-        onSubsequentError: () => {
+        () => {
           /* with maxBundleSize of 1, this function will never be called */
         },
         /* c8 ignore stop */
-        onDataBundle: (context) =>
-          exeContext.publisher.queue(
-            context.responseNodes,
-            {
-              responseContext: context,
-              data: context.result,
-              path: addPath(path, context.atIndex, undefined),
-              label,
-            },
-            parentResponseNode,
-          ),
-        onErrorBundle: (context) =>
-          exeContext.publisher.queue(
-            context.responseNodes,
-            {
-              responseContext: context,
-              data: null,
-              path: addPath(path, context.atIndex, undefined),
-              label,
-            },
-            parentResponseNode,
-          ),
-      });
+        (context) => ({
+          responseContext: context,
+          data: context.result,
+          path: addPath(path, context.atIndex, undefined),
+          label,
+        }),
+        (context) => ({
+          responseContext: context,
+          data: null,
+          path: addPath(path, context.atIndex, undefined),
+          label,
+        }),
+      );
       return {
         initialCount,
         path,
@@ -1350,73 +1388,45 @@ export class Executor {
       return {
         initialCount,
         path,
-        bundler: new Bundler({
-          initialIndex: initialCount,
-          maxBundleSize: maxChunkSize,
+        bundler: this.createBundler(
+          exeContext,
+          parentResponseNode,
+          initialCount,
+          maxChunkSize,
           maxInterval,
-          createDataBundleContext: (index, result) =>
-            this.onNewBundleContext(
-              exeContext.state,
-              {
-                responseNodes: [],
-                parentResponseNode,
-                atIndices: [index],
-                results: [result.data],
-              },
-              result.responseNode,
-            ),
-          createErrorBundleContext: (index, responseNode) =>
-            this.onNewBundleContext(
-              exeContext.state,
-              {
-                responseNodes: [],
-                parentResponseNode,
-                atIndices: [index],
-              },
-              responseNode,
-            ),
-          onSubsequentData: (index, result, context) => {
-            this.onSubsequentResponseNode(
-              exeContext.state,
-              context,
-              result.responseNode,
-            );
+          (index, result) => ({
+            responseNodes: [],
+            parentResponseNode,
+            atIndices: [index],
+            results: [result.data],
+          }),
+          (index) => ({
+            responseNodes: [],
+            parentResponseNode,
+            atIndices: [index],
+          }),
+          (index, result, context) => {
             context.results.push(result.data);
             context.atIndices.push(index);
           },
-          onSubsequentError: (index, responseNode, context) => {
-            this.onSubsequentResponseNode(
-              exeContext.state,
-              context,
-              responseNode,
-            );
+          (index, context) => {
             context.atIndices.push(index);
           },
-          onDataBundle: (context) =>
-            exeContext.publisher.queue(
-              context.responseNodes,
-              {
-                responseContext: context,
-                data: context.results,
-                path,
-                atIndices: context.atIndices,
-                label,
-              },
-              parentResponseNode,
-            ),
-          onErrorBundle: (context) =>
-            exeContext.publisher.queue(
-              context.responseNodes,
-              {
-                responseContext: context,
-                data: null,
-                path,
-                atIndices: context.atIndices,
-                label,
-              },
-              parentResponseNode,
-            ),
-        }),
+          (context) => ({
+            responseContext: context,
+            data: context.results,
+            path,
+            atIndices: context.atIndices,
+            label,
+          }),
+          (context) => ({
+            responseContext: context,
+            data: null,
+            path,
+            atIndices: context.atIndices,
+            label,
+          }),
+        ),
       };
     }
 
@@ -1425,70 +1435,46 @@ export class Executor {
       path,
       bundler: getSequentialBundler(
         initialCount,
-        new Bundler({
-          initialIndex: initialCount,
-          maxBundleSize: maxChunkSize,
+        this.createBundler(
+          exeContext,
+          parentResponseNode,
+          initialCount,
+          maxChunkSize,
           maxInterval,
-          createDataBundleContext: (index, result) =>
-            this.onNewBundleContext(
-              exeContext.state,
-              {
-                responseNodes: [],
-                parentResponseNode,
-                atIndex: index,
-                results: [result.data],
-              },
-              result.responseNode,
-            ),
-          createErrorBundleContext: (index, responseNode) =>
-            this.onNewBundleContext(
-              exeContext.state,
-              {
-                responseNodes: [],
-                parentResponseNode,
-                atIndex: index,
-              },
-              responseNode,
-            ),
-          onSubsequentData: (_index, result, context) => {
-            this.onSubsequentResponseNode(
-              exeContext.state,
-              context,
-              result.responseNode,
-            );
+          (index, result) => ({
+            responseNodes: [],
+            parentResponseNode,
+            atIndex: index,
+            results: [result.data],
+          }),
+          (index) => ({
+            responseNodes: [],
+            parentResponseNode,
+            atIndex: index,
+          }),
+          (_index, result, context) => {
             context.results.push(result.data);
           },
-          onSubsequentError: (_index, responseNode, context) =>
-            this.onSubsequentResponseNode(
-              exeContext.state,
-              context,
-              responseNode,
-            ),
-          onDataBundle: (context) =>
-            exeContext.publisher.queue(
-              context.responseNodes,
-              {
-                responseContext: context,
-                data: context.results,
-                path,
-                atIndex: context.atIndex,
-                label,
-              },
-              parentResponseNode,
-            ),
-          onErrorBundle: (context) =>
-            exeContext.publisher.queue(
-              context.responseNodes,
-              {
-                responseContext: context,
-                data: null,
-                path,
-                atIndex: context.atIndex,
-                label,
-              },
-              parentResponseNode,
-            ),
-        }),
+          /* c8 ignore start */
+          () => {
+            /* with serial bundlers and no data, no additional action is needed */
+          },
+          /* c8 ignore stop */
+          (context) => ({
+            responseContext: context,
+            data: context.results,
+            path,
+            atIndex: context.atIndex,
+            label,
+          }),
+          (context) => ({
+            responseContext: context,
+            data: null,
+            path,
+            atIndex: context.atIndex,
+            label,
+          }),
+        ),
       ),
     };
   }

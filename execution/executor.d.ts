@@ -23,6 +23,7 @@ import type { ObjMap } from '../jsutils/ObjMap';
 import type { PromiseOrValue } from '../jsutils/PromiseOrValue';
 import type { Maybe } from '../jsutils/Maybe';
 import { Publisher } from '../jsutils/publisher';
+import { Bundler } from '../jsutils/bundler';
 import type { ExecutorSchema } from './executorSchema';
 /**
  * Terminology
@@ -565,6 +566,33 @@ export declare class Executor {
     context: T,
     responseNode: ResponseNode,
   ): void;
+  createBundler<
+    TDataContext extends SubsequentResponseContext,
+    TErrorContext extends SubsequentResponseContext,
+  >(
+    exeContext: ExecutionContext,
+    parentResponseNode: ResponseNode,
+    initialCount: number,
+    maxChunkSize: number,
+    maxInterval: Maybe<number>,
+    resultToNewDataContext: (
+      index: number,
+      result: StreamDataResult,
+    ) => TDataContext,
+    indexToNewErrorContext: (index: number) => TErrorContext,
+    onSubsequentData: (
+      index: number,
+      result: StreamDataResult,
+      context: TDataContext,
+    ) => void,
+    onSubsequentError: (index: number, context: TErrorContext) => void,
+    dataContextToIncrementalResult: (
+      context: TDataContext,
+    ) => IncrementalResult,
+    errorContextToIncrementalResult: (
+      context: TErrorContext,
+    ) => IncrementalResult,
+  ): Bundler<StreamDataResult, ResponseNode, TDataContext, TErrorContext>;
   createStreamContext(
     exeContext: ExecutionContext,
     initialCount: number,
