@@ -1,4 +1,4 @@
-import { Repeater } from './repeater.ts';
+import { Repeater } from '../jsutils/repeater.ts';
 interface PublisherOptions<TSource, TPayload> {
   payloadFromSource?: (source: TSource, hasNext: boolean) => TPayload;
   onReady?: () => void;

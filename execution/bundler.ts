@@ -1,4 +1,4 @@
-import type { Maybe } from './Maybe.ts';
+import type { Maybe } from '../jsutils/Maybe.ts';
 export interface IBundler<TDataResult, TErrorResult> {
   queueData: (index: number, result: TDataResult) => void;
   queueError: (index: number, result: TErrorResult) => void;
