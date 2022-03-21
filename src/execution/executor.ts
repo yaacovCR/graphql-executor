@@ -52,9 +52,6 @@ import { addPath, pathToArray } from '../jsutils/Path';
 import { isAsyncIterable } from '../jsutils/isAsyncIterable';
 import { isIterableObject } from '../jsutils/isIterableObject';
 import { resolveAfterAll } from '../jsutils/resolveAfterAll';
-import { Publisher } from '../jsutils/publisher';
-import { Bundler } from '../jsutils/bundler';
-import { getSequentialBundler } from '../jsutils/getSequentialBundler';
 import { toError } from '../jsutils/toError';
 
 import type { ExecutorSchema } from './executorSchema';
@@ -64,6 +61,9 @@ import {
   getArgumentValues,
   getDirectiveValues,
 } from './values';
+import { Publisher } from './publisher';
+import { Bundler } from './bundler';
+import { getSequentialBundler } from './getSequentialBundler';
 import { mapAsyncIterable } from './mapAsyncIterable';
 import { flattenAsyncIterable } from './flattenAsyncIterable';
 
