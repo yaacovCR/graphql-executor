@@ -38,17 +38,17 @@ var _isIterableObject = require('../jsutils/isIterableObject.js');
 
 var _resolveAfterAll = require('../jsutils/resolveAfterAll.js');
 
-var _publisher = require('../jsutils/publisher.js');
-
-var _bundler = require('../jsutils/bundler.js');
-
-var _getSequentialBundler = require('../jsutils/getSequentialBundler.js');
-
 var _toError = require('../jsutils/toError.js');
 
 var _toExecutorSchema = require('./toExecutorSchema.js');
 
 var _values = require('./values.js');
+
+var _publisher = require('./publisher.js');
+
+var _bundler = require('./bundler.js');
+
+var _getSequentialBundler = require('./getSequentialBundler.js');
 
 var _mapAsyncIterable = require('./mapAsyncIterable.js');
 

@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import type { Maybe } from './Maybe';
+import type { Maybe } from '../jsutils/Maybe';
 export interface IBundler<TDataResult, TErrorResult> {
   queueData: (index: number, result: TDataResult) => void;
   queueError: (index: number, result: TErrorResult) => void;

@@ -1,16 +1,9 @@
-'use strict';
-
-Object.defineProperty(exports, '__esModule', {
-  value: true,
-});
-exports.Publisher = void 0;
-
-var _repeater = require('./repeater.js');
+import { Repeater } from '../jsutils/repeater.mjs';
 
 /**
  * @internal
  */
-class Publisher {
+export class Publisher {
   // This is safe because a promise executor within the constructor will assign this.
   constructor({
     payloadFromSource = (source) => source,
@@ -28,7 +21,7 @@ class Publisher {
     });
     this._pushed = new WeakMap();
     this._pending = new WeakMap();
-    this._repeater = new _repeater.Repeater(async (push, stop) => {
+    this._repeater = new Repeater(async (push, stop) => {
       if (onStop) {
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
         stop.then(onStop);
@@ -155,5 +148,3 @@ class Publisher {
     return this._repeater;
   }
 }
-
-exports.Publisher = Publisher;
