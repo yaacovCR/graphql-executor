@@ -1499,6 +1499,26 @@ export class Executor {
     );
   }
 
+  onNewBundleContext<T extends SubsequentResponseContext>(
+    state: ExecutionState,
+    context: T,
+    responseNode: ResponseNode,
+  ): T {
+    state.pendingPushes++;
+    state.pendingStreamResults--;
+    context.responseNodes.push(responseNode);
+    return context;
+  }
+
+  onSubsequentResponseNode<T extends SubsequentResponseContext>(
+    state: ExecutionState,
+    context: T,
+    responseNode: ResponseNode,
+  ): void {
+    state.pendingStreamResults--;
+    context.responseNodes.push(responseNode);
+  }
+
   createStreamContext(
     exeContext: ExecutionContext,
     initialCount: number,
@@ -1519,32 +1539,34 @@ export class Executor {
         initialIndex: initialCount,
         maxBundleSize: maxChunkSize,
         maxInterval,
-        createDataBundleContext: (index, result) => {
-          exeContext.state.pendingPushes++;
-          exeContext.state.pendingStreamResults--;
-          return {
-            responseNodes: [result.responseNode],
-            parentResponseNode,
-            result: result.data,
-            atIndex: index,
-          };
-        },
-        createErrorBundleContext: (index, responseNode) => {
-          exeContext.state.pendingPushes++;
-          exeContext.state.pendingStreamResults--;
-          return {
-            responseNodes: [responseNode],
-            parentResponseNode,
-            atIndex: index,
-          };
-        } /* c8 ignore start */,
+        createDataBundleContext: (index, result) =>
+          this.onNewBundleContext(
+            exeContext.state,
+            {
+              responseNodes: [],
+              parentResponseNode,
+              result: result.data,
+              atIndex: index,
+            },
+            result.responseNode,
+          ),
+        createErrorBundleContext: (index, responseNode) =>
+          this.onNewBundleContext(
+            exeContext.state,
+            {
+              responseNodes: [],
+              parentResponseNode,
+              atIndex: index,
+            },
+            responseNode,
+          ) /* c8 ignore start */,
         onSubsequentData: () => {
           /* with maxBundleSize of 1, this function will never be called */
         },
         onSubsequentError: () => {
           /* with maxBundleSize of 1, this function will never be called */
         } /* c8 ignore stop */,
-        onDataBundle: (context) => {
+        onDataBundle: (context) =>
           exeContext.publisher.queue(
             context.responseNodes,
             {
@@ -1554,9 +1576,8 @@ export class Executor {
               label,
             },
             parentResponseNode,
-          );
-        },
-        onErrorBundle: (context) => {
+          ),
+        onErrorBundle: (context) =>
           exeContext.publisher.queue(
             context.responseNodes,
             {
@@ -1566,8 +1587,7 @@ export class Executor {
               label,
             },
             parentResponseNode,
-          );
-        },
+          ),
       });
 
       return {
@@ -1592,37 +1612,45 @@ export class Executor {
           initialIndex: initialCount,
           maxBundleSize: maxChunkSize,
           maxInterval,
-          createDataBundleContext: (index, result) => {
-            exeContext.state.pendingPushes++;
-            exeContext.state.pendingStreamResults--;
-            return {
-              responseNodes: [result.responseNode],
-              parentResponseNode,
-              atIndices: [index],
-              results: [result.data],
-            };
-          },
-          createErrorBundleContext: (index, responseNode) => {
-            exeContext.state.pendingPushes++;
-            exeContext.state.pendingStreamResults--;
-            return {
-              responseNodes: [responseNode],
-              parentResponseNode,
-              atIndices: [index],
-            };
-          },
+          createDataBundleContext: (index, result) =>
+            this.onNewBundleContext(
+              exeContext.state,
+              {
+                responseNodes: [],
+                parentResponseNode,
+                atIndices: [index],
+                results: [result.data],
+              },
+              result.responseNode,
+            ),
+          createErrorBundleContext: (index, responseNode) =>
+            this.onNewBundleContext(
+              exeContext.state,
+              {
+                responseNodes: [],
+                parentResponseNode,
+                atIndices: [index],
+              },
+              responseNode,
+            ),
           onSubsequentData: (index, result, context) => {
-            exeContext.state.pendingStreamResults--;
-            context.responseNodes.push(result.responseNode);
+            this.onSubsequentResponseNode(
+              exeContext.state,
+              context,
+              result.responseNode,
+            );
             context.results.push(result.data);
             context.atIndices.push(index);
           },
           onSubsequentError: (index, responseNode, context) => {
-            exeContext.state.pendingStreamResults--;
-            context.responseNodes.push(responseNode);
+            this.onSubsequentResponseNode(
+              exeContext.state,
+              context,
+              responseNode,
+            );
             context.atIndices.push(index);
           },
-          onDataBundle: (context) => {
+          onDataBundle: (context) =>
             exeContext.publisher.queue(
               context.responseNodes,
               {
@@ -1633,9 +1661,8 @@ export class Executor {
                 label,
               },
               parentResponseNode,
-            );
-          },
-          onErrorBundle: (context) => {
+            ),
+          onErrorBundle: (context) =>
             exeContext.publisher.queue(
               context.responseNodes,
               {
@@ -1646,8 +1673,7 @@ export class Executor {
                 label,
               },
               parentResponseNode,
-            );
-          },
+            ),
         }),
       };
     }
@@ -1666,35 +1692,42 @@ export class Executor {
           initialIndex: initialCount,
           maxBundleSize: maxChunkSize,
           maxInterval,
-          createDataBundleContext: (index, result) => {
-            exeContext.state.pendingPushes++;
-            exeContext.state.pendingStreamResults--;
-            return {
-              responseNodes: [],
-              parentResponseNode,
-              atIndex: index,
-              results: [result.data],
-            };
-          },
-          createErrorBundleContext: (index, responseNode) => {
-            exeContext.state.pendingPushes++;
-            exeContext.state.pendingStreamResults--;
-            return {
-              responseNodes: [responseNode],
-              parentResponseNode,
-              atIndex: index,
-            };
-          },
+          createDataBundleContext: (index, result) =>
+            this.onNewBundleContext(
+              exeContext.state,
+              {
+                responseNodes: [],
+                parentResponseNode,
+                atIndex: index,
+                results: [result.data],
+              },
+              result.responseNode,
+            ),
+          createErrorBundleContext: (index, responseNode) =>
+            this.onNewBundleContext(
+              exeContext.state,
+              {
+                responseNodes: [],
+                parentResponseNode,
+                atIndex: index,
+              },
+              responseNode,
+            ),
           onSubsequentData: (_index, result, context) => {
-            exeContext.state.pendingStreamResults--;
-            context.responseNodes.push(result.responseNode);
+            this.onSubsequentResponseNode(
+              exeContext.state,
+              context,
+              result.responseNode,
+            );
             context.results.push(result.data);
           },
-          onSubsequentError: (_index, responseNode, context) => {
-            exeContext.state.pendingStreamResults--;
-            context.responseNodes.push(responseNode);
-          },
-          onDataBundle: (context) => {
+          onSubsequentError: (_index, responseNode, context) =>
+            this.onSubsequentResponseNode(
+              exeContext.state,
+              context,
+              responseNode,
+            ),
+          onDataBundle: (context) =>
             exeContext.publisher.queue(
               context.responseNodes,
               {
@@ -1705,9 +1738,8 @@ export class Executor {
                 label,
               },
               parentResponseNode,
-            );
-          },
-          onErrorBundle: (context) => {
+            ),
+          onErrorBundle: (context) =>
             exeContext.publisher.queue(
               context.responseNodes,
               {
@@ -1718,8 +1750,7 @@ export class Executor {
                 label,
               },
               parentResponseNode,
-            );
-          },
+            ),
         }),
       ),
     };
