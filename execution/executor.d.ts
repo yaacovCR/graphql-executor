@@ -555,6 +555,16 @@ export declare class Executor {
     completedResults: Array<unknown>,
     promises: Array<Promise<void>>,
   ): void;
+  onNewBundleContext<T extends SubsequentResponseContext>(
+    state: ExecutionState,
+    context: T,
+    responseNode: ResponseNode,
+  ): T;
+  onSubsequentResponseNode<T extends SubsequentResponseContext>(
+    state: ExecutionState,
+    context: T,
+    responseNode: ResponseNode,
+  ): void;
   createStreamContext(
     exeContext: ExecutionContext,
     initialCount: number,
