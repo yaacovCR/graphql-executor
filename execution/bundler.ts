@@ -44,7 +44,6 @@ export class Bundler<TDataResult, TErrorResult, TDataContext, TErrorContext>
   implements IBundler<TDataResult, TErrorResult>
 {
   private _maxBundleSize: number;
-  private _maxInterval: Maybe<number>;
   private _createDataBundleContext: (
     index: number,
     result: TDataResult,
@@ -92,7 +91,6 @@ export class Bundler<TDataResult, TErrorResult, TDataContext, TErrorContext>
     onErrorBundle,
   }: BundlerOptions<TDataResult, TErrorResult, TDataContext, TErrorContext>) {
     this._maxBundleSize = maxBundleSize;
-    this._maxInterval = maxInterval;
     this._createDataBundleContext = createDataBundleContext;
     this._createErrorBundleContext = createErrorBundleContext;
     this._onSubsequentData = onSubsequentData;
