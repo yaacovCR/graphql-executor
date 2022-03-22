@@ -24,16 +24,9 @@ import {
   GraphQLSkipDirective,
   GraphQLError,
   Kind,
-  SchemaMetaFieldDef,
-  TypeMetaFieldDef,
   TypeNameMetaFieldDef,
   locatedError,
 } from 'graphql';
-
-import {
-  GraphQLDeferDirective,
-  GraphQLStreamDirective,
-} from '../type/directives';
 
 import type { Path } from '../jsutils/Path';
 import type { ObjMap } from '../jsutils/ObjMap';
@@ -53,6 +46,16 @@ import { isAsyncIterable } from '../jsutils/isAsyncIterable';
 import { isIterableObject } from '../jsutils/isIterableObject';
 import { resolveAfterAll } from '../jsutils/resolveAfterAll';
 import { toError } from '../jsutils/toError';
+
+import {
+  GraphQLDeferDirective,
+  GraphQLStreamDirective,
+} from '../type/directives';
+import {
+  SchemaMetaFieldDef,
+  TypeMetaFieldDef,
+  DirectiveMetaFieldDef,
+} from '../type/introspection';
 
 import type { ExecutorSchema } from './executorSchema';
 import { toExecutorSchema } from './toExecutorSchema';
@@ -2336,6 +2339,39 @@ export class Executor {
    * Returns: the field definition and a class for constructing the info
    * argument for field resolvers.
    */
+  _getFieldDef(
+    fieldName: string,
+    parentType: GraphQLObjectType,
+  ): Maybe<GraphQLField<unknown, unknown>> {
+    const fieldDef = parentType.getFields()[fieldName];
+
+    if (fieldDef) {
+      return fieldDef;
+    }
+
+    if (
+      fieldName === SchemaMetaFieldDef.name &&
+      this._executorSchema.getRootType('query' as OperationTypeNode) ===
+        parentType
+    ) {
+      return SchemaMetaFieldDef;
+    } else if (
+      fieldName === TypeMetaFieldDef.name &&
+      this._executorSchema.getRootType('query' as OperationTypeNode) ===
+        parentType
+    ) {
+      return TypeMetaFieldDef;
+    } else if (
+      fieldName === DirectiveMetaFieldDef.name &&
+      this._executorSchema.getRootType('query' as OperationTypeNode) ===
+        parentType
+    ) {
+      return DirectiveMetaFieldDef;
+    } else if (fieldName === TypeNameMetaFieldDef.name) {
+      return TypeNameMetaFieldDef;
+    }
+  }
+
   _getFieldContext(
     parentType: GraphQLObjectType,
     fieldNodes: ReadonlyArray<FieldNode>,
@@ -2343,24 +2379,7 @@ export class Executor {
     const initialFieldNode = fieldNodes[0];
     const fieldName = initialFieldNode.name.value;
 
-    let fieldDef: GraphQLField<unknown, unknown>;
-    if (
-      fieldName === SchemaMetaFieldDef.name &&
-      this._executorSchema.getRootType('query' as OperationTypeNode) ===
-        parentType
-    ) {
-      fieldDef = SchemaMetaFieldDef;
-    } else if (
-      fieldName === TypeMetaFieldDef.name &&
-      this._executorSchema.getRootType('query' as OperationTypeNode) ===
-        parentType
-    ) {
-      fieldDef = TypeMetaFieldDef;
-    } else if (fieldName === TypeNameMetaFieldDef.name) {
-      fieldDef = TypeNameMetaFieldDef;
-    } else {
-      fieldDef = parentType.getFields()[fieldName];
-    }
+    const fieldDef = this._getFieldDef(fieldName, parentType);
 
     if (!fieldDef) {
       return;
