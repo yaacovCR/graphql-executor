@@ -753,6 +753,10 @@ export declare class Executor {
    * Returns: the field definition and a class for constructing the info
    * argument for field resolvers.
    */
+  _getFieldDef(
+    fieldName: string,
+    parentType: GraphQLObjectType,
+  ): Maybe<GraphQLField<unknown, unknown>>;
   _getFieldContext(
     parentType: GraphQLObjectType,
     fieldNodes: ReadonlyArray<FieldNode>,

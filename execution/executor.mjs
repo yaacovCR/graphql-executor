@@ -17,15 +17,9 @@ import {
   GraphQLSkipDirective,
   GraphQLError,
   Kind,
-  SchemaMetaFieldDef,
-  TypeMetaFieldDef,
   TypeNameMetaFieldDef,
   locatedError,
 } from 'graphql';
-import {
-  GraphQLDeferDirective,
-  GraphQLStreamDirective,
-} from '../type/directives.mjs';
 import { inspect } from '../jsutils/inspect.mjs';
 import { memoize1 } from '../jsutils/memoize1.mjs';
 import { memoize1and1 } from '../jsutils/memoize1and1.mjs';
@@ -40,6 +34,15 @@ import { isAsyncIterable } from '../jsutils/isAsyncIterable.mjs';
 import { isIterableObject } from '../jsutils/isIterableObject.mjs';
 import { resolveAfterAll } from '../jsutils/resolveAfterAll.mjs';
 import { toError } from '../jsutils/toError.mjs';
+import {
+  GraphQLDeferDirective,
+  GraphQLStreamDirective,
+} from '../type/directives.mjs';
+import {
+  SchemaMetaFieldDef,
+  TypeMetaFieldDef,
+  DirectiveMetaFieldDef,
+} from '../type/introspection.mjs';
 import { toExecutorSchema } from './toExecutorSchema.mjs';
 import {
   getVariableValues,
@@ -2088,26 +2091,38 @@ export class Executor {
    * argument for field resolvers.
    */
 
-  _getFieldContext(parentType, fieldNodes) {
-    const initialFieldNode = fieldNodes[0];
-    const fieldName = initialFieldNode.name.value;
-    let fieldDef;
+  _getFieldDef(fieldName, parentType) {
+    const fieldDef = parentType.getFields()[fieldName];
+
+    if (fieldDef) {
+      return fieldDef;
+    }
 
     if (
       fieldName === SchemaMetaFieldDef.name &&
       this._executorSchema.getRootType('query') === parentType
     ) {
-      fieldDef = SchemaMetaFieldDef;
+      return SchemaMetaFieldDef;
     } else if (
       fieldName === TypeMetaFieldDef.name &&
       this._executorSchema.getRootType('query') === parentType
     ) {
-      fieldDef = TypeMetaFieldDef;
+      return TypeMetaFieldDef;
+    } else if (
+      fieldName === DirectiveMetaFieldDef.name &&
+      this._executorSchema.getRootType('query') === parentType
+    ) {
+      return DirectiveMetaFieldDef;
     } else if (fieldName === TypeNameMetaFieldDef.name) {
-      fieldDef = TypeNameMetaFieldDef;
-    } else {
-      fieldDef = parentType.getFields()[fieldName];
+      return TypeNameMetaFieldDef;
     }
+  }
+
+  _getFieldContext(parentType, fieldNodes) {
+    const initialFieldNode = fieldNodes[0];
+    const fieldName = initialFieldNode.name.value;
+
+    const fieldDef = this._getFieldDef(fieldName, parentType);
 
     if (!fieldDef) {
       return;

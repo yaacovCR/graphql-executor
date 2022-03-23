@@ -10,8 +10,6 @@ exports.defaultTypeResolver =
 
 var _graphql = require('graphql');
 
-var _directives = require('../type/directives.js');
-
 var _inspect = require('../jsutils/inspect.js');
 
 var _memoize = require('../jsutils/memoize1.js');
@@ -39,6 +37,10 @@ var _isIterableObject = require('../jsutils/isIterableObject.js');
 var _resolveAfterAll = require('../jsutils/resolveAfterAll.js');
 
 var _toError = require('../jsutils/toError.js');
+
+var _directives = require('../type/directives.js');
+
+var _introspection = require('../type/introspection.js');
 
 var _toExecutorSchema = require('./toExecutorSchema.js');
 
@@ -2097,26 +2099,38 @@ class Executor {
    * argument for field resolvers.
    */
 
+  _getFieldDef(fieldName, parentType) {
+    const fieldDef = parentType.getFields()[fieldName];
+
+    if (fieldDef) {
+      return fieldDef;
+    }
+
+    if (
+      fieldName === _introspection.SchemaMetaFieldDef.name &&
+      this._executorSchema.getRootType('query') === parentType
+    ) {
+      return _introspection.SchemaMetaFieldDef;
+    } else if (
+      fieldName === _introspection.TypeMetaFieldDef.name &&
+      this._executorSchema.getRootType('query') === parentType
+    ) {
+      return _introspection.TypeMetaFieldDef;
+    } else if (
+      fieldName === _introspection.DirectiveMetaFieldDef.name &&
+      this._executorSchema.getRootType('query') === parentType
+    ) {
+      return _introspection.DirectiveMetaFieldDef;
+    } else if (fieldName === _graphql.TypeNameMetaFieldDef.name) {
+      return _graphql.TypeNameMetaFieldDef;
+    }
+  }
+
   _getFieldContext(parentType, fieldNodes) {
     const initialFieldNode = fieldNodes[0];
     const fieldName = initialFieldNode.name.value;
-    let fieldDef;
 
-    if (
-      fieldName === _graphql.SchemaMetaFieldDef.name &&
-      this._executorSchema.getRootType('query') === parentType
-    ) {
-      fieldDef = _graphql.SchemaMetaFieldDef;
-    } else if (
-      fieldName === _graphql.TypeMetaFieldDef.name &&
-      this._executorSchema.getRootType('query') === parentType
-    ) {
-      fieldDef = _graphql.TypeMetaFieldDef;
-    } else if (fieldName === _graphql.TypeNameMetaFieldDef.name) {
-      fieldDef = _graphql.TypeNameMetaFieldDef;
-    } else {
-      fieldDef = parentType.getFields()[fieldName];
-    }
+    const fieldDef = this._getFieldDef(fieldName, parentType);
 
     if (!fieldDef) {
       return;

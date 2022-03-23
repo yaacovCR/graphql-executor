@@ -13,6 +13,8 @@ var _invariant = require('../jsutils/invariant.js');
 
 var _memoize = require('../jsutils/memoize1.js');
 
+var _introspection = require('../type/introspection.js');
+
 function is(x, type) {
   if (Object.prototype.toString.call(x) === `[object ${type}]`) {
     return true;
@@ -49,7 +51,7 @@ function _isEnumType(type) {
 
 function _isInputObjectType(type) {
   return is(type, 'GraphQLInputObjectType');
-}
+} // type predicate uses GraphQLList<any> for compatibility with graphql-js v15 and earlier
 
 function _isListType(type) {
   return Object.prototype.toString.call(type) === '[object GraphQLList]';
@@ -216,10 +218,14 @@ function getPossibleInputTypes(type) {
 function _toExecutorSchema(schema) {
   const listTypes = new Set();
   const nonNullTypes = new Set();
-  const namedTypes = new Set();
+  const namedTypes = new Map();
   const inputTypes = new Set();
   const leafTypes = new Set();
+  const scalarTypes = new Set();
+  const enumTypes = new Set();
   const abstractTypes = new Set();
+  const interfaceTypes = new Set();
+  const unionTypes = new Set();
   const objectTypes = new Set();
   const inputObjectTypes = new Set();
   const typeTree = new TypeTree();
@@ -242,22 +248,14 @@ function _toExecutorSchema(schema) {
     } else if (_isNonNullType(type) && !nonNullTypes.has(type)) {
       nonNullTypes.add(type);
       processType(type.ofType);
-    } else if (_isScalarType(type) && !namedTypes.has(type)) {
-      namedTypes.add(type);
+    } else if (_isScalarType(type) && !namedTypes.get(type.name)) {
+      namedTypes.set(type.name, type);
       leafTypes.add(type);
-    } else if (_isObjectType(type) && !namedTypes.has(type)) {
-      namedTypes.add(type);
+      scalarTypes.add(type);
+    } else if (_isObjectType(type) && !namedTypes.get(type.name)) {
+      namedTypes.set(type.name, type);
       objectTypes.add(type);
       addOutputType(type);
-
-      for (const field of Object.values(type.getFields())) {
-        processType(field.type);
-
-        for (const arg of field.args) {
-          addInputType(arg.type);
-          processType(arg.type);
-        }
-      }
 
       for (const iface of Object.values(type.getInterfaces())) {
         processType(iface);
@@ -278,21 +276,20 @@ function _toExecutorSchema(schema) {
 
         possibleTypes.push(type);
       }
-    } else if (_isInterfaceType(type) && !namedTypes.has(type)) {
-      namedTypes.add(type);
-      abstractTypes.add(type);
-      addOutputType(type);
 
       for (const field of Object.values(type.getFields())) {
-        processType(field.type); // TODO: add test
-
-        /* c8 ignore next 4 */
+        processType(field.type);
 
         for (const arg of field.args) {
           addInputType(arg.type);
           processType(arg.type);
         }
-      } // NOTE: pre-v15 compatibility
+      }
+    } else if (_isInterfaceType(type) && !namedTypes.get(type.name)) {
+      namedTypes.set(type.name, type);
+      abstractTypes.add(type);
+      interfaceTypes.add(type);
+      addOutputType(type); // NOTE: pre-v15 compatibility
 
       if ('getInterfaces' in type) {
         for (const iface of Object.values(type.getInterfaces())) {
@@ -307,9 +304,21 @@ function _toExecutorSchema(schema) {
           subTypes.add(type);
         }
       }
-    } else if (_isUnionType(type) && !namedTypes.has(type)) {
-      namedTypes.add(type);
+
+      for (const field of Object.values(type.getFields())) {
+        processType(field.type); // TODO: add test
+
+        /* c8 ignore next 4 */
+
+        for (const arg of field.args) {
+          addInputType(arg.type);
+          processType(arg.type);
+        }
+      }
+    } else if (_isUnionType(type) && !namedTypes.get(type.name)) {
+      namedTypes.set(type.name, type);
       abstractTypes.add(type);
+      unionTypes.add(type);
       addOutputType(type);
       let subTypes = subTypesMap.get(type);
 
@@ -330,11 +339,12 @@ function _toExecutorSchema(schema) {
         subTypes.add(possibleType);
         possibleTypes.push(possibleType);
       }
-    } else if (_isEnumType(type) && !namedTypes.has(type)) {
-      namedTypes.add(type);
+    } else if (_isEnumType(type) && !namedTypes.get(type.name)) {
+      namedTypes.set(type.name, type);
       leafTypes.add(type);
-    } else if (_isInputObjectType(type) && !namedTypes.has(type)) {
-      namedTypes.add(type);
+      enumTypes.add(type);
+    } else if (_isInputObjectType(type) && !namedTypes.get(type.name)) {
+      namedTypes.set(type.name, type);
       inputObjectTypes.add(type);
 
       for (const field of Object.values(type.getFields())) {
@@ -344,28 +354,13 @@ function _toExecutorSchema(schema) {
     }
   }
 
-  const queryType = schema.getQueryType();
-  const mutationType = schema.getMutationType();
-  const subscriptionType = schema.getSubscriptionType();
-
   for (const type of Object.values(schema.getTypeMap())) {
-    processType(type);
-  }
-
-  for (const fieldDef of [
-    _graphql.SchemaMetaFieldDef,
-    _graphql.TypeMetaFieldDef,
-    _graphql.TypeNameMetaFieldDef,
-  ]) {
-    processType(fieldDef.type);
-
-    for (const arg of fieldDef.args) {
-      addInputType(arg.type);
-      processType(arg.type);
+    if (!type.name.startsWith('__')) {
+      processType(type);
     }
   }
 
-  for (const directive of [...schema.getDirectives()]) {
+  for (const directive of schema.getDirectives()) {
     for (const arg of directive.args) {
       addInputType(arg.type);
       processType(arg.type);
@@ -386,6 +381,27 @@ function _toExecutorSchema(schema) {
     }
   }
 
+  for (const type of _introspection.introspectionTypes) {
+    processType(type);
+  }
+
+  for (const fieldDef of [
+    _introspection.SchemaMetaFieldDef,
+    _introspection.TypeMetaFieldDef,
+    _graphql.TypeNameMetaFieldDef,
+  ]) {
+    processType(fieldDef.type);
+
+    for (const arg of fieldDef.args) {
+      addInputType(arg.type);
+      processType(arg.type);
+    }
+  }
+
+  const queryType = schema.getQueryType();
+  const mutationType = schema.getMutationType();
+  const subscriptionType = schema.getSubscriptionType();
+
   function isListType(type) {
     return listTypes.has(type);
   }
@@ -395,7 +411,7 @@ function _toExecutorSchema(schema) {
   }
 
   function isNamedType(type) {
-    return namedTypes.has(type);
+    return namedTypes.get(type.name) !== undefined;
   }
 
   function isInputType(type) {
@@ -406,8 +422,24 @@ function _toExecutorSchema(schema) {
     return leafTypes.has(type);
   }
 
+  function isScalarType(type) {
+    return scalarTypes.has(type);
+  }
+
+  function isEnumType(type) {
+    return enumTypes.has(type);
+  }
+
   function isAbstractType(type) {
     return abstractTypes.has(type);
+  }
+
+  function isInterfaceType(type) {
+    return interfaceTypes.has(type);
+  }
+
+  function isUnionType(type) {
+    return unionTypes.has(type);
   }
 
   function isObjectType(type) {
@@ -418,14 +450,26 @@ function _toExecutorSchema(schema) {
     return inputObjectTypes.has(type);
   }
 
-  function getNamedType(typeName) {
-    var _schema$getType;
+  function getDirectives() {
+    return schema.getDirectives();
+  }
+
+  function getDirective(directiveName) {
+    var _schema$getDirective;
 
     // cast necessary pre v15 to convert null to undefined
-    return (_schema$getType = schema.getType(typeName)) !== null &&
-      _schema$getType !== void 0
-      ? _schema$getType
+    return (_schema$getDirective = schema.getDirective(directiveName)) !==
+      null && _schema$getDirective !== void 0
+      ? _schema$getDirective
       : undefined;
+  }
+
+  function getNamedTypes() {
+    return Array.from(namedTypes.values());
+  }
+
+  function getNamedType(typeName) {
+    return namedTypes.get(typeName);
   }
 
   function getType(typeNode) {
@@ -481,14 +525,22 @@ function _toExecutorSchema(schema) {
   }
 
   return {
+    description: schema.description,
     isListType,
     isNonNullType,
     isNamedType,
     isInputType,
     isLeafType,
+    isScalarType,
+    isEnumType,
     isAbstractType,
+    isInterfaceType,
+    isUnionType,
     isObjectType,
     isInputObjectType,
+    getDirectives,
+    getDirective,
+    getNamedTypes,
     getNamedType,
     getType,
     getRootType,
