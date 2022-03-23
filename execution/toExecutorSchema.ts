@@ -1,12 +1,12 @@
 import type {
   GraphQLAbstractType,
+  GraphQLDirective,
   GraphQLEnumType,
   GraphQLInterfaceType,
   GraphQLInputObjectType,
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLUnionType,
-  GraphQLNamedInputType,
   GraphQLNamedType,
   GraphQLInputType,
   GraphQLLeafType,
@@ -21,13 +21,16 @@ import {
   GraphQLList,
   GraphQLNonNull,
   Kind,
-  SchemaMetaFieldDef,
-  TypeMetaFieldDef,
   TypeNameMetaFieldDef,
 } from 'graphql';
 import { inspect } from '../jsutils/inspect.ts';
 import { invariant } from '../jsutils/invariant.ts';
 import { memoize1 } from '../jsutils/memoize1.ts';
+import {
+  SchemaMetaFieldDef,
+  TypeMetaFieldDef,
+  introspectionTypes,
+} from '../type/introspection.ts';
 import type {
   ExecutorSchema,
   GraphQLNullableInputType,
@@ -70,29 +73,11 @@ function _isEnumType(type: unknown): type is GraphQLEnumType {
 
 function _isInputObjectType(type: unknown): type is GraphQLInputObjectType {
   return is(type, 'GraphQLInputObjectType');
-}
+} // type predicate uses GraphQLList<any> for compatibility with graphql-js v15 and earlier
 
-function _isListType(
-  type: GraphQLInputType,
-): type is GraphQLList<GraphQLInputType>;
-function _isListType(
-  type: GraphQLOutputType,
-): type is GraphQLList<GraphQLOutputType>;
-function _isListType(type: unknown): type is GraphQLList<GraphQLType>;
-
-function _isListType(type: unknown): type is GraphQLList<GraphQLType> {
+function _isListType(type: unknown): type is GraphQLList<any> {
   return Object.prototype.toString.call(type) === '[object GraphQLList]';
 }
-
-function _isNonNullType(
-  type: GraphQLInputType,
-): type is GraphQLNonNull<GraphQLNullableInputType>;
-function _isNonNullType(
-  type: GraphQLOutputType,
-): type is GraphQLNonNull<GraphQLNullableOutputType>;
-function _isNonNullType(
-  type: unknown,
-): type is GraphQLNonNull<GraphQLNullableType>;
 
 function _isNonNullType(
   type: unknown,
@@ -199,7 +184,7 @@ class TypeTree {
 interface InputTypeInfo {
   nonNullListWrappers: Array<boolean>;
   nonNull: boolean;
-  namedType: GraphQLNamedInputType;
+  namedType: GraphQLNamedType & GraphQLInputType;
 }
 
 function getInputTypeInfo(
@@ -291,10 +276,14 @@ function getPossibleInputTypes(
 function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
   const listTypes: Set<GraphQLList<GraphQLType>> = new Set();
   const nonNullTypes: Set<GraphQLNonNull<GraphQLNullableType>> = new Set();
-  const namedTypes: Set<GraphQLNamedType> = new Set();
+  const namedTypes: Map<string, GraphQLNamedType> = new Map();
   const inputTypes: Set<GraphQLInputType> = new Set();
   const leafTypes: Set<GraphQLLeafType> = new Set();
+  const scalarTypes: Set<GraphQLScalarType> = new Set();
+  const enumTypes: Set<GraphQLEnumType> = new Set();
   const abstractTypes: Set<GraphQLAbstractType> = new Set();
+  const interfaceTypes: Set<GraphQLInterfaceType> = new Set();
+  const unionTypes: Set<GraphQLUnionType> = new Set();
   const objectTypes: Set<GraphQLObjectType> = new Set();
   const inputObjectTypes: Set<GraphQLInputObjectType> = new Set();
   const typeTree = new TypeTree();
@@ -323,22 +312,14 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
     } else if (_isNonNullType(type) && !nonNullTypes.has(type)) {
       nonNullTypes.add(type);
       processType(type.ofType);
-    } else if (_isScalarType(type) && !namedTypes.has(type)) {
-      namedTypes.add(type);
+    } else if (_isScalarType(type) && !namedTypes.get(type.name)) {
+      namedTypes.set(type.name, type);
       leafTypes.add(type);
-    } else if (_isObjectType(type) && !namedTypes.has(type)) {
-      namedTypes.add(type);
+      scalarTypes.add(type);
+    } else if (_isObjectType(type) && !namedTypes.get(type.name)) {
+      namedTypes.set(type.name, type);
       objectTypes.add(type);
       addOutputType(type);
-
-      for (const field of Object.values(type.getFields())) {
-        processType(field.type);
-
-        for (const arg of field.args) {
-          addInputType(arg.type);
-          processType(arg.type);
-        }
-      }
 
       for (const iface of Object.values(type.getInterfaces())) {
         processType(iface);
@@ -359,21 +340,20 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
 
         possibleTypes.push(type);
       }
-    } else if (_isInterfaceType(type) && !namedTypes.has(type)) {
-      namedTypes.add(type);
-      abstractTypes.add(type);
-      addOutputType(type);
 
       for (const field of Object.values(type.getFields())) {
-        processType(field.type); // TODO: add test
-
-        /* c8 ignore next 4 */
+        processType(field.type);
 
         for (const arg of field.args) {
           addInputType(arg.type);
           processType(arg.type);
         }
-      } // NOTE: pre-v15 compatibility
+      }
+    } else if (_isInterfaceType(type) && !namedTypes.get(type.name)) {
+      namedTypes.set(type.name, type);
+      abstractTypes.add(type);
+      interfaceTypes.add(type);
+      addOutputType(type); // NOTE: pre-v15 compatibility
 
       if ('getInterfaces' in type) {
         for (const iface of Object.values(
@@ -394,9 +374,21 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
           subTypes.add(type);
         }
       }
-    } else if (_isUnionType(type) && !namedTypes.has(type)) {
-      namedTypes.add(type);
+
+      for (const field of Object.values(type.getFields())) {
+        processType(field.type); // TODO: add test
+
+        /* c8 ignore next 4 */
+
+        for (const arg of field.args) {
+          addInputType(arg.type);
+          processType(arg.type);
+        }
+      }
+    } else if (_isUnionType(type) && !namedTypes.get(type.name)) {
+      namedTypes.set(type.name, type);
       abstractTypes.add(type);
+      unionTypes.add(type);
       addOutputType(type);
       let subTypes = subTypesMap.get(type);
 
@@ -417,11 +409,12 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
         subTypes.add(possibleType);
         possibleTypes.push(possibleType);
       }
-    } else if (_isEnumType(type) && !namedTypes.has(type)) {
-      namedTypes.add(type);
+    } else if (_isEnumType(type) && !namedTypes.get(type.name)) {
+      namedTypes.set(type.name, type);
       leafTypes.add(type);
-    } else if (_isInputObjectType(type) && !namedTypes.has(type)) {
-      namedTypes.add(type);
+      enumTypes.add(type);
+    } else if (_isInputObjectType(type) && !namedTypes.get(type.name)) {
+      namedTypes.set(type.name, type);
       inputObjectTypes.add(type);
 
       for (const field of Object.values(type.getFields())) {
@@ -431,28 +424,13 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
     }
   }
 
-  const queryType = schema.getQueryType();
-  const mutationType = schema.getMutationType();
-  const subscriptionType = schema.getSubscriptionType();
-
   for (const type of Object.values(schema.getTypeMap())) {
-    processType(type);
-  }
-
-  for (const fieldDef of [
-    SchemaMetaFieldDef,
-    TypeMetaFieldDef,
-    TypeNameMetaFieldDef,
-  ]) {
-    processType(fieldDef.type);
-
-    for (const arg of fieldDef.args) {
-      addInputType(arg.type);
-      processType(arg.type);
+    if (!type.name.startsWith('__')) {
+      processType(type);
     }
   }
 
-  for (const directive of [...schema.getDirectives()]) {
+  for (const directive of schema.getDirectives()) {
     for (const arg of directive.args) {
       addInputType(arg.type);
       processType(arg.type);
@@ -473,6 +451,26 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
     }
   }
 
+  for (const type of introspectionTypes) {
+    processType(type);
+  }
+
+  for (const fieldDef of [
+    SchemaMetaFieldDef,
+    TypeMetaFieldDef,
+    TypeNameMetaFieldDef,
+  ]) {
+    processType(fieldDef.type);
+
+    for (const arg of fieldDef.args) {
+      addInputType(arg.type);
+      processType(arg.type);
+    }
+  }
+
+  const queryType = schema.getQueryType();
+  const mutationType = schema.getMutationType();
+  const subscriptionType = schema.getSubscriptionType();
   function isListType(
     type: GraphQLInputType,
   ): type is GraphQLList<GraphQLInputType>;
@@ -508,7 +506,7 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
   }
 
   function isNamedType(type: unknown): type is GraphQLNamedType {
-    return namedTypes.has(type as GraphQLNamedType);
+    return namedTypes.get((type as GraphQLNamedType).name) !== undefined;
   }
 
   function isInputType(type: unknown): type is GraphQLInputType {
@@ -519,8 +517,24 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
     return leafTypes.has(type as GraphQLLeafType);
   }
 
+  function isScalarType(type: unknown): type is GraphQLScalarType {
+    return scalarTypes.has(type as GraphQLScalarType);
+  }
+
+  function isEnumType(type: unknown): type is GraphQLEnumType {
+    return enumTypes.has(type as GraphQLEnumType);
+  }
+
   function isAbstractType(type: unknown): type is GraphQLAbstractType {
     return abstractTypes.has(type as GraphQLAbstractType);
+  }
+
+  function isInterfaceType(type: unknown): type is GraphQLInterfaceType {
+    return interfaceTypes.has(type as GraphQLInterfaceType);
+  }
+
+  function isUnionType(type: unknown): type is GraphQLUnionType {
+    return unionTypes.has(type as GraphQLUnionType);
   }
 
   function isObjectType(type: unknown): type is GraphQLObjectType {
@@ -531,9 +545,21 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
     return inputObjectTypes.has(type as GraphQLInputObjectType);
   }
 
-  function getNamedType(typeName: string): GraphQLNamedType | undefined {
+  function getDirectives(): ReadonlyArray<GraphQLDirective> {
+    return schema.getDirectives();
+  }
+
+  function getDirective(directiveName: string): GraphQLDirective | undefined {
     // cast necessary pre v15 to convert null to undefined
-    return schema.getType(typeName) ?? undefined;
+    return schema.getDirective(directiveName) ?? undefined;
+  }
+
+  function getNamedTypes(): ReadonlyArray<GraphQLNamedType> {
+    return Array.from(namedTypes.values());
+  }
+
+  function getNamedType(typeName: string): GraphQLNamedType | undefined {
+    return namedTypes.get(typeName);
   }
 
   function getType(typeNode: TypeNode): GraphQLType | undefined {
@@ -581,14 +607,26 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
   }
 
   return {
+    description: (
+      schema as unknown as {
+        description: string;
+      }
+    ).description,
     isListType,
     isNonNullType,
     isNamedType,
     isInputType,
     isLeafType,
+    isScalarType,
+    isEnumType,
     isAbstractType,
+    isInterfaceType,
+    isUnionType,
     isObjectType,
     isInputObjectType,
+    getDirectives,
+    getDirective,
+    getNamedTypes,
     getNamedType,
     getType,
     getRootType,

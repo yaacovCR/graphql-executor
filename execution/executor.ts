@@ -23,15 +23,9 @@ import {
   GraphQLSkipDirective,
   GraphQLError,
   Kind,
-  SchemaMetaFieldDef,
-  TypeMetaFieldDef,
   TypeNameMetaFieldDef,
   locatedError,
 } from 'graphql';
-import {
-  GraphQLDeferDirective,
-  GraphQLStreamDirective,
-} from '../type/directives.ts';
 import type { Path } from '../jsutils/Path.ts';
 import type { ObjMap } from '../jsutils/ObjMap.ts';
 import type { PromiseOrValue } from '../jsutils/PromiseOrValue.ts';
@@ -50,6 +44,15 @@ import { isAsyncIterable } from '../jsutils/isAsyncIterable.ts';
 import { isIterableObject } from '../jsutils/isIterableObject.ts';
 import { resolveAfterAll } from '../jsutils/resolveAfterAll.ts';
 import { toError } from '../jsutils/toError.ts';
+import {
+  GraphQLDeferDirective,
+  GraphQLStreamDirective,
+} from '../type/directives.ts';
+import {
+  SchemaMetaFieldDef,
+  TypeMetaFieldDef,
+  DirectiveMetaFieldDef,
+} from '../type/introspection.ts';
 import type { ExecutorSchema } from './executorSchema.ts';
 import { toExecutorSchema } from './toExecutorSchema.ts';
 import {
@@ -2314,31 +2317,47 @@ export class Executor {
    * argument for field resolvers.
    */
 
-  _getFieldContext(
+  _getFieldDef(
+    fieldName: string,
     parentType: GraphQLObjectType,
-    fieldNodes: ReadonlyArray<FieldNode>,
-  ): Maybe<FieldContext> {
-    const initialFieldNode = fieldNodes[0];
-    const fieldName = initialFieldNode.name.value;
-    let fieldDef: GraphQLField<unknown, unknown>;
+  ): Maybe<GraphQLField<unknown, unknown>> {
+    const fieldDef = parentType.getFields()[fieldName];
+
+    if (fieldDef) {
+      return fieldDef;
+    }
 
     if (
       fieldName === SchemaMetaFieldDef.name &&
       this._executorSchema.getRootType('query' as OperationTypeNode) ===
         parentType
     ) {
-      fieldDef = SchemaMetaFieldDef;
+      return SchemaMetaFieldDef;
     } else if (
       fieldName === TypeMetaFieldDef.name &&
       this._executorSchema.getRootType('query' as OperationTypeNode) ===
         parentType
     ) {
-      fieldDef = TypeMetaFieldDef;
+      return TypeMetaFieldDef;
+    } else if (
+      fieldName === DirectiveMetaFieldDef.name &&
+      this._executorSchema.getRootType('query' as OperationTypeNode) ===
+        parentType
+    ) {
+      return DirectiveMetaFieldDef;
     } else if (fieldName === TypeNameMetaFieldDef.name) {
-      fieldDef = TypeNameMetaFieldDef;
-    } else {
-      fieldDef = parentType.getFields()[fieldName];
+      return TypeNameMetaFieldDef;
     }
+  }
+
+  _getFieldContext(
+    parentType: GraphQLObjectType,
+    fieldNodes: ReadonlyArray<FieldNode>,
+  ): Maybe<FieldContext> {
+    const initialFieldNode = fieldNodes[0];
+    const fieldName = initialFieldNode.name.value;
+
+    const fieldDef = this._getFieldDef(fieldName, parentType);
 
     if (!fieldDef) {
       return;

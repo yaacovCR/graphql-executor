@@ -1,5 +1,7 @@
 import type {
   GraphQLAbstractType,
+  GraphQLDirective,
+  GraphQLEnumType,
   GraphQLInterfaceType,
   GraphQLInputObjectType,
   GraphQLObjectType,
@@ -10,11 +12,13 @@ import type {
   GraphQLType,
   GraphQLNullableType,
   GraphQLOutputType,
+  GraphQLScalarType,
   GraphQLList,
   GraphQLNonNull,
   OperationTypeNode,
   TypeNode,
 } from 'graphql';
+import type { Maybe } from '../jsutils/Maybe.ts';
 export type GraphQLNullableInputType =
   | GraphQLLeafType
   | GraphQLInputObjectType
@@ -26,6 +30,7 @@ export type GraphQLNullableOutputType =
   | GraphQLUnionType
   | GraphQLList<GraphQLOutputType>;
 export interface ExecutorSchema {
+  description: Maybe<string>;
   isListType: ((
     type: GraphQLInputType,
   ) => type is GraphQLList<GraphQLInputType>) &
@@ -41,10 +46,17 @@ export interface ExecutorSchema {
   isNamedType: (type: unknown) => type is GraphQLNamedType;
   isInputType: (type: unknown) => type is GraphQLInputType;
   isLeafType: (type: unknown) => type is GraphQLLeafType;
+  isScalarType: (type: unknown) => type is GraphQLScalarType;
+  isEnumType: (type: unknown) => type is GraphQLEnumType;
   isAbstractType: (type: unknown) => type is GraphQLAbstractType;
+  isInterfaceType: (type: unknown) => type is GraphQLInterfaceType;
+  isUnionType: (type: unknown) => type is GraphQLUnionType;
   isObjectType: (type: unknown) => type is GraphQLObjectType;
   isInputObjectType: (type: unknown) => type is GraphQLInputObjectType;
-  getNamedType: (type: string) => GraphQLNamedType | undefined;
+  getDirectives: () => ReadonlyArray<GraphQLDirective>;
+  getDirective: (directiveName: string) => GraphQLDirective | undefined;
+  getNamedTypes: () => ReadonlyArray<GraphQLNamedType>;
+  getNamedType: (typeName: string) => GraphQLNamedType | undefined;
   getType: (typeNode: TypeNode) => GraphQLType | undefined;
   getRootType: (operation: OperationTypeNode) => GraphQLObjectType | undefined;
   getPossibleTypes: (
