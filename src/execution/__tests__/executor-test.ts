@@ -22,8 +22,9 @@ import { expectJSON } from '../../__testUtils__/expectJSON';
 import { inspect } from '../../jsutils/inspect';
 import { invariant } from '../../jsutils/invariant';
 
+import { toExecutorSchema } from '../../executorSchema/toExecutorSchema';
+
 import { execute, executeSync } from '../execute';
-import { toExecutorSchema } from '../toExecutorSchema';
 
 describe('Execute: Handles basic execution tasks', () => {
   it('throws if no document is provided', () => {

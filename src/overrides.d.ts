@@ -13,7 +13,7 @@ import type {
 
 import type { Maybe } from './jsutils/Maybe';
 
-import type { ExecutorSchema } from './execution/executorSchema';
+import type { ExecutorSchema } from './executorSchema/executorSchema';
 
 declare module 'graphql' {
   // supplement GraphQLResolveInfo with executorSchema instance

@@ -17,7 +17,7 @@ import { handlePre15 } from '../../__testUtils__/handlePre15';
 
 import { identityFunc } from '../../jsutils/identityFunc';
 
-import { toExecutorSchema } from '../../execution/toExecutorSchema';
+import { toExecutorSchema } from '../../executorSchema/toExecutorSchema';
 
 import { coerceInputValue } from '../coerceInputValue';
 

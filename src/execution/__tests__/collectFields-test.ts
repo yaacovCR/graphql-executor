@@ -11,7 +11,8 @@ import {
   parse,
 } from 'graphql';
 
-import { toExecutorSchema } from '../toExecutorSchema';
+import { toExecutorSchema } from '../../executorSchema/toExecutorSchema';
+
 import type { ExecutionContext } from '../executor';
 import { Executor } from '../executor';
 

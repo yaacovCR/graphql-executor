@@ -10,19 +10,16 @@ import type {
   GraphQLNamedType,
   GraphQLInputType,
   GraphQLLeafType,
-  GraphQLType,
+  GraphQLList,
+  GraphQLNonNull,
   GraphQLNullableType,
+  GraphQLType,
   GraphQLOutputType,
   GraphQLScalarType,
   OperationTypeNode,
   TypeNode,
 } from 'graphql';
-import {
-  GraphQLList,
-  GraphQLNonNull,
-  Kind,
-  TypeNameMetaFieldDef,
-} from 'graphql';
+import { TypeNameMetaFieldDef } from 'graphql';
 
 import { inspect } from '../jsutils/inspect';
 import { invariant } from '../jsutils/invariant';
@@ -39,6 +36,8 @@ import type {
   GraphQLNullableInputType,
   GraphQLNullableOutputType,
 } from './executorSchema';
+import { getPossibleInputTypes } from './getPossibleInputTypes';
+import { TypeTree } from './typeTree';
 
 function is(x: unknown, type: string): boolean {
   if (Object.prototype.toString.call(x) === `[object ${type}]`) {
@@ -88,180 +87,6 @@ function _isNonNullType(
   return Object.prototype.toString.call(type) === '[object GraphQLNonNull]';
 }
 
-interface TypeTreeNode {
-  [Kind.LIST_TYPE]?: TypeTreeNode;
-  [Kind.NON_NULL_TYPE]?: TypeTreeNode;
-  [Kind.NAMED_TYPE]: Map<string, GraphQLType>;
-}
-
-class TypeTree {
-  private _rootNode: TypeTreeNode;
-  private typeStrings: Set<string>;
-
-  constructor() {
-    this._rootNode = {
-      [Kind.NAMED_TYPE]: new Map(),
-    };
-    this.typeStrings = new Set();
-  }
-
-  add(type: GraphQLType): void {
-    this._add(type, this._rootNode);
-    this.typeStrings.add(type.toString());
-  }
-
-  get(typeNode: TypeNode): GraphQLType | undefined {
-    return this._get(typeNode, this._rootNode);
-  }
-
-  has(typeString: string): boolean {
-    return this.typeStrings.has(typeString);
-  }
-
-  private _get(
-    typeNode: TypeNode,
-    node: TypeTreeNode,
-  ): GraphQLType | undefined {
-    switch (typeNode.kind) {
-      case Kind.LIST_TYPE: {
-        const listNode = node[Kind.LIST_TYPE];
-        // this never happens because the ExecutorSchema adds all possible types
-        /* c8 ignore next 3 */
-        if (!listNode) {
-          return;
-        }
-        return this._get(typeNode.type, listNode);
-      }
-      case Kind.NON_NULL_TYPE: {
-        const nonNullNode = node[Kind.NON_NULL_TYPE];
-        // this never happens because the ExecutorSchema adds all possible types
-        /* c8 ignore next 3 */
-        if (!nonNullNode) {
-          return;
-        }
-        return this._get(typeNode.type, nonNullNode);
-      }
-      case Kind.NAMED_TYPE:
-        return node[Kind.NAMED_TYPE].get(typeNode.name.value);
-    }
-  }
-
-  private _add(
-    originalType: GraphQLType,
-    node: TypeTreeNode,
-    type = originalType,
-  ): void {
-    if (_isListType(type)) {
-      let listTypeNode = node[Kind.LIST_TYPE];
-      if (!listTypeNode) {
-        listTypeNode = node[Kind.LIST_TYPE] = {
-          [Kind.NAMED_TYPE]: new Map(),
-        };
-      }
-      this._add(originalType, listTypeNode, type.ofType);
-    } else if (_isNonNullType(type)) {
-      let nonNullTypeNode = node[Kind.NON_NULL_TYPE];
-      if (!nonNullTypeNode) {
-        nonNullTypeNode = node[Kind.NON_NULL_TYPE] = {
-          [Kind.NAMED_TYPE]: new Map(),
-        };
-      }
-      this._add(originalType, nonNullTypeNode, type.ofType);
-    } else {
-      node[Kind.NAMED_TYPE].set((type as GraphQLNamedType).name, originalType);
-    }
-  }
-}
-
-interface InputTypeInfo {
-  nonNullListWrappers: Array<boolean>;
-  nonNull: boolean;
-  namedType: GraphQLNamedType & GraphQLInputType;
-}
-
-function getInputTypeInfo(
-  type: GraphQLInputType,
-  wrapper?:
-    | GraphQLNonNull<GraphQLNullableInputType>
-    | GraphQLList<GraphQLInputType>,
-): InputTypeInfo {
-  if (!_isNonNullType(type) && !_isListType(type)) {
-    return {
-      nonNullListWrappers: [],
-      nonNull: _isNonNullType(wrapper),
-      namedType: type,
-    };
-  }
-
-  const inputTypeInfo = getInputTypeInfo(type.ofType, type);
-  if (_isNonNullType(type)) {
-    return inputTypeInfo;
-  }
-
-  inputTypeInfo.nonNullListWrappers.push(_isNonNullType(wrapper));
-
-  return inputTypeInfo;
-}
-
-function getPossibleSequences(
-  nonNullListWrappers: Array<boolean>,
-): Array<Array<boolean>> {
-  if (!nonNullListWrappers.length) {
-    return [[]];
-  }
-
-  const nonNull = nonNullListWrappers.pop();
-  if (nonNull) {
-    return getPossibleSequences(nonNullListWrappers).map((sequence) => [
-      true,
-      ...sequence,
-    ]);
-  }
-
-  return [
-    ...getPossibleSequences(nonNullListWrappers).map((sequence) => [
-      true,
-      ...sequence,
-    ]),
-    ...getPossibleSequences(nonNullListWrappers).map((sequence) => [
-      false,
-      ...sequence,
-    ]),
-  ];
-}
-
-function inputTypesFromSequences(
-  sequences: Array<Array<boolean>>,
-  inputType: GraphQLInputType,
-): Array<GraphQLInputType> {
-  return sequences.map((sequence) =>
-    sequence.reduce((acc, nonNull) => {
-      let wrapped = new GraphQLList(acc);
-      if (nonNull) {
-        wrapped = new GraphQLNonNull(wrapped);
-      }
-      return wrapped;
-    }, inputType),
-  );
-}
-
-function getPossibleInputTypes(
-  type: GraphQLInputType,
-): Array<GraphQLInputType> {
-  const { nonNullListWrappers, nonNull, namedType } = getInputTypeInfo(type);
-  const sequences = getPossibleSequences(nonNullListWrappers);
-
-  const wrapped = new GraphQLNonNull(namedType);
-  if (nonNull) {
-    return inputTypesFromSequences(sequences, wrapped);
-  }
-
-  return [
-    ...inputTypesFromSequences(sequences, namedType),
-    ...inputTypesFromSequences(sequences, wrapped),
-  ];
-}
-
 function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
   const listTypes: Set<GraphQLList<GraphQLType>> = new Set();
   const nonNullTypes: Set<GraphQLNonNull<GraphQLNullableType>> = new Set();
@@ -275,7 +100,7 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
   const unionTypes: Set<GraphQLUnionType> = new Set();
   const objectTypes: Set<GraphQLObjectType> = new Set();
   const inputObjectTypes: Set<GraphQLInputObjectType> = new Set();
-  const typeTree = new TypeTree();
+  const typeTree = new TypeTree(_isListType, _isNonNullType);
   const subTypesMap: Map<
     GraphQLAbstractType,
     Set<GraphQLObjectType | GraphQLInterfaceType>
@@ -411,7 +236,11 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
   // add all possible input types to schema
   // as variables can add non-null wrappers to input types defined in schema
   for (const inputType of inputTypes.values()) {
-    const possibleInputTypes = getPossibleInputTypes(inputType);
+    const possibleInputTypes = getPossibleInputTypes(
+      _isListType,
+      _isNonNullType,
+      inputType,
+    );
     for (const possibleInputType of possibleInputTypes) {
       const typeString = possibleInputType.toString();
       if (!typeTree.has(typeString)) {

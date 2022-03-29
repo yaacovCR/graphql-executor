@@ -57,8 +57,9 @@ import {
   DirectiveMetaFieldDef,
 } from '../type/introspection';
 
-import type { ExecutorSchema } from './executorSchema';
-import { toExecutorSchema } from './toExecutorSchema';
+import type { ExecutorSchema } from '../executorSchema/executorSchema';
+import { toExecutorSchema } from '../executorSchema/toExecutorSchema';
+
 import {
   getVariableValues,
   getArgumentValues,

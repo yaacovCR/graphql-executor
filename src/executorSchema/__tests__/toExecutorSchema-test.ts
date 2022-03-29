@@ -16,7 +16,7 @@ import {
   Kind,
 } from 'graphql';
 
-import { toExecutorSchema } from '..';
+import { toExecutorSchema } from '../toExecutorSchema';
 
 describe('ExecutorSchema:', () => {
   const input = new GraphQLInputObjectType({
