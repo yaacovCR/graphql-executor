@@ -8,7 +8,7 @@ import type {
 import { GraphQLError } from 'graphql';
 import type { ObjMap } from '../jsutils/ObjMap';
 import type { Maybe } from '../jsutils/Maybe';
-import type { ExecutorSchema } from './executorSchema';
+import type { ExecutorSchema } from '../executorSchema/executorSchema';
 declare type CoercedVariableValues =
   | {
       errors: ReadonlyArray<GraphQLError>;

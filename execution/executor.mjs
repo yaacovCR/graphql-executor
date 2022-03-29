@@ -43,7 +43,7 @@ import {
   TypeMetaFieldDef,
   DirectiveMetaFieldDef,
 } from '../type/introspection.mjs';
-import { toExecutorSchema } from './toExecutorSchema.mjs';
+import { toExecutorSchema } from '../executorSchema/toExecutorSchema.mjs';
 import {
   getVariableValues,
   getArgumentValues,

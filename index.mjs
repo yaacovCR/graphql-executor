@@ -4,6 +4,9 @@ export {
   GraphQLDeferDirective,
   GraphQLStreamDirective,
 } from './type/index.mjs';
+/** Optimized schema for execution  */
+
+export { toExecutorSchema } from './executorSchema/index.mjs';
 /** Execute GraphQL queries. */
 
 export {
@@ -12,7 +15,6 @@ export {
   defaultTypeResolver,
   execute,
   executeSync,
-  toExecutorSchema,
 } from './execution/index.mjs';
 /** Operate on GraphQL errors. */
 

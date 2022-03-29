@@ -42,7 +42,7 @@ var _directives = require('../type/directives.js');
 
 var _introspection = require('../type/introspection.js');
 
-var _toExecutorSchema = require('./toExecutorSchema.js');
+var _toExecutorSchema = require('../executorSchema/toExecutorSchema.js');
 
 var _values = require('./values.js');
 

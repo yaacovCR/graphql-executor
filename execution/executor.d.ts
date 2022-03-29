@@ -22,7 +22,7 @@ import type { Path } from '../jsutils/Path';
 import type { ObjMap } from '../jsutils/ObjMap';
 import type { PromiseOrValue } from '../jsutils/PromiseOrValue';
 import type { Maybe } from '../jsutils/Maybe';
-import type { ExecutorSchema } from './executorSchema';
+import type { ExecutorSchema } from '../executorSchema/executorSchema';
 import { Publisher } from './publisher';
 import { Bundler } from './bundler';
 /**

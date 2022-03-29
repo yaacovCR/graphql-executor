@@ -39,16 +39,8 @@ Object.defineProperty(exports, 'responsePathAsArray', {
     return _Path.pathToArray;
   },
 });
-Object.defineProperty(exports, 'toExecutorSchema', {
-  enumerable: true,
-  get: function () {
-    return _toExecutorSchema.toExecutorSchema;
-  },
-});
 
 var _Path = require('../jsutils/Path.js');
-
-var _toExecutorSchema = require('./toExecutorSchema.js');
 
 var _executor = require('./executor.js');
 

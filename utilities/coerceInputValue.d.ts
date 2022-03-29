@@ -1,6 +1,6 @@
 import { GraphQLError } from 'graphql';
 import type { GraphQLInputType } from 'graphql';
-import type { ExecutorSchema } from '../execution/executorSchema';
+import type { ExecutorSchema } from '../executorSchema/executorSchema';
 declare type OnErrorCB = (
   path: ReadonlyArray<string | number>,
   invalidValue: unknown,

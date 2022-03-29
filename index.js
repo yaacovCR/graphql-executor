@@ -6,7 +6,7 @@ Object.defineProperty(exports, '__esModule', {
 Object.defineProperty(exports, 'Executor', {
   enumerable: true,
   get: function () {
-    return _index2.Executor;
+    return _index3.Executor;
   },
 });
 Object.defineProperty(exports, 'GraphQLDeferDirective', {
@@ -24,31 +24,31 @@ Object.defineProperty(exports, 'GraphQLStreamDirective', {
 Object.defineProperty(exports, 'defaultFieldResolver', {
   enumerable: true,
   get: function () {
-    return _index2.defaultFieldResolver;
+    return _index3.defaultFieldResolver;
   },
 });
 Object.defineProperty(exports, 'defaultTypeResolver', {
   enumerable: true,
   get: function () {
-    return _index2.defaultTypeResolver;
+    return _index3.defaultTypeResolver;
   },
 });
 Object.defineProperty(exports, 'execute', {
   enumerable: true,
   get: function () {
-    return _index2.execute;
+    return _index3.execute;
   },
 });
 Object.defineProperty(exports, 'executeSync', {
   enumerable: true,
   get: function () {
-    return _index2.executeSync;
+    return _index3.executeSync;
   },
 });
 Object.defineProperty(exports, 'isGraphQLError', {
   enumerable: true,
   get: function () {
-    return _index3.isGraphQLError;
+    return _index4.isGraphQLError;
   },
 });
 Object.defineProperty(exports, 'toExecutorSchema', {
@@ -60,6 +60,8 @@ Object.defineProperty(exports, 'toExecutorSchema', {
 
 var _index = require('./type/index.js');
 
-var _index2 = require('./execution/index.js');
+var _index2 = require('./executorSchema/index.js');
 
-var _index3 = require('./error/index.js');
+var _index3 = require('./execution/index.js');
+
+var _index4 = require('./error/index.js');
