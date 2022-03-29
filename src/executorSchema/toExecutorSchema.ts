@@ -21,6 +21,8 @@ import type {
 } from 'graphql';
 import { TypeNameMetaFieldDef } from 'graphql';
 
+import type { Maybe } from '../jsutils/Maybe';
+import type { ObjMap } from '../jsutils/ObjMap';
 import { inspect } from '../jsutils/inspect';
 import { invariant } from '../jsutils/invariant';
 import { memoize1 } from '../jsutils/memoize1';
@@ -31,6 +33,17 @@ import {
   introspectionTypes,
 } from '../type/introspection';
 
+import {
+  isListType as _isListType,
+  isNonNullType as _isNonNullType,
+  isScalarType as _isScalarType,
+  isObjectType as _isObjectType,
+  isInterfaceType as _isInterfaceType,
+  isUnionType as _isUnionType,
+  isEnumType as _isEnumType,
+  isInputObjectType as _isInputObjectType,
+} from './predicates';
+
 import type {
   ExecutorSchema,
   GraphQLNullableInputType,
@@ -39,55 +52,27 @@ import type {
 import { getPossibleInputTypes } from './getPossibleInputTypes';
 import { TypeTree } from './typeTree';
 
-function is(x: unknown, type: string): boolean {
-  if (Object.prototype.toString.call(x) === `[object ${type}]`) {
-    return true;
-  }
-
-  const prototype = Object.getPrototypeOf(x);
-  if (prototype == null) {
-    return false;
-  }
-
-  return is(prototype, type);
+interface ToExecutorSchemaImplOptions {
+  description: Maybe<string>;
+  typeMap: ObjMap<GraphQLNamedType>;
+  directiveMap: ObjMap<GraphQLDirective>;
+  queryType: Maybe<GraphQLObjectType>;
+  mutationType: Maybe<GraphQLObjectType>;
+  subscriptionType: Maybe<GraphQLObjectType>;
 }
 
-function _isScalarType(type: unknown): type is GraphQLScalarType {
-  return is(type, 'GraphQLScalarType');
-}
+export function toExecutorSchemaImpl(
+  options: ToExecutorSchemaImplOptions,
+): ExecutorSchema {
+  const {
+    description,
+    typeMap,
+    directiveMap,
+    queryType,
+    mutationType,
+    subscriptionType,
+  } = options;
 
-function _isObjectType(type: unknown): type is GraphQLObjectType {
-  return is(type, 'GraphQLObjectType');
-}
-
-function _isInterfaceType(type: unknown): type is GraphQLInterfaceType {
-  return is(type, 'GraphQLInterfaceType');
-}
-
-function _isUnionType(type: unknown): type is GraphQLUnionType {
-  return is(type, 'GraphQLUnionType');
-}
-
-function _isEnumType(type: unknown): type is GraphQLEnumType {
-  return is(type, 'GraphQLEnumType');
-}
-
-function _isInputObjectType(type: unknown): type is GraphQLInputObjectType {
-  return is(type, 'GraphQLInputObjectType');
-}
-
-// type predicate uses GraphQLList<any> for compatibility with graphql-js v15 and earlier
-function _isListType(type: unknown): type is GraphQLList<any> {
-  return Object.prototype.toString.call(type) === '[object GraphQLList]';
-}
-
-function _isNonNullType(
-  type: unknown,
-): type is GraphQLNonNull<GraphQLNullableType> {
-  return Object.prototype.toString.call(type) === '[object GraphQLNonNull]';
-}
-
-function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
   const listTypes: Set<GraphQLList<GraphQLType>> = new Set();
   const nonNullTypes: Set<GraphQLNonNull<GraphQLNullableType>> = new Set();
   const namedTypes: Map<string, GraphQLNamedType> = new Map();
@@ -220,13 +205,13 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
     }
   }
 
-  for (const type of Object.values(schema.getTypeMap())) {
+  for (const type of Object.values(typeMap)) {
     if (!type.name.startsWith('__')) {
       processType(type);
     }
   }
 
-  for (const directive of schema.getDirectives()) {
+  for (const directive of Object.values(directiveMap)) {
     for (const arg of directive.args) {
       addInputType(arg.type);
       processType(arg.type);
@@ -265,10 +250,6 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
       processType(arg.type);
     }
   }
-
-  const queryType = schema.getQueryType();
-  const mutationType = schema.getMutationType();
-  const subscriptionType = schema.getSubscriptionType();
 
   function isListType(
     type: GraphQLInputType,
@@ -343,12 +324,11 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
   }
 
   function getDirectives(): ReadonlyArray<GraphQLDirective> {
-    return schema.getDirectives();
+    return Object.values(directiveMap);
   }
 
   function getDirective(directiveName: string): GraphQLDirective | undefined {
-    // cast necessary pre v15 to convert null to undefined
-    return schema.getDirective(directiveName) ?? undefined;
+    return directiveMap[directiveName] ?? undefined;
   }
 
   function getNamedTypes(): ReadonlyArray<GraphQLNamedType> {
@@ -398,7 +378,7 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
   }
 
   return {
-    description: (schema as unknown as { description: string }).description,
+    description,
     isListType,
     isNonNullType,
     isNamedType,
@@ -420,6 +400,20 @@ function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
     getPossibleTypes,
     isSubType,
   };
+}
+
+function _toExecutorSchema(schema: GraphQLSchema): ExecutorSchema {
+  return toExecutorSchemaImpl({
+    description: (schema as unknown as { description: string }).description,
+    typeMap: schema.getTypeMap(),
+    directiveMap: schema.getDirectives().reduce((map, directive) => {
+      map[directive.name] = directive;
+      return map;
+    }, Object.create(null)),
+    queryType: schema.getQueryType(),
+    mutationType: schema.getMutationType(),
+    subscriptionType: schema.getSubscriptionType(),
+  });
 }
 
 export const toExecutorSchema = memoize1(_toExecutorSchema);

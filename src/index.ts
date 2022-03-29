@@ -13,7 +13,7 @@ export type {
   GraphQLNullableOutputType,
 } from './executorSchema/index';
 
-export { toExecutorSchema } from './executorSchema/index';
+export { composeSubschemas, toExecutorSchema } from './executorSchema/index';
 
 /** Execute GraphQL queries. */
 

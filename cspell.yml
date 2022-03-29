@@ -22,6 +22,7 @@ words:
   - instanceof
   - changesets
   - subclassing
+  - subschemas
 
   # Different names used inside tests
   - Skywalker
