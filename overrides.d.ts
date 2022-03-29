@@ -11,7 +11,7 @@ import type {
   GraphQLUnionType,
 } from 'graphql';
 import type { Maybe } from './jsutils/Maybe.ts';
-import type { ExecutorSchema } from './execution/executorSchema.ts';
+import type { ExecutorSchema } from './executorSchema/executorSchema.ts';
 declare module 'graphql' {
   // supplement GraphQLResolveInfo with executorSchema instance
   interface GraphQLResolveInfo {

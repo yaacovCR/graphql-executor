@@ -20,7 +20,7 @@ import {
   astFromValue,
   print,
 } from 'graphql';
-import type { ExecutorSchema } from '../execution/executorSchema.ts';
+import type { ExecutorSchema } from '../executorSchema/executorSchema.ts';
 import { inspect } from '../jsutils/inspect.ts';
 import { invariant } from '../jsutils/invariant.ts';
 export const __Schema: GraphQLObjectType = new GraphQLObjectType({

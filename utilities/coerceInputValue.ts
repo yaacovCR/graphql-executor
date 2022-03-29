@@ -10,7 +10,7 @@ import { printPathArray } from '../jsutils/printPathArray.ts';
 import { addPath, pathToArray } from '../jsutils/Path.ts';
 import { isIterableObject } from '../jsutils/isIterableObject.ts';
 import { isGraphQLError } from '../error/isGraphQLError.ts';
-import type { ExecutorSchema } from '../execution/executorSchema.ts';
+import type { ExecutorSchema } from '../executorSchema/executorSchema.ts';
 type OnErrorCB = (
   path: ReadonlyArray<string | number>,
   invalidValue: unknown,

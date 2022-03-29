@@ -53,8 +53,8 @@ import {
   TypeMetaFieldDef,
   DirectiveMetaFieldDef,
 } from '../type/introspection.ts';
-import type { ExecutorSchema } from './executorSchema.ts';
-import { toExecutorSchema } from './toExecutorSchema.ts';
+import type { ExecutorSchema } from '../executorSchema/executorSchema.ts';
+import { toExecutorSchema } from '../executorSchema/toExecutorSchema.ts';
 import {
   getVariableValues,
   getArgumentValues,

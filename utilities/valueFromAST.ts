@@ -5,7 +5,7 @@ import { keyMap } from '../jsutils/keyMap.ts';
 import { inspect } from '../jsutils/inspect.ts';
 import { invariant } from '../jsutils/invariant.ts';
 import type { Maybe } from '../jsutils/Maybe.ts';
-import type { ExecutorSchema } from '../execution/executorSchema.ts';
+import type { ExecutorSchema } from '../executorSchema/executorSchema.ts';
 /**
  * Produces a JavaScript value given a GraphQL Value AST.
  *

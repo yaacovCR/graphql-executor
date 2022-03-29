@@ -13,7 +13,7 @@ import { inspect } from '../jsutils/inspect.ts';
 import { printPathArray } from '../jsutils/printPathArray.ts';
 import { coerceInputValue } from '../utilities/coerceInputValue.ts';
 import { valueFromAST } from '../utilities/valueFromAST.ts';
-import type { ExecutorSchema } from './executorSchema.ts';
+import type { ExecutorSchema } from '../executorSchema/executorSchema.ts';
 type CoercedVariableValues =
   | {
       errors: ReadonlyArray<GraphQLError>;
