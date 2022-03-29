@@ -23,7 +23,8 @@ import { inspect } from '../../jsutils/inspect';
 import { invariant } from '../../jsutils/invariant';
 import { identityFunc } from '../../jsutils/identityFunc';
 
-import { toExecutorSchema } from '../toExecutorSchema';
+import { toExecutorSchema } from '../../executorSchema/toExecutorSchema';
+
 import { executeSync } from '../execute';
 import { getVariableValues } from '../values';
 

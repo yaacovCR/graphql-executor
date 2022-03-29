@@ -5,15 +5,22 @@ export {
   GraphQLStreamDirective,
 } from './type/index';
 
+/** Optimized schema for execution  */
+
+export type {
+  ExecutorSchema,
+  GraphQLNullableInputType,
+  GraphQLNullableOutputType,
+} from './executorSchema/index';
+
+export { toExecutorSchema } from './executorSchema/index';
+
 /** Execute GraphQL queries. */
 
 export type {
   ExecutionArgs,
   ExecutorArgs,
   ExecutorExecutionArgs,
-  ExecutorSchema,
-  GraphQLNullableInputType,
-  GraphQLNullableOutputType,
 } from './execution/index';
 
 export {
@@ -22,7 +29,6 @@ export {
   defaultTypeResolver,
   execute,
   executeSync,
-  toExecutorSchema,
 } from './execution/index';
 
 /** Operate on GraphQL errors. */

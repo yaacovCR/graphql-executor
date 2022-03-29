@@ -17,7 +17,7 @@ import { printPathArray } from '../jsutils/printPathArray';
 import { coerceInputValue } from '../utilities/coerceInputValue';
 import { valueFromAST } from '../utilities/valueFromAST';
 
-import type { ExecutorSchema } from './executorSchema';
+import type { ExecutorSchema } from '../executorSchema/executorSchema';
 
 type CoercedVariableValues =
   | { errors: ReadonlyArray<GraphQLError>; coerced?: never }

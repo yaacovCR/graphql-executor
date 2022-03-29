@@ -24,7 +24,7 @@ import type { ObjMap } from '../../jsutils/ObjMap';
 import { invariant } from '../../jsutils/invariant';
 import { identityFunc } from '../../jsutils/identityFunc';
 
-import { toExecutorSchema } from '../../execution/toExecutorSchema';
+import { toExecutorSchema } from '../../executorSchema/toExecutorSchema';
 
 import { valueFromAST } from '../valueFromAST';
 

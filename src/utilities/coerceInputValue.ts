@@ -13,7 +13,7 @@ import { isIterableObject } from '../jsutils/isIterableObject';
 
 import { isGraphQLError } from '../error/isGraphQLError';
 
-import type { ExecutorSchema } from '../execution/executorSchema';
+import type { ExecutorSchema } from '../executorSchema/executorSchema';
 
 type OnErrorCB = (
   path: ReadonlyArray<string | number>,

@@ -8,7 +8,7 @@ import { invariant } from '../jsutils/invariant';
 
 import type { Maybe } from '../jsutils/Maybe';
 
-import type { ExecutorSchema } from '../execution/executorSchema';
+import type { ExecutorSchema } from '../executorSchema/executorSchema';
 
 /**
  * Produces a JavaScript value given a GraphQL Value AST.

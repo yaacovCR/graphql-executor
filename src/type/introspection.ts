@@ -22,7 +22,7 @@ import {
   print,
 } from 'graphql';
 
-import type { ExecutorSchema } from '../execution/executorSchema';
+import type { ExecutorSchema } from '../executorSchema/executorSchema';
 import { inspect } from '../jsutils/inspect';
 import { invariant } from '../jsutils/invariant';
 
