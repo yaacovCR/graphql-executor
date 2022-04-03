@@ -71,6 +71,14 @@ const TestEnum = new GraphQLEnumType({
   },
 });
 
+const UniqueEnum = new GraphQLEnumType({
+  name: 'UniqueEnum',
+  values: {
+    CUSTOM: { value: 'custom value' },
+    DEFAULT_VALUE: {},
+  },
+});
+
 function fieldWithInputArg(
   inputArg: GraphQLArgumentConfig,
 ): GraphQLFieldConfig<any, any> {
@@ -91,6 +99,10 @@ const TestType = new GraphQLObjectType({
     fieldWithEnumInput: fieldWithInputArg({ type: TestEnum }),
     fieldWithNonNullableEnumInput: fieldWithInputArg({
       type: new GraphQLNonNull(TestEnum),
+    }),
+    fieldWithNonNullableEnumInputAndDefaultArgumentValue: fieldWithInputArg({
+      type: new GraphQLNonNull(UniqueEnum),
+      defaultValue: UniqueEnum.getValue('DEFAULT_VALUE'),
     }),
     fieldWithObjectInput: fieldWithInputArg({ type: TestInputObject }),
     fieldWithNullableStringInput: fieldWithInputArg({ type: GraphQLString }),
@@ -489,6 +501,24 @@ describe('Execute: Handles inputs', () => {
       expect(result).to.deep.equal({
         data: {
           fieldWithNonNullableEnumInput: 'null',
+        },
+      });
+    });
+
+    it('allows non-nullable unique enum inputs with default value to have corresponding nullable variable', () => {
+      const result = executeQuery(
+        `
+        query ($value: UniqueEnum) {
+          fieldWithNonNullableEnumInputAndDefaultArgumentValue(input: $value)
+        }
+      `,
+        { value: 'CUSTOM' },
+      );
+
+      expect(result).to.deep.equal({
+        data: {
+          fieldWithNonNullableEnumInputAndDefaultArgumentValue:
+            '"custom value"',
         },
       });
     });
