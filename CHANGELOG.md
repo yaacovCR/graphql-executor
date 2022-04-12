@@ -1,5 +1,15 @@
 # graphql-executor
 
+## 0.0.23
+
+### Patch Changes
+
+- 8426c7b2: Always include nullable outermost input type within schema
+
+  Because variables could include a default value.
+
+  See https://github.com/yaacovCR/graphql-executor/issues/174 for more details.
+
 ## 0.0.22
 
 ### Patch Changes
