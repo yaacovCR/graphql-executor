@@ -88,10 +88,16 @@ export function getPossibleInputTypes(
   isNonNullType: (type: unknown) => type is GraphQLNonNull<any>,
   type: GraphQLInputType,
 ): Array<GraphQLInputType> {
+  // See: https://github.com/yaacovCR/graphql-executor/issues/174
+  // Unwrap any non-null modifier to the outermost type because a variable
+  // on the outermost type can be nullable if a default value is supplied.
+  // Non-null versions will then be allowed by the algorithm below as at all
+  // levels.
+  const nullableOuterType = isNonNullType(type) ? type.ofType : type;
   const { nonNullListWrappers, nonNull, namedType } = getInputTypeInfo(
     isListType,
     isNonNullType,
-    type,
+    nullableOuterType,
   );
   const sequences = getPossibleSequences(nonNullListWrappers);
   const wrapped = new GraphQLNonNull(namedType);
