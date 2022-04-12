@@ -2,14 +2,15 @@ import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
 import type {
-  GraphQLNonNull,
   ListTypeNode,
   NamedTypeNode,
   NonNullTypeNode,
+  TypeNode,
 } from 'graphql';
 import {
   GraphQLList,
   GraphQLInputObjectType,
+  GraphQLNonNull,
   GraphQLObjectType,
   GraphQLSchema,
   GraphQLString,
@@ -27,6 +28,16 @@ describe('ExecutorSchema:', () => {
       },
     },
   });
+  const nonNullableInput = new GraphQLNonNull(
+    new GraphQLInputObjectType({
+      name: 'AnotherInput',
+      fields: {
+        inputField: {
+          type: GraphQLString,
+        },
+      },
+    }),
+  );
   const query = new GraphQLObjectType({
     name: 'Query',
     fields: {
@@ -35,6 +46,14 @@ describe('ExecutorSchema:', () => {
         args: {
           arg: {
             type: input,
+          },
+        },
+      },
+      fieldWithNonNullInputArg: {
+        type: GraphQLString,
+        args: {
+          arg: {
+            type: nonNullableInput,
           },
         },
       },
@@ -100,6 +119,21 @@ describe('ExecutorSchema:', () => {
     expect(executorSchema.isNonNullType(type)).to.equal(true);
     expect(executorSchema.isInputType(type)).to.equal(true);
     expect((type as GraphQLNonNull<any>).ofType).to.equal(input);
+  });
+
+  it('allows retrieving non-nullable input types defined in schema when unwrapped', () => {
+    const executorSchema = toExecutorSchema(schema);
+    const nullableTypeNode: TypeNode = {
+      kind: Kind.NAMED_TYPE,
+      name: {
+        kind: Kind.NAME,
+        value: 'AnotherInput',
+      },
+    };
+    const type = executorSchema.getType(nullableTypeNode);
+    expect(type).to.equal(nonNullableInput.ofType);
+    expect(executorSchema.isNonNullType(type)).to.equal(false);
+    expect(executorSchema.isInputType(type)).to.equal(true);
   });
 
   it('allows retrieving list input types defined in schema', () => {
