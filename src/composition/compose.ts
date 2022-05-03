@@ -28,9 +28,7 @@ export interface ComposeOptions {
   subschemas: ReadonlyArray<SubschemaConfig>;
 }
 
-export function compose(
-  options: ComposeOptions,
-): CompositeSchema {
+export function compose(options: ComposeOptions): CompositeSchema {
   const subschemas: Array<Subschema> = [];
 
   let subschemaIndex = 0;
@@ -70,7 +68,8 @@ export function compose(
 
   const mergedTypeInfo = Object.create(null);
   for (const [typeName, typeRefs] of Object.entries(typeRefMap)) {
-    typeMap[typeName] = mergeTypeRefs(typeRefs);
+    const { type } = mergeTypeRefs(typeRefs);
+    typeMap[typeName] = type;
   }
 
   const { typeMap: rewiredTypeMap, directives: rewiredDirectives } =

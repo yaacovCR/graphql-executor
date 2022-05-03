@@ -61,7 +61,15 @@ export type UnionTypeRef = TypeRef<GraphQLUnionType>;
 export type EnumTypeRef = TypeRef<GraphQLEnumType>;
 export type InputObjectTypeRef = TypeRef<GraphQLInputObjectType>;
 
-type NamedTypeKind =
+export type MergeTypeRefsResult =
+  | ScalarMergeTypeRefsResult
+  | ObjectMergeTypeRefsResult
+  | InterfaceMergeTypeRefsResult
+  | UnionMergeTypeRefsResult
+  | EnumMergeTypeRefsResult
+  | InputObjectMergeTypeRefsResult;
+
+export type NamedTypeKind =
   | 'SCALAR'
   | 'OBJECT'
   | 'INTERFACE'
@@ -69,9 +77,39 @@ type NamedTypeKind =
   | 'ENUM'
   | 'INPUT_OBJECT';
 
+export interface ScalarMergeTypeRefsResult {
+  kind: 'SCALAR';
+  type: GraphQLScalarType;
+}
+
+export interface ObjectMergeTypeRefsResult {
+  kind: 'OBJECT';
+  type: GraphQLObjectType;
+}
+
+export interface InterfaceMergeTypeRefsResult {
+  kind: 'INTERFACE';
+  type: GraphQLInterfaceType;
+}
+
+export interface UnionMergeTypeRefsResult {
+  kind: 'UNION';
+  type: GraphQLUnionType;
+}
+
+export interface EnumMergeTypeRefsResult {
+  kind: 'ENUM';
+  type: GraphQLEnumType;
+}
+
+export interface InputObjectMergeTypeRefsResult {
+  kind: 'INPUT_OBJECT';
+  type: GraphQLInputObjectType;
+}
+
 export function mergeTypeRefs(
   typeRefs: ReadonlyArray<NamedTypeRef>,
-): GraphQLNamedType {
+): MergeTypeRefsResult {
   const initialTypeRef = typeRefs[0];
   const initialSchema = initialTypeRef.subschema.schema;
 
@@ -100,33 +138,39 @@ export function mergeTypeRefs(
 
 function mergeScalarTypes(
   typeRefs: ReadonlyArray<ScalarTypeRef>,
-): GraphQLScalarType {
+): ScalarMergeTypeRefsResult {
   const types = typeRefs.map((typeRef) => typeRef.type);
   const description = mergeTypeDescriptions(types);
   const typeConfigs = types.map((type) => type.toConfig());
-  return new GraphQLScalarType({
-    ...typeConfigs[0],
-    description,
-  });
+  return {
+    kind: 'SCALAR',
+    type: new GraphQLScalarType({
+      ...typeConfigs[0],
+      description,
+    }),
+  };
 }
 
 function mergeObjectTypes(
   typeRefs: ReadonlyArray<ObjectTypeRef>,
-): GraphQLObjectType {
+): ObjectMergeTypeRefsResult {
   const types = typeRefs.map((typeRef) => typeRef.type);
   const description = mergeTypeDescriptions(types);
   const typeConfigs = types.map((type) => type.toConfig());
-  return new GraphQLObjectType({
-    ...typeConfigs[0],
-    description,
-    fields: mergeFieldConfigs(typeConfigs),
-    interfaces: mergeInterfaces(typeConfigs),
-  });
+  return {
+    kind: 'OBJECT',
+    type: new GraphQLObjectType({
+      ...typeConfigs[0],
+      description,
+      fields: mergeFieldConfigs(typeConfigs),
+      interfaces: mergeInterfaces(typeConfigs),
+    }),
+  };
 }
 
 function mergeInterfaceTypes(
   typeRefs: ReadonlyArray<InterfaceTypeRef>,
-): GraphQLInterfaceType {
+): InterfaceMergeTypeRefsResult {
   const types = typeRefs.map((typeRef) => typeRef.type);
   const description = mergeTypeDescriptions(types);
   const typeConfigs = types.map((type) => type.toConfig());
@@ -142,44 +186,58 @@ function mergeInterfaceTypes(
       >,
     );
   }
-  return new GraphQLInterfaceType(mergedConfig);
+  return {
+    kind: 'INTERFACE',
+    type: new GraphQLInterfaceType(mergedConfig),
+  };
 }
 
 function mergeUnionTypes(
   typeRefs: ReadonlyArray<UnionTypeRef>,
-): GraphQLUnionType {
+): UnionMergeTypeRefsResult {
   const types = typeRefs.map((typeRef) => typeRef.type);
   const description = mergeTypeDescriptions(types);
   const typeConfigs = types.map((type) => type.toConfig());
-  return new GraphQLUnionType({
-    ...typeConfigs[0],
-    description,
-    types: mergeUnionMembers(typeConfigs),
-  });
+  return {
+    kind: 'UNION',
+    type: new GraphQLUnionType({
+      ...typeConfigs[0],
+      description,
+      types: mergeUnionMembers(typeConfigs),
+    }),
+  };
 }
 
-function mergeEnumTypes(typeRefs: ReadonlyArray<EnumTypeRef>): GraphQLEnumType {
+function mergeEnumTypes(
+  typeRefs: ReadonlyArray<EnumTypeRef>,
+): EnumMergeTypeRefsResult {
   const types = typeRefs.map((typeRef) => typeRef.type);
   const description = mergeTypeDescriptions(types);
   const typeConfigs = types.map((type) => type.toConfig());
-  return new GraphQLEnumType({
-    ...typeConfigs[0],
-    description,
-    values: mergeEnumValues(typeConfigs),
-  });
+  return {
+    kind: 'ENUM',
+    type: new GraphQLEnumType({
+      ...typeConfigs[0],
+      description,
+      values: mergeEnumValues(typeConfigs),
+    }),
+  };
 }
 
 function mergeInputObjectTypes(
   typeRefs: ReadonlyArray<InputObjectTypeRef>,
-): GraphQLInputObjectType {
+): InputObjectMergeTypeRefsResult {
   const types = typeRefs.map((typeRef) => typeRef.type);
   const description = mergeTypeDescriptions(types);
   const typeConfigs = types.map((type) => type.toConfig());
-  return new GraphQLInputObjectType({
-    ...typeConfigs[0],
-    description,
-    fields: mergeInputFieldConfigs(typeConfigs),
-  });
+  return {
+    kind: 'INPUT_OBJECT',
+    type: new GraphQLInputObjectType({
+      ...typeConfigs[0],
+      description,
+      fields: mergeInputFieldConfigs(typeConfigs),
+    }),
+  };
 }
 
 function mergeTypeDescriptions(
