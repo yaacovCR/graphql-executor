@@ -16,13 +16,12 @@ import {
   GraphQLScalarType,
   GraphQLUnionType,
 } from 'graphql';
-import type { ObjMap } from 'graphql/jsutils/ObjMap';
 
 import { inspect } from '../jsutils/inspect';
 import { invariant } from '../jsutils/invariant';
+import type { ObjMap } from '../jsutils/ObjMap';
 
-import type { ExecutorSchema } from './executorSchema';
-
+import type { ExecutorSchema } from '../executorSchema/executorSchema';
 import {
   isScalarType,
   isObjectType,
@@ -30,7 +29,7 @@ import {
   isUnionType,
   isEnumType,
   isInputObjectType,
-} from './predicates';
+} from '../executorSchema/predicates';
 
 export interface Subschema {
   index: number;
@@ -70,7 +69,7 @@ type NamedTypeKind =
   | 'ENUM'
   | 'INPUT_OBJECT';
 
-export function mergeTypes(
+export function mergeTypeRefs(
   typeRefs: ReadonlyArray<NamedTypeRef>,
 ): GraphQLNamedType {
   const initialTypeRef = typeRefs[0];

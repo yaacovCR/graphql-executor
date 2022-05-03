@@ -30,7 +30,6 @@ import {
 
 import { inspect } from '../jsutils/inspect';
 import { invariant } from '../jsutils/invariant';
-
 import type { ObjMap } from '../jsutils/ObjMap';
 
 export function rewireTypes(

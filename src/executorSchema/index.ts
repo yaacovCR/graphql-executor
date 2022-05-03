@@ -5,4 +5,13 @@ export type {
 } from './executorSchema';
 export { toExecutorSchema } from './toExecutorSchema';
 
-export { composeSubschemas } from './composeSubschemas';
+export {
+  isEnumType,
+  isInputObjectType,
+  isInterfaceType,
+  isListType,
+  isNonNullType,
+  isObjectType,
+  isScalarType,
+  isUnionType,
+} from './predicates';

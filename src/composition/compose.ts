@@ -8,13 +8,12 @@ import type {
 import type { Maybe } from '../jsutils/Maybe';
 import type { ObjMap } from '../jsutils/ObjMap';
 
-import { rewireTypes } from '../utilities/rewireTypes';
+import type { ExecutorSchema } from '../executorSchema/executorSchema';
+import { toExecutorSchemaImpl } from '../executorSchema/toExecutorSchema';
 
-import type { ExecutorSchema } from './executorSchema';
+import { rewireTypes } from './rewireTypes';
 import type { MergeInfo, NamedTypeRef, Subschema } from './typeRefs';
-import { mergeTypes } from './typeRefs';
-
-import { toExecutorSchemaImpl } from './toExecutorSchema';
+import { mergeTypeRefs } from './typeRefs';
 
 export interface SubschemaConfig {
   schema: ExecutorSchema;
@@ -25,12 +24,12 @@ export interface CompositeSchema extends MergeInfo {
   subschemas: ReadonlyArray<Subschema>;
 }
 
-export interface ComposeSubschemasOptions {
+export interface ComposeOptions {
   subschemas: ReadonlyArray<SubschemaConfig>;
 }
 
-export function composeSubschemas(
-  options: ComposeSubschemasOptions,
+export function compose(
+  options: ComposeOptions,
 ): CompositeSchema {
   const subschemas: Array<Subschema> = [];
 
@@ -71,7 +70,7 @@ export function composeSubschemas(
 
   const mergedTypeInfo = Object.create(null);
   for (const [typeName, typeRefs] of Object.entries(typeRefMap)) {
-    typeMap[typeName] = mergeTypes(typeRefs);
+    typeMap[typeName] = mergeTypeRefs(typeRefs);
   }
 
   const { typeMap: rewiredTypeMap, directives: rewiredDirectives } =

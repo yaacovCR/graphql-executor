@@ -20,9 +20,9 @@ import type { GraphQLNamedType } from 'graphql';
 import type { ObjMap } from '../../jsutils/ObjMap';
 
 import { dedent } from '../../__testUtils__/dedent';
+import { handlePre15 } from '../../__testUtils__/handlePre15';
 
 import { rewireTypes } from '../rewireTypes';
-import { handlePre15 } from '../../__testUtils__/handlePre15';
 
 // necessary for trailing newline pre v16
 function printSchema(schema: GraphQLSchema): string {

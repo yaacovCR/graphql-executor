@@ -6,8 +6,8 @@ import { assertObjectType, buildSchema, Kind } from 'graphql';
 
 import { handlePre15 } from '../../__testUtils__/handlePre15';
 
-import { composeSubschemas } from '../composeSubschemas';
-import { toExecutorSchema } from '../toExecutorSchema';
+import { compose } from '../compose';
+import { toExecutorSchema } from '../../executorSchema/toExecutorSchema';
 
 describe('ExecutorSchema:', () => {
   it('throws with root query type name clash', () => {
@@ -31,7 +31,7 @@ describe('ExecutorSchema:', () => {
     const executorSchema2 = toExecutorSchema(testSchema2);
 
     expect(() =>
-      composeSubschemas({
+      compose({
         subschemas: [{ schema: executorSchema1 }, { schema: executorSchema2 }],
       }),
     ).throws(
@@ -60,7 +60,7 @@ describe('ExecutorSchema:', () => {
     const executorSchema2 = toExecutorSchema(testSchema2);
 
     expect(() =>
-      composeSubschemas({
+      compose({
         subschemas: [{ schema: executorSchema1 }, { schema: executorSchema2 }],
       }),
     ).throws(
@@ -89,7 +89,7 @@ describe('ExecutorSchema:', () => {
     const executorSchema2 = toExecutorSchema(testSchema2);
 
     expect(() =>
-      composeSubschemas({
+      compose({
         subschemas: [{ schema: executorSchema1 }, { schema: executorSchema2 }],
       }),
     ).throws(
@@ -142,7 +142,7 @@ describe('ExecutorSchema:', () => {
     const executorSchema2 = toExecutorSchema(testSchema2);
 
     expect(() =>
-      composeSubschemas({
+      compose({
         subschemas: [{ schema: executorSchema1 }, { schema: executorSchema2 }],
       }),
     ).to.not.throw();
@@ -172,7 +172,7 @@ describe('ExecutorSchema:', () => {
     const executorSchema1 = toExecutorSchema(testSchema1);
     const executorSchema2 = toExecutorSchema(testSchema2);
 
-    const composedSchema = composeSubschemas({
+    const composedSchema = compose({
       subschemas: [{ schema: executorSchema1 }, { schema: executorSchema2 }],
     });
 
@@ -214,7 +214,7 @@ describe('ExecutorSchema:', () => {
     const executorSchema2 = toExecutorSchema(testSchema2);
 
     expect(() =>
-      composeSubschemas({
+      compose({
         subschemas: [{ schema: executorSchema1 }, { schema: executorSchema2 }],
       }),
     ).to.not.throw();
@@ -245,7 +245,7 @@ describe('ExecutorSchema:', () => {
     const executorSchema2 = toExecutorSchema(testSchema2);
 
     expect(() =>
-      composeSubschemas({
+      compose({
         subschemas: [{ schema: executorSchema1 }, { schema: executorSchema2 }],
       }),
     ).to.not.throw();
@@ -272,7 +272,7 @@ describe('ExecutorSchema:', () => {
     const executorSchema2 = toExecutorSchema(testSchema2);
 
     expect(() =>
-      composeSubschemas({
+      compose({
         subschemas: [{ schema: executorSchema1 }, { schema: executorSchema2 }],
       }),
     ).throws(
@@ -390,7 +390,7 @@ describe('ExecutorSchema:', () => {
     const executorSchema2 = toExecutorSchema(testSchema);
 
     expect(() =>
-      composeSubschemas({
+      compose({
         subschemas: [{ schema: executorSchema1 }, { schema: executorSchema2 }],
       }),
     ).not.to.throw();

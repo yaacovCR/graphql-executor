@@ -5,6 +5,10 @@ export {
   GraphQLStreamDirective,
 } from './type/index';
 
+/** Compose subschemas  */
+
+export { compose } from './composition/index';
+
 /** Optimized schema for execution  */
 
 export type {
@@ -13,7 +17,19 @@ export type {
   GraphQLNullableOutputType,
 } from './executorSchema/index';
 
-export { composeSubschemas, toExecutorSchema } from './executorSchema/index';
+export {
+  /* Cross-platform predicates */
+  isEnumType,
+  isInputObjectType,
+  isInterfaceType,
+  isListType,
+  isNonNullType,
+  isObjectType,
+  isScalarType,
+  isUnionType,
+  /* Convert GraphQLSchema to ExecutorSchema */
+  toExecutorSchema,
+} from './executorSchema/index';
 
 /** Execute GraphQL queries. */
 
