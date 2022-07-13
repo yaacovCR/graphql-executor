@@ -24,6 +24,10 @@ import type { ObjMap } from '../../jsutils/ObjMap';
 import { invariant } from '../../jsutils/invariant';
 import { identityFunc } from '../../jsutils/identityFunc';
 
+import type {
+  InputType,
+  ScalarType,
+} from '../../executorSchema/executorSchema';
 import { toExecutorSchema } from '../../executorSchema/toExecutorSchema';
 
 import { valueFromAST } from '../valueFromAST';
@@ -125,14 +129,19 @@ describe('valueFromAST', () => {
     variables?: ObjMap<unknown>,
   ) {
     const ast = parseValue(valueText);
-    const value = valueFromAST(executorSchema, ast, type, variables);
+    const value = valueFromAST(
+      executorSchema,
+      ast,
+      type as InputType,
+      variables,
+    );
     return expect(value);
   }
 
   it('rejects empty input', () => {
-    expect(valueFromAST(executorSchema, null, GraphQLBoolean)).to.deep.equal(
-      undefined,
-    );
+    expect(
+      valueFromAST(executorSchema, null, GraphQLBoolean as ScalarType),
+    ).to.deep.equal(undefined);
   });
 
   it('converts according to input coercion rules', () => {

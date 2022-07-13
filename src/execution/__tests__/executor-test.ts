@@ -1284,7 +1284,7 @@ describe('Execute: Handles basic execution tasks', () => {
       rootValue,
       typeResolver(_source, _context, info, abstractType) {
         // Resolver should be able to figure out all possible types on its own
-        possibleTypes = info.schema.getPossibleTypes(abstractType);
+        possibleTypes = info.executorSchema.getPossibleTypes(abstractType);
 
         return 'FooObject';
       },

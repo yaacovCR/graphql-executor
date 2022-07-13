@@ -1,14 +1,16 @@
-import type { GraphQLInputType, ValueNode } from 'graphql';
+import type { ValueNode } from 'graphql';
 import { Kind } from 'graphql';
 
 import type { ObjMap } from '../jsutils/ObjMap';
 import { keyMap } from '../jsutils/keyMap';
-import { inspect } from '../jsutils/inspect';
 import { invariant } from '../jsutils/invariant';
 
 import type { Maybe } from '../jsutils/Maybe';
 
-import type { ExecutorSchema } from '../executorSchema/executorSchema';
+import type {
+  ExecutorSchema,
+  InputType,
+} from '../executorSchema/executorSchema';
 
 /**
  * Produces a JavaScript value given a GraphQL Value AST.
@@ -33,7 +35,7 @@ import type { ExecutorSchema } from '../executorSchema/executorSchema';
 export function valueFromAST(
   executorSchema: ExecutorSchema,
   valueNode: Maybe<ValueNode>,
-  type: GraphQLInputType,
+  type: InputType,
   variables?: Maybe<ObjMap<unknown>>,
 ): unknown {
   if (!valueNode) {
@@ -156,7 +158,7 @@ export function valueFromAST(
   }
   /* c8 ignore next 3 */
   // Not reachable, all possible input types have been considered.
-  invariant(false, 'Unexpected input type: ' + inspect(type));
+  invariant(false, 'Unexpected input type: ' + (type as InputType).toString());
 }
 
 // Returns true if the provided valueNode is a variable which is not defined

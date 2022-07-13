@@ -1,15 +1,6 @@
 import type {
   DocumentNode,
   GraphQLSchema,
-  GraphQLObjectType,
-  GraphQLOutputType,
-  GraphQLLeafType,
-  GraphQLAbstractType,
-  GraphQLField,
-  GraphQLFieldResolver,
-  GraphQLResolveInfo,
-  GraphQLTypeResolver,
-  GraphQLList,
   OperationDefinitionNode,
   FieldNode,
   FragmentDefinitionNode,
@@ -24,7 +15,6 @@ import {
   GraphQLSkipDirective,
   GraphQLError,
   Kind,
-  TypeNameMetaFieldDef,
   locatedError,
 } from 'graphql';
 
@@ -55,9 +45,22 @@ import {
   SchemaMetaFieldDef,
   TypeMetaFieldDef,
   DirectiveMetaFieldDef,
+  TypeNameMetaFieldDef,
 } from '../type/introspection';
 
-import type { ExecutorSchema } from '../executorSchema/executorSchema';
+import type {
+  AbstractType,
+  Directive,
+  ExecutorSchema,
+  Field,
+  FieldResolver,
+  LeafType,
+  List,
+  ObjectType,
+  OutputType,
+  ResolveInfo,
+  TypeResolver,
+} from '../executorSchema/executorSchema';
 import { toExecutorSchema } from '../executorSchema/toExecutorSchema';
 
 import {
@@ -100,8 +103,8 @@ export interface ExecutionContext {
   contextValue: unknown;
   operation: OperationDefinitionNode;
   variableValues: { [variable: string]: unknown };
-  fieldResolver: GraphQLFieldResolver<any, any>;
-  typeResolver: GraphQLTypeResolver<any, any>;
+  fieldResolver: FieldResolver<any, any>;
+  typeResolver: TypeResolver<any, any>;
   forceQueryAlgorithm: boolean;
   enableIncremental: boolean;
   getArgumentValues: ArgumentValuesGetter;
@@ -109,7 +112,7 @@ export interface ExecutionContext {
   getStreamValues: StreamValuesGetter;
   rootFieldCollector: RootFieldCollector;
   subFieldCollector: SubFieldCollector;
-  resolveField: FieldResolver;
+  resolveField: ResolveField;
   rootResponseNode: ResponseNode;
   publisher: Publisher<IncrementalResult, AsyncExecutionResult>;
   state: ExecutionState;
@@ -122,12 +125,12 @@ interface ExecutionState {
 }
 
 interface FieldContext {
-  fieldDef: GraphQLField<unknown, unknown>;
+  fieldDef: Field<unknown, unknown>;
   initialFieldNode: FieldNode;
   fieldName: string;
   fieldNodes: ReadonlyArray<FieldNode>;
-  returnType: GraphQLOutputType;
-  parentType: GraphQLObjectType;
+  returnType: OutputType;
+  parentType: ObjectType;
 }
 
 interface StreamContext {
@@ -189,9 +192,9 @@ export interface ExecutorExecutionArgs {
   contextValue?: unknown;
   variableValues?: Maybe<{ readonly [variable: string]: unknown }>;
   operationName?: Maybe<string>;
-  fieldResolver?: Maybe<GraphQLFieldResolver<any, any>>;
-  typeResolver?: Maybe<GraphQLTypeResolver<any, any>>;
-  subscribeFieldResolver?: Maybe<GraphQLFieldResolver<any, any>>;
+  fieldResolver?: Maybe<FieldResolver<any, any>>;
+  typeResolver?: Maybe<TypeResolver<any, any>>;
+  subscribeFieldResolver?: Maybe<FieldResolver<any, any>>;
   forceQueryAlgorithm?: Maybe<boolean>;
   enableIncremental?: Maybe<boolean>;
 }
@@ -242,7 +245,7 @@ export type AsyncExecutionResult = ExecutionResult | ExecutionPatchResult;
 
 export type FieldsExecutor<TReturnType> = (
   exeContext: ExecutionContext,
-  parentType: GraphQLObjectType,
+  parentType: ObjectType,
   sourceValue: unknown,
   path: Path | undefined,
   fields: Map<string, ReadonlyArray<FieldNode>>,
@@ -254,24 +257,24 @@ export type ResponseBuilder<TRootFieldsExecutorReturnType, TReturnType> = (
   data: TRootFieldsExecutorReturnType | null,
 ) => TReturnType;
 
-export type FieldResolver = (
+export type ResolveField = (
   exeContext: ExecutionContext,
   fieldContext: FieldContext,
   source: unknown,
-  info: GraphQLResolveInfo,
+  info: ResolveInfo,
 ) => unknown;
 
 export type ValueCompleter = (
   exeContext: ExecutionContext,
   fieldContext: FieldContext,
-  info: GraphQLResolveInfo,
+  info: ResolveInfo,
   path: Path,
   result: unknown,
   responseNode: ResponseNode,
 ) => PromiseOrValue<unknown>;
 
 export type ArgumentValuesGetter = (
-  def: GraphQLField<unknown, unknown>,
+  def: Field<unknown, unknown>,
   node: FieldNode,
   variableValues: ObjMap<unknown>,
 ) => { [argument: string]: unknown };
@@ -295,12 +298,12 @@ export type StreamValuesGetter = (
 ) => undefined | StreamValues;
 
 export type RootFieldCollector = (
-  runtimeType: GraphQLObjectType,
+  runtimeType: ObjectType,
   operation: OperationDefinitionNode,
 ) => FieldsAndPatches;
 
 export type SubFieldCollector = (
-  returnType: GraphQLObjectType,
+  returnType: ObjectType,
   fieldNodes: ReadonlyArray<FieldNode>,
 ) => FieldsAndPatches;
 
@@ -334,14 +337,14 @@ export class Executor {
    * and an array of field nodes.
    */
   getFieldContext = memoize2(
-    (parentType: GraphQLObjectType, fieldNodes: ReadonlyArray<FieldNode>) =>
+    (parentType: ObjectType, fieldNodes: ReadonlyArray<FieldNode>) =>
       this._getFieldContext(parentType, fieldNodes),
   );
 
   /**
    * A memoized method that retrieves a value completer given a return type.
    */
-  getValueCompleter = memoize1((returnType: GraphQLOutputType) =>
+  getValueCompleter = memoize1((returnType: OutputType) =>
     this._getValueCompleter(returnType),
   );
 
@@ -594,16 +597,16 @@ export class Executor {
     );
   }
 
-  buildFieldResolver =
+  buildResolveField =
     (
       resolverKey: 'resolve' | 'subscribe',
-      defaultResolver: GraphQLFieldResolver<unknown, unknown>,
+      defaultResolver: FieldResolver<unknown, unknown>,
     ) =>
     (
       exeContext: ExecutionContext,
       fieldContext: FieldContext,
       source: unknown,
-      info: GraphQLResolveInfo,
+      info: ResolveInfo,
     ) => {
       const { fieldDef, initialFieldNode } = fieldContext;
 
@@ -800,7 +803,7 @@ export class Executor {
       forceQueryAlgorithm: forceQueryAlgorithm ?? false,
       enableIncremental: enableIncrementalFlagValue,
       getArgumentValues: memoize2(
-        (def: GraphQLField<unknown, unknown>, node: FieldNode) =>
+        (def: Field<unknown, unknown>, node: FieldNode) =>
           getArgumentValues(
             this._executorSchema,
             def,
@@ -824,11 +827,11 @@ export class Executor {
       ),
       resolveField:
         operation.operation === 'subscription' && !forceQueryAlgorithm
-          ? this.buildFieldResolver(
+          ? this.buildResolveField(
               'subscribe',
               subscribeFieldResolver ?? defaultFieldResolver,
             )
-          : this.buildFieldResolver('resolve', defaultResolveFieldValueFn),
+          : this.buildResolveField('resolve', defaultResolveFieldValueFn),
       rootResponseNode: {
         errors: [],
       },
@@ -855,10 +858,7 @@ export class Executor {
       ...exeContext,
       rootValue: payload,
       forceQueryAlgorithm: true,
-      resolveField: this.buildFieldResolver(
-        'resolve',
-        exeContext.fieldResolver,
-      ),
+      resolveField: this.buildResolveField('resolve', exeContext.fieldResolver),
       rootResponseNode: {
         errors: [],
       },
@@ -868,7 +868,7 @@ export class Executor {
   }
 
   getRootContext(exeContext: ExecutionContext): {
-    rootType: GraphQLObjectType;
+    rootType: ObjectType;
     fieldsAndPatches: FieldsAndPatches;
   } {
     const { operation, rootFieldCollector } = exeContext;
@@ -895,7 +895,7 @@ export class Executor {
    */
   executeFieldsSerially(
     exeContext: ExecutionContext,
-    parentType: GraphQLObjectType,
+    parentType: ObjectType,
     sourceValue: unknown,
     path: Path | undefined,
     fields: Map<string, ReadonlyArray<FieldNode>>,
@@ -935,7 +935,7 @@ export class Executor {
    */
   executeFields(
     exeContext: ExecutionContext,
-    parentType: GraphQLObjectType,
+    parentType: ObjectType,
     sourceValue: unknown,
     path: Path | undefined,
     fields: Map<string, ReadonlyArray<FieldNode>>,
@@ -989,7 +989,7 @@ export class Executor {
    */
   executeField(
     exeContext: ExecutionContext,
-    parentType: GraphQLObjectType,
+    parentType: ObjectType,
     source: unknown,
     fieldNodes: ReadonlyArray<FieldNode>,
     path: Path,
@@ -1067,7 +1067,7 @@ export class Executor {
     exeContext: ExecutionContext,
     fieldContext: FieldContext,
     path: Path,
-  ): GraphQLResolveInfo {
+  ): ResolveInfo {
     const { fieldName, fieldNodes, returnType, parentType } = fieldContext;
     const { _schema: schema, _executorSchema: executorSchema } = this;
     const { fragments, rootValue, operation, variableValues } = exeContext;
@@ -1100,7 +1100,7 @@ export class Executor {
     rawError: unknown,
     fieldNodes: ReadonlyArray<FieldNode>,
     path: Path,
-    returnType: GraphQLOutputType,
+    returnType: OutputType,
     errors: Array<GraphQLError>,
   ): null {
     const error = this.toLocatedError(rawError, fieldNodes, path);
@@ -1121,7 +1121,7 @@ export class Executor {
     return (
       exeContext: ExecutionContext,
       fieldContext: FieldContext,
-      info: GraphQLResolveInfo,
+      info: ResolveInfo,
       path: Path,
       result: unknown,
       responseNode: ResponseNode,
@@ -1168,12 +1168,12 @@ export class Executor {
    * Otherwise, the field type expects a sub-selection set, and will complete the
    * value by executing all sub-selections.
    */
-  _getValueCompleter(returnType: GraphQLOutputType): ValueCompleter {
+  _getValueCompleter(returnType: OutputType): ValueCompleter {
     if (this._executorSchema.isNonNullType(returnType)) {
       return (
         exeContext: ExecutionContext,
         fieldContext: FieldContext,
-        info: GraphQLResolveInfo,
+        info: ResolveInfo,
         path: Path,
         result: unknown,
         responseNode: ResponseNode,
@@ -1203,7 +1203,7 @@ export class Executor {
         (
           exeContext: ExecutionContext,
           fieldContext: FieldContext,
-          info: GraphQLResolveInfo,
+          info: ResolveInfo,
           path: Path,
           result: unknown,
           responseNode: ResponseNode,
@@ -1226,7 +1226,7 @@ export class Executor {
         (
           _exeContext: ExecutionContext,
           _fieldContext: FieldContext,
-          _info: GraphQLResolveInfo,
+          _info: ResolveInfo,
           _path: Path,
           result: unknown,
           _responseNode: ResponseNode,
@@ -1242,7 +1242,7 @@ export class Executor {
         (
           exeContext: ExecutionContext,
           fieldContext: FieldContext,
-          info: GraphQLResolveInfo,
+          info: ResolveInfo,
           path: Path,
           result: unknown,
           responseNode: ResponseNode,
@@ -1266,7 +1266,7 @@ export class Executor {
         (
           exeContext: ExecutionContext,
           fieldContext: FieldContext,
-          info: GraphQLResolveInfo,
+          info: ResolveInfo,
           path: Path,
           result: unknown,
           responseNode: ResponseNode,
@@ -1283,11 +1283,12 @@ export class Executor {
           ),
       );
     }
-    /* c8 ignore next 6 */
+    /* c8 ignore next 7 */
     // Not reachable. All possible output types have been considered
     invariant(
       false,
-      'Cannot complete value of unexpected output type: ' + inspect(returnType),
+      'Cannot complete value of unexpected output type: ' +
+        (returnType as OutputType).toString(),
     );
   }
 
@@ -1297,9 +1298,9 @@ export class Executor {
    */
   completeListValue(
     exeContext: ExecutionContext,
-    returnType: GraphQLList<GraphQLOutputType>,
+    returnType: List<OutputType>,
     fieldContext: FieldContext,
-    info: GraphQLResolveInfo,
+    info: ResolveInfo,
     path: Path,
     result: unknown,
     responseNode: ResponseNode,
@@ -1375,7 +1376,7 @@ export class Executor {
     // safe to only check the first fieldNode for the stream directive
     const stream = getDirectiveValues(
       this._executorSchema,
-      GraphQLStreamDirective,
+      GraphQLStreamDirective as unknown as Directive,
       fieldContext.initialFieldNode,
       variableValues,
     );
@@ -1437,9 +1438,9 @@ export class Executor {
    */
   completeIteratorValue(
     exeContext: ExecutionContext,
-    itemType: GraphQLOutputType,
+    itemType: OutputType,
     fieldContext: FieldContext,
-    info: GraphQLResolveInfo,
+    info: ResolveInfo,
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: Iterator<unknown>,
@@ -1731,9 +1732,9 @@ export class Executor {
    */
   completeIteratorValueWithStream(
     exeContext: ExecutionContext,
-    itemType: GraphQLOutputType,
+    itemType: OutputType,
     fieldContext: FieldContext,
-    info: GraphQLResolveInfo,
+    info: ResolveInfo,
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: Iterator<unknown>,
@@ -1805,9 +1806,9 @@ export class Executor {
    */
   completeIteratorValueWithoutStream(
     exeContext: ExecutionContext,
-    itemType: GraphQLOutputType,
+    itemType: OutputType,
     fieldContext: FieldContext,
-    info: GraphQLResolveInfo,
+    info: ResolveInfo,
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: Iterator<unknown>,
@@ -1849,9 +1850,9 @@ export class Executor {
    */
   async completeAsyncIteratorValue(
     exeContext: ExecutionContext,
-    itemType: GraphQLOutputType,
+    itemType: OutputType,
     fieldContext: FieldContext,
-    info: GraphQLResolveInfo,
+    info: ResolveInfo,
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: AsyncIterator<unknown>,
@@ -1896,9 +1897,9 @@ export class Executor {
 
   async completeAsyncIteratorValueWithStream(
     exeContext: ExecutionContext,
-    itemType: GraphQLOutputType,
+    itemType: OutputType,
     fieldContext: FieldContext,
-    info: GraphQLResolveInfo,
+    info: ResolveInfo,
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: AsyncIterator<unknown>,
@@ -1977,9 +1978,9 @@ export class Executor {
 
   async completeAsyncIteratorValueWithoutStream(
     exeContext: ExecutionContext,
-    itemType: GraphQLOutputType,
+    itemType: OutputType,
     fieldContext: FieldContext,
-    info: GraphQLResolveInfo,
+    info: ResolveInfo,
     valueCompleter: ValueCompleter,
     path: Path,
     iterator: AsyncIterator<unknown>,
@@ -2034,10 +2035,10 @@ export class Executor {
     promises: Array<Promise<void>>,
     item: unknown,
     exeContext: ExecutionContext,
-    itemType: GraphQLOutputType,
+    itemType: OutputType,
     valueCompleter: ValueCompleter,
     fieldContext: FieldContext,
-    info: GraphQLResolveInfo,
+    info: ResolveInfo,
     itemPath: Path,
     responseNode: ResponseNode,
   ): void {
@@ -2103,11 +2104,11 @@ export class Executor {
    * Complete a Scalar or Enum by serializing to a valid value, returning
    * null if serialization is not possible.
    */
-  completeLeafValue(returnType: GraphQLLeafType, result: unknown): unknown {
+  completeLeafValue(returnType: LeafType, result: unknown): unknown {
     const serializedResult = returnType.serialize(result);
     if (serializedResult == null) {
       throw new Error(
-        `Expected \`${inspect(returnType)}.serialize(${inspect(
+        `Expected \`${returnType.toString()}.serialize(${inspect(
           result,
         )})\` to ` +
           `return non-nullable value, returned: ${inspect(serializedResult)}`,
@@ -2122,9 +2123,9 @@ export class Executor {
    */
   completeAbstractValue(
     exeContext: ExecutionContext,
-    returnType: GraphQLAbstractType,
+    returnType: AbstractType,
     fieldContext: FieldContext,
-    info: GraphQLResolveInfo,
+    info: ResolveInfo,
     path: Path,
     result: unknown,
     responseNode: ResponseNode,
@@ -2170,10 +2171,10 @@ export class Executor {
 
   ensureValidRuntimeType(
     runtimeTypeOrName: unknown,
-    returnType: GraphQLAbstractType,
+    returnType: AbstractType,
     fieldContext: FieldContext,
     result: unknown,
-  ): GraphQLObjectType {
+  ): ObjectType {
     if (runtimeTypeOrName == null) {
       throw new GraphQLError(
         `Abstract type "${returnType.name}" must resolve to an Object type at runtime for field "${fieldContext.parentType.name}.${fieldContext.fieldName}". Either the "${returnType.name}" type should provide a "resolveType" function or each possible type should provide an "isTypeOf" function.`,
@@ -2224,9 +2225,9 @@ export class Executor {
    */
   completeObjectValue(
     exeContext: ExecutionContext,
-    returnType: GraphQLObjectType,
+    returnType: ObjectType,
     fieldContext: FieldContext,
-    info: GraphQLResolveInfo,
+    info: ResolveInfo,
     path: Path,
     result: unknown,
     responseNode: ResponseNode,
@@ -2281,7 +2282,7 @@ export class Executor {
   }
 
   invalidReturnTypeError(
-    returnType: GraphQLObjectType,
+    returnType: ObjectType,
     result: unknown,
     fieldNodes: ReadonlyArray<FieldNode>,
   ): GraphQLError {
@@ -2295,7 +2296,7 @@ export class Executor {
 
   collectAndExecuteSubfields(
     exeContext: ExecutionContext,
-    returnType: GraphQLObjectType,
+    returnType: ObjectType,
     fieldContext: FieldContext,
     path: Path,
     result: unknown,
@@ -2343,8 +2344,8 @@ export class Executor {
    */
   _getFieldDef(
     fieldName: string,
-    parentType: GraphQLObjectType,
-  ): Maybe<GraphQLField<unknown, unknown>> {
+    parentType: ObjectType,
+  ): Maybe<Field<unknown, unknown>> {
     const fieldDef = parentType.getFields()[fieldName];
 
     if (fieldDef) {
@@ -2375,7 +2376,7 @@ export class Executor {
   }
 
   _getFieldContext(
-    parentType: GraphQLObjectType,
+    parentType: ObjectType,
     fieldNodes: ReadonlyArray<FieldNode>,
   ): Maybe<FieldContext> {
     const initialFieldNode = fieldNodes[0];
@@ -2434,7 +2435,7 @@ export class Executor {
    */
   async executeRootSubscriptionFields(
     exeContext: ExecutionContext,
-    parentType: GraphQLObjectType,
+    parentType: ObjectType,
     sourceValue: unknown,
     path: Path | undefined,
     fields: Map<string, ReadonlyArray<FieldNode>>,
@@ -2519,7 +2520,7 @@ export class Executor {
 
   async executeRootSubscriptionField(
     exeContext: ExecutionContext,
-    parentType: GraphQLObjectType,
+    parentType: ObjectType,
     sourceValue: unknown,
     fieldNodes: ReadonlyArray<FieldNode>,
     fieldPath: Path,
@@ -2563,7 +2564,7 @@ export class Executor {
   addPatches(
     exeContext: ExecutionContext,
     patches: Array<PatchFields>,
-    parentType: GraphQLObjectType,
+    parentType: ObjectType,
     source: unknown,
     path: Path | undefined,
     parentResponseNode: ResponseNode,
@@ -2613,9 +2614,9 @@ export class Executor {
     initialIndex: number,
     iterator: Iterator<unknown>,
     exeContext: ExecutionContext,
-    itemType: GraphQLOutputType,
+    itemType: OutputType,
     fieldContext: FieldContext,
-    info: GraphQLResolveInfo,
+    info: ResolveInfo,
     valueCompleter: ValueCompleter,
     streamContext: StreamContext,
   ): number {
@@ -2644,9 +2645,9 @@ export class Executor {
     initialIndex: number,
     iterator: AsyncIterator<unknown>,
     exeContext: ExecutionContext,
-    itemType: GraphQLOutputType,
+    itemType: OutputType,
     fieldContext: FieldContext,
-    info: GraphQLResolveInfo,
+    info: ResolveInfo,
     valueCompleter: ValueCompleter,
     streamContext: StreamContext,
   ): Promise<void> {
@@ -2691,7 +2692,7 @@ export class Executor {
 
   handleRawStreamError(
     fieldContext: FieldContext,
-    itemType: GraphQLOutputType,
+    itemType: OutputType,
     streamContext: StreamContext,
     rawError: unknown,
     index: number,
@@ -2717,9 +2718,9 @@ export class Executor {
   addValue(
     value: unknown,
     exeContext: ExecutionContext,
-    itemType: GraphQLOutputType,
+    itemType: OutputType,
     fieldContext: FieldContext,
-    info: GraphQLResolveInfo,
+    info: ResolveInfo,
     valueCompleter: ValueCompleter,
     index: number,
     streamContext: StreamContext,
@@ -2793,7 +2794,7 @@ export class Executor {
       getDeferValues: DeferValuesGetter,
     ) =>
     (
-      runtimeType: GraphQLObjectType,
+      runtimeType: ObjectType,
       operation: OperationDefinitionNode,
     ): FieldsAndPatches => {
       const fields = new Map();
@@ -2829,7 +2830,7 @@ export class Executor {
   ) =>
     memoize2(
       (
-        returnType: GraphQLObjectType,
+        returnType: ObjectType,
         fieldNodes: ReadonlyArray<FieldNode>,
       ): FieldsAndPatches => {
         const subFieldNodes = new Map();
@@ -2863,7 +2864,7 @@ export class Executor {
     fragments: ObjMap<FragmentDefinitionNode>,
     variableValues: { [variable: string]: unknown },
     getDeferValues: DeferValuesGetter,
-    runtimeType: GraphQLObjectType,
+    runtimeType: ObjectType,
     selectionSet: SelectionSetNode,
     fields: Map<string, Array<FieldNode>>,
     patches: Array<PatchFields>,
@@ -2991,7 +2992,7 @@ export class Executor {
   ): undefined | { label?: string } {
     const defer = getDirectiveValues(
       this._executorSchema,
-      GraphQLDeferDirective,
+      GraphQLDeferDirective as unknown as Directive,
       node,
       variableValues,
     );
@@ -3019,7 +3020,7 @@ export class Executor {
   ): boolean {
     const skip = getDirectiveValues(
       this._executorSchema,
-      GraphQLSkipDirective,
+      GraphQLSkipDirective as unknown as Directive,
       node,
       variableValues,
     );
@@ -3029,7 +3030,7 @@ export class Executor {
 
     const include = getDirectiveValues(
       this._executorSchema,
-      GraphQLIncludeDirective,
+      GraphQLIncludeDirective as unknown as Directive,
       node,
       variableValues,
     );
@@ -3044,7 +3045,7 @@ export class Executor {
    */
   doesFragmentConditionMatch(
     fragment: FragmentDefinitionNode | InlineFragmentNode,
-    type: GraphQLObjectType,
+    type: ObjectType,
   ): boolean {
     const typeConditionNode = fragment.typeCondition;
     if (!typeConditionNode) {
@@ -3077,17 +3078,21 @@ export class Executor {
  * and returns it as the result, or if it's a function, returns the result
  * of calling that function while passing along args and context value.
  */
-export const defaultFieldResolver: GraphQLFieldResolver<unknown, unknown> =
-  function (source: any, args, contextValue, info) {
-    // ensure source is a value for which property access is acceptable.
-    if (isObjectLike(source) || typeof source === 'function') {
-      const property = source[info.fieldName];
-      if (typeof property === 'function') {
-        return source[info.fieldName](args, contextValue, info);
-      }
-      return property;
+export const defaultFieldResolver: FieldResolver<unknown, unknown> = function (
+  source: any,
+  args,
+  contextValue,
+  info,
+) {
+  // ensure source is a value for which property access is acceptable.
+  if (isObjectLike(source) || typeof source === 'function') {
+    const property = source[info.fieldName];
+    if (typeof property === 'function') {
+      return source[info.fieldName](args, contextValue, info);
     }
-  };
+    return property;
+  }
+};
 
 /**
  * If a resolveType function is not given, then a default resolve behavior is
@@ -3099,39 +3104,43 @@ export const defaultFieldResolver: GraphQLFieldResolver<unknown, unknown> =
  * Otherwise, test each possible type for the abstract type by calling
  * isTypeOf for the object being coerced, returning the first type that matches.
  */
-export const defaultTypeResolver: GraphQLTypeResolver<unknown, unknown> =
-  function (value, contextValue, info, abstractType) {
-    // First, look for `__typename`.
-    if (isObjectLike(value) && typeof value.__typename === 'string') {
-      return value.__typename;
-    }
+export const defaultTypeResolver: TypeResolver<unknown, unknown> = function (
+  value,
+  contextValue,
+  info,
+  abstractType,
+) {
+  // First, look for `__typename`.
+  if (isObjectLike(value) && typeof value.__typename === 'string') {
+    return value.__typename;
+  }
 
-    // Otherwise, test each possible type.
-    const possibleTypes = info.executorSchema.getPossibleTypes(abstractType);
+  // Otherwise, test each possible type.
+  const possibleTypes = info.executorSchema.getPossibleTypes(abstractType);
 
-    const promisedIsTypeOfResults = [];
+  const promisedIsTypeOfResults = [];
 
-    for (let i = 0; i < possibleTypes.length; i++) {
-      const type = possibleTypes[i];
+  for (let i = 0; i < possibleTypes.length; i++) {
+    const type = possibleTypes[i];
 
-      if (type.isTypeOf) {
-        const isTypeOfResult = type.isTypeOf(value, contextValue, info);
+    if (type.isTypeOf) {
+      const isTypeOfResult = type.isTypeOf(value, contextValue, info);
 
-        if (isPromise(isTypeOfResult)) {
-          promisedIsTypeOfResults[i] = isTypeOfResult;
-        } else if (isTypeOfResult) {
-          return type.name;
-        }
+      if (isPromise(isTypeOfResult)) {
+        promisedIsTypeOfResults[i] = isTypeOfResult;
+      } else if (isTypeOfResult) {
+        return type.name;
       }
     }
+  }
 
-    if (promisedIsTypeOfResults.length) {
-      return Promise.all(promisedIsTypeOfResults).then((isTypeOfResults) => {
-        for (let i = 0; i < isTypeOfResults.length; i++) {
-          if (isTypeOfResults[i]) {
-            return possibleTypes[i].name;
-          }
+  if (promisedIsTypeOfResults.length) {
+    return Promise.all(promisedIsTypeOfResults).then((isTypeOfResults) => {
+      for (let i = 0; i < isTypeOfResults.length; i++) {
+        if (isTypeOfResults[i]) {
+          return possibleTypes[i].name;
         }
-      });
-    }
-  };
+      }
+    });
+  }
+};

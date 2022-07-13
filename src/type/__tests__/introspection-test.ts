@@ -1,7 +1,6 @@
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
-import type { GraphQLResolveInfo } from 'graphql';
 import {
   buildSchema,
   getIntrospectionQuery,
@@ -16,6 +15,7 @@ import { handlePre16 } from '../../__testUtils__/handlePre16';
 // executeSync is necessary because the __directive introspection field used in testing does not currently pass validation
 // TODO: add custom validation logic to fix this
 import { executeSync } from '../../execution/execute';
+import type { ResolveInfo } from '../../executorSchema/executorSchema';
 
 describe('Introspection', () => {
   it('executes an introspection query', () => {
@@ -1784,12 +1784,12 @@ describe('Introspection', () => {
       _1: any,
       _2: any,
       _3: any,
-      info: GraphQLResolveInfo,
+      info: ResolveInfo,
     ): never {
       expect.fail(`Called on ${info.parentType.name}::${info.fieldName}`);
     }
 
-    function typeResolver(_1: any, _2: any, info: GraphQLResolveInfo): never {
+    function typeResolver(_1: any, _2: any, info: ResolveInfo): never {
       expect.fail(`Called on ${info.parentType.name}::${info.fieldName}`);
     }
     /* c8 ignore stop */

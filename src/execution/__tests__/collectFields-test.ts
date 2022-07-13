@@ -15,6 +15,7 @@ import { toExecutorSchema } from '../../executorSchema/toExecutorSchema';
 
 import type { ExecutionContext } from '../executor';
 import { Executor } from '../executor';
+import type { ObjectType } from '../../executorSchema/executorSchema';
 
 const friendType = new GraphQLObjectType({
   fields: {
@@ -79,8 +80,14 @@ describe('collectFields', () => {
         skipSecond: false,
       },
     }) as ExecutionContext;
-    const { fields: fields1 } = exeContext.rootFieldCollector(query, operation);
-    const { fields: fields2 } = exeContext.rootFieldCollector(query, operation);
+    const { fields: fields1 } = exeContext.rootFieldCollector(
+      query as unknown as ObjectType,
+      operation,
+    );
+    const { fields: fields2 } = exeContext.rootFieldCollector(
+      query as unknown as ObjectType,
+      operation,
+    );
 
     const heroFieldNodes1 = fields1.get('hero');
     const heroFieldNodes2 = fields2.get('hero');
@@ -97,7 +104,7 @@ describe('collectFields', () => {
       },
     }) as ExecutionContext;
     const { fields: fields1 } = skipFirstExeContext.rootFieldCollector(
-      query,
+      query as unknown as ObjectType,
       operation,
     );
     const skipSecondExeContext = executor.buildExecutionContext({
@@ -108,7 +115,7 @@ describe('collectFields', () => {
       },
     }) as ExecutionContext;
     const { fields: fields2 } = skipSecondExeContext.rootFieldCollector(
-      query,
+      query as unknown as ObjectType,
       operation,
     );
 

@@ -1,5 +1,4 @@
 import { GraphQLError } from 'graphql';
-import type { GraphQLInputType } from 'graphql';
 
 import type { Path } from '../jsutils/Path';
 import { inspect } from '../jsutils/inspect';
@@ -13,7 +12,10 @@ import { isIterableObject } from '../jsutils/isIterableObject';
 
 import { isGraphQLError } from '../error/isGraphQLError';
 
-import type { ExecutorSchema } from '../executorSchema/executorSchema';
+import type {
+  ExecutorSchema,
+  InputType,
+} from '../executorSchema/executorSchema';
 
 type OnErrorCB = (
   path: ReadonlyArray<string | number>,
@@ -27,7 +29,7 @@ type OnErrorCB = (
 export function coerceInputValue(
   executorSchema: ExecutorSchema,
   inputValue: unknown,
-  type: GraphQLInputType,
+  type: InputType,
   onError: OnErrorCB = defaultOnError,
 ): unknown {
   return coerceInputValueImpl(
@@ -55,7 +57,7 @@ function defaultOnError(
 function coerceInputValueImpl(
   executorSchema: ExecutorSchema,
   inputValue: unknown,
-  type: GraphQLInputType,
+  type: InputType,
   onError: OnErrorCB,
   path: Path | undefined,
 ): unknown {
@@ -73,7 +75,7 @@ function coerceInputValueImpl(
       pathToArray(path),
       inputValue,
       new GraphQLError(
-        `Expected non-nullable type "${inspect(type)}" not to be null.`,
+        `Expected non-nullable type "${type.toString()}" not to be null.`,
       ),
     );
     return;
@@ -124,7 +126,7 @@ function coerceInputValueImpl(
         if (field.defaultValue !== undefined) {
           coercedValue[field.name] = field.defaultValue;
         } else if (executorSchema.isNonNullType(field.type)) {
-          const typeStr = inspect(field.type);
+          const typeStr = field.type.toString();
           onError(
             pathToArray(path),
             inputValue,
@@ -205,5 +207,5 @@ function coerceInputValueImpl(
   }
   /* c8 ignore next 3 */
   // Not reachable, all possible types have been considered.
-  invariant(false, 'Unexpected input type: ' + inspect(type));
+  invariant(false, 'Unexpected input type: ' + (type as InputType).toString());
 }

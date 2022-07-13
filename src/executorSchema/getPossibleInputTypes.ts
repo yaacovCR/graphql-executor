@@ -1,21 +1,23 @@
-import type { GraphQLNamedType, GraphQLInputType } from 'graphql';
-import { GraphQLList, GraphQLNonNull } from 'graphql';
-
-import type { GraphQLNullableInputType } from './executorSchema';
+import type {
+  InputType,
+  List,
+  NamedInputType,
+  NonNull,
+  NullableInputType,
+} from './executorSchema';
+import { ListImpl, NonNullImpl } from './executorSchema';
 
 interface InputTypeInfo {
   nonNullListWrappers: Array<boolean>;
   nonNull: boolean;
-  namedType: GraphQLNamedType & GraphQLInputType;
+  namedType: NamedInputType;
 }
 
 function getInputTypeInfo(
-  isListType: (type: unknown) => type is GraphQLList<any>,
-  isNonNullType: (type: unknown) => type is GraphQLNonNull<any>,
-  type: GraphQLInputType,
-  wrapper?:
-    | GraphQLNonNull<GraphQLNullableInputType>
-    | GraphQLList<GraphQLInputType>,
+  isListType: (type: unknown) => type is List<any>,
+  isNonNullType: (type: unknown) => type is NonNull<any>,
+  type: InputType,
+  wrapper?: NonNull<NullableInputType> | List<InputType>,
 ): InputTypeInfo {
   if (!isListType(type) && !isNonNullType(type)) {
     return {
@@ -69,24 +71,21 @@ function getPossibleSequences(
 
 function inputTypesFromSequences(
   sequences: Array<Array<boolean>>,
-  inputType: GraphQLInputType,
-): Array<GraphQLInputType> {
+  inputType: InputType,
+): Array<InputType> {
   return sequences.map((sequence) =>
-    sequence.reduce((acc, nonNull) => {
-      let wrapped = new GraphQLList(acc);
-      if (nonNull) {
-        wrapped = new GraphQLNonNull(wrapped);
-      }
-      return wrapped;
+    sequence.reduce((prev, nonNull) => {
+      const wrapped = new ListImpl(prev);
+      return nonNull ? new NonNullImpl(wrapped) : wrapped;
     }, inputType),
   );
 }
 
 export function getPossibleInputTypes(
-  isListType: (type: unknown) => type is GraphQLList<any>,
-  isNonNullType: (type: unknown) => type is GraphQLNonNull<any>,
-  type: GraphQLInputType,
-): Array<GraphQLInputType> {
+  isListType: (type: unknown) => type is List<any>,
+  isNonNullType: (type: unknown) => type is NonNull<any>,
+  type: InputType,
+): Array<InputType> {
   // See: https://github.com/yaacovCR/graphql-executor/issues/174
   // Unwrap any non-null modifier to the outermost type because a variable
   // on the outermost type can be nullable if a default value is supplied.
@@ -101,7 +100,7 @@ export function getPossibleInputTypes(
   );
   const sequences = getPossibleSequences(nonNullListWrappers);
 
-  const wrapped = new GraphQLNonNull(namedType);
+  const wrapped = new NonNullImpl(namedType);
   if (nonNull) {
     return inputTypesFromSequences(sequences, wrapped);
   }

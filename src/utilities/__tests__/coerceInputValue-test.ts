@@ -17,6 +17,7 @@ import { handlePre15 } from '../../__testUtils__/handlePre15';
 
 import { identityFunc } from '../../jsutils/identityFunc';
 
+import type { InputType } from '../../executorSchema/executorSchema';
 import { toExecutorSchema } from '../../executorSchema/toExecutorSchema';
 
 import { coerceInputValue } from '../coerceInputValue';
@@ -137,7 +138,7 @@ function coerceValue(
   const value = coerceInputValue(
     executorSchema,
     inputValue,
-    type,
+    type as InputType,
     (path, invalidValue, error) => {
       errors.push({ path, value: invalidValue, error: error.message });
     },
@@ -482,7 +483,7 @@ describe('coerceInputValue', () => {
   describe('with default onError', () => {
     it('throw error without path', () => {
       expect(() =>
-        coerceInputValue(executorSchema, null, TestNonNullInt),
+        coerceInputValue(executorSchema, null, TestNonNullInt as InputType),
       ).to.throw(
         'Invalid value null: Expected non-nullable type "Int!" not to be null.',
       );
@@ -490,7 +491,11 @@ describe('coerceInputValue', () => {
 
     it('throw error with path', () => {
       expect(() =>
-        coerceInputValue(executorSchema, [null], TestListOfNonNullInt),
+        coerceInputValue(
+          executorSchema,
+          [null],
+          TestListOfNonNullInt as InputType,
+        ),
       ).to.throw(
         'Invalid value null at "value[0]": Expected non-nullable type "Int!" not to be null.',
       );

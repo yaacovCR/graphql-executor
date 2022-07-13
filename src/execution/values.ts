@@ -1,10 +1,4 @@
-import type {
-  DirectiveNode,
-  FieldNode,
-  GraphQLDirective,
-  GraphQLField,
-  VariableDefinitionNode,
-} from 'graphql';
+import type { DirectiveNode, FieldNode, VariableDefinitionNode } from 'graphql';
 
 import { GraphQLError, Kind, print } from 'graphql';
 
@@ -17,7 +11,11 @@ import { printPathArray } from '../jsutils/printPathArray';
 import { coerceInputValue } from '../utilities/coerceInputValue';
 import { valueFromAST } from '../utilities/valueFromAST';
 
-import type { ExecutorSchema } from '../executorSchema/executorSchema';
+import type {
+  Directive,
+  ExecutorSchema,
+  Field,
+} from '../executorSchema/executorSchema';
 
 type CoercedVariableValues =
   | { errors: ReadonlyArray<GraphQLError>; coerced?: never }
@@ -98,7 +96,7 @@ function coerceVariableValues(
           varType,
         );
       } else if (executorSchema.isNonNullType(varType)) {
-        const varTypeStr = inspect(varType);
+        const varTypeStr = varType.toString();
         onError(
           new GraphQLError(
             `Variable "$${varName}" of required type "${varTypeStr}" was not provided.`,
@@ -111,7 +109,7 @@ function coerceVariableValues(
 
     const value = inputs[varName];
     if (value === null && executorSchema.isNonNullType(varType)) {
-      const varTypeStr = inspect(varType);
+      const varTypeStr = varType.toString();
       onError(
         new GraphQLError(
           `Variable "$${varName}" of non-null type "${varTypeStr}" must not be null.`,
@@ -160,7 +158,7 @@ function coerceVariableValues(
  */
 export function getArgumentValues(
   executorSchema: ExecutorSchema,
-  def: GraphQLField<unknown, unknown> | GraphQLDirective,
+  def: Field<unknown, unknown> | Directive,
   node: FieldNode | DirectiveNode,
   variableValues?: Maybe<ObjMap<unknown>>,
 ): { [argument: string]: unknown } {
@@ -181,7 +179,7 @@ export function getArgumentValues(
         coercedValues[name] = argDef.defaultValue;
       } else if (executorSchema.isNonNullType(argType)) {
         throw new GraphQLError(
-          `Argument "${name}" of required type "${inspect(argType)}" ` +
+          `Argument "${name}" of required type "${argType.toString()}" ` +
             'was not provided.',
           node,
         );
@@ -202,7 +200,7 @@ export function getArgumentValues(
           coercedValues[name] = argDef.defaultValue;
         } else if (executorSchema.isNonNullType(argType)) {
           throw new GraphQLError(
-            `Argument "${name}" of required type "${inspect(argType)}" ` +
+            `Argument "${name}" of required type "${argType.toString()}" ` +
               `was provided the variable "$${variableName}" which was not provided a runtime value.`,
             valueNode,
           );
@@ -214,7 +212,7 @@ export function getArgumentValues(
 
     if (isNull && executorSchema.isNonNullType(argType)) {
       throw new GraphQLError(
-        `Argument "${name}" of non-null type "${inspect(argType)}" ` +
+        `Argument "${name}" of non-null type "${argType.toString()}" ` +
           'must not be null.',
         valueNode,
       );
@@ -253,7 +251,7 @@ export function getArgumentValues(
  */
 export function getDirectiveValues(
   executorSchema: ExecutorSchema,
-  directiveDef: GraphQLDirective,
+  directiveDef: Directive,
   node: { readonly directives?: ReadonlyArray<DirectiveNode> },
   variableValues?: Maybe<ObjMap<unknown>>,
 ): undefined | { [argument: string]: unknown } {

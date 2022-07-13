@@ -1,30 +1,26 @@
-import type {
-  GraphQLList,
-  GraphQLNamedType,
-  GraphQLNonNull,
-  GraphQLType,
-  TypeNode,
-} from 'graphql';
+import type { TypeNode } from 'graphql';
 import { Kind } from 'graphql';
+
+import type { List, NamedType, NonNull, Type } from './executorSchema';
 
 interface TypeTreeNode {
   [Kind.LIST_TYPE]?: TypeTreeNode;
   [Kind.NON_NULL_TYPE]?: TypeTreeNode;
-  [Kind.NAMED_TYPE]: Map<string, GraphQLType>;
+  [Kind.NAMED_TYPE]: Map<string, Type>;
 }
 
 /**
  * @internal
  */
 export class TypeTree {
-  private _isListType: (type: unknown) => type is GraphQLList<any>;
-  private _isNonNullType: (type: unknown) => type is GraphQLNonNull<any>;
+  private _isListType: (type: unknown) => type is List<any>;
+  private _isNonNullType: (type: unknown) => type is NonNull<any>;
   private _rootNode: TypeTreeNode;
   private _typeStrings: Set<string>;
 
   constructor(
-    isListType: (type: unknown) => type is GraphQLList<any>,
-    isNonNullType: (type: unknown) => type is GraphQLNonNull<any>,
+    isListType: (type: unknown) => type is List<any>,
+    isNonNullType: (type: unknown) => type is NonNull<any>,
   ) {
     this._isListType = isListType;
     this._isNonNullType = isNonNullType;
@@ -34,12 +30,12 @@ export class TypeTree {
     this._typeStrings = new Set();
   }
 
-  add(type: GraphQLType): void {
+  add(type: Type): void {
     this._add(type, this._rootNode);
     this._typeStrings.add(type.toString());
   }
 
-  get(typeNode: TypeNode): GraphQLType | undefined {
+  get(typeNode: TypeNode): Type | undefined {
     return this._get(typeNode, this._rootNode);
   }
 
@@ -47,10 +43,7 @@ export class TypeTree {
     return this._typeStrings.has(typeString);
   }
 
-  private _get(
-    typeNode: TypeNode,
-    node: TypeTreeNode,
-  ): GraphQLType | undefined {
+  private _get(typeNode: TypeNode, node: TypeTreeNode): Type | undefined {
     switch (typeNode.kind) {
       case Kind.LIST_TYPE: {
         const listNode = node[Kind.LIST_TYPE];
@@ -76,7 +69,7 @@ export class TypeTree {
   }
 
   private _add(
-    originalType: GraphQLType,
+    originalType: Type,
     node: TypeTreeNode,
     type = originalType,
   ): void {
@@ -97,7 +90,7 @@ export class TypeTree {
       }
       this._add(originalType, nonNullTypeNode, type.ofType);
     } else {
-      node[Kind.NAMED_TYPE].set((type as GraphQLNamedType).name, originalType);
+      node[Kind.NAMED_TYPE].set((type as NamedType).name, originalType);
     }
   }
 }

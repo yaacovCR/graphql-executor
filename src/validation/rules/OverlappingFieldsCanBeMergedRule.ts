@@ -25,7 +25,6 @@ import {
 } from 'graphql';
 
 import type { ObjMap } from '../../jsutils/ObjMap';
-import { inspect } from '../../jsutils/inspect';
 
 import type { Maybe } from '../../jsutils/Maybe';
 
@@ -598,9 +597,7 @@ function findConflict(
     return [
       [
         responseName,
-        `they return conflicting types "${inspect(type1)}" and "${inspect(
-          type2,
-        )}"`,
+        `they return conflicting types "${type1.toString()}" and "${type2.toString()}"`,
       ],
       [node1],
       [node2],

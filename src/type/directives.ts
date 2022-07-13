@@ -1,10 +1,11 @@
 import {
-  DirectiveLocation,
   GraphQLBoolean,
   GraphQLDirective,
   GraphQLInt,
   GraphQLString,
 } from 'graphql';
+
+import { DirectiveLocation } from '../executorSchema/executorSchema';
 
 /**
  * Used to conditionally defer fragments.
