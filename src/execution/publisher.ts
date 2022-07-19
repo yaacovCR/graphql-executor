@@ -1,10 +1,12 @@
+import type { PromiseOrValue } from 'graphql/jsutils/PromiseOrValue';
+
 import { Repeater } from '../jsutils/repeater';
 
 interface PublisherOptions<TSource, TPayload> {
   payloadFromSource?: (source: TSource, hasNext: boolean) => TPayload;
   onReady?: () => void;
   hasNext?: () => boolean;
-  onStop?: () => void;
+  onStop?: () => PromiseOrValue<void>;
 }
 
 /**
