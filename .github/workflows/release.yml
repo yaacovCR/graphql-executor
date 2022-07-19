@@ -6,7 +6,7 @@ on:
       - main
 
 env:
-  NODE_VERSION_USED_FOR_DEVELOPMENT: 16
+  NODE_VERSION_USED_FOR_DEVELOPMENT: 18
 jobs:
   release:
     name: Release
