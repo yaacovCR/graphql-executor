@@ -7,13 +7,9 @@ import {
   GraphQLSchema,
   GraphQLString,
   parse,
-  validate,
 } from 'graphql';
 
 import { expectJSON } from '../../__testUtils__/expectJSON';
-import { handlePre15 } from '../../__testUtils__/handlePre15';
-
-import { graphqlSync } from '../../graphql';
 
 import { execute, executeSync } from '../execute';
 
@@ -135,61 +131,56 @@ describe('Execute: synchronously when possible', () => {
     });
   });
 
-  describe('graphqlSync', () => {
+  describe('executeSync', () => {
     it('report errors raised during schema validation', () => {
       const badSchema = new GraphQLSchema({} as GraphQLSchemaConfig); // cast necessary pre v15
-      const result = graphqlSync({
+      const document = parse('{ __typename }');
+      const result = executeSync({
         schema: badSchema,
-        source: '{ __typename }',
+        document,
       });
       expectJSON(result).toDeepEqual({
-        errors: [{ message: 'Query root type must be provided.' }],
-      });
-    });
-
-    it('does not return a Promise for syntax errors', () => {
-      const doc = 'fragment Example on Query { { { syncField }';
-      const result = graphqlSync({
-        schema,
-        source: doc,
-      });
-      expectJSON(result).toDeepEqual({
+        data: null,
         errors: [
           {
-            message:
-              'Syntax Error: Expected Name, found ' + handlePre15('"{".', '{'),
-            locations: [{ line: 1, column: 29 }],
+            message: 'Schema is not configured to execute query operation.',
+            locations: [{ line: 1, column: 1 }],
           },
         ],
       });
     });
 
     it('does not return a Promise for validation errors', () => {
-      const doc = 'fragment Example on Query { unknownField }';
-      const validationErrors = validate(schema, parse(doc));
-      const result = graphqlSync({
+      const document = parse('fragment Example on Query { unknownField }');
+      const result = executeSync({
         schema,
-        source: doc,
+        document,
       });
-      expect(result).to.deep.equal({ errors: validationErrors });
+      expectJSON(result).toDeepEqual({
+        errors: [
+          {
+            message: 'Must provide an operation.',
+          },
+        ],
+      });
     });
 
     it('does not return a Promise for sync execution', () => {
-      const doc = 'query Example { syncField }';
-      const result = graphqlSync({
+      const document = parse('query Example { syncField }');
+      const result = executeSync({
         schema,
-        source: doc,
+        document,
         rootValue: 'rootValue',
       });
       expect(result).to.deep.equal({ data: { syncField: 'rootValue' } });
     });
 
     it('throws if encountering async execution', () => {
-      const doc = 'query Example { syncField, asyncField }';
+      const document = parse('query Example { syncField, asyncField }');
       expect(() => {
-        graphqlSync({
+        executeSync({
           schema,
-          source: doc,
+          document,
           rootValue: 'rootValue',
         });
       }).to.throw('GraphQL execution failed to complete synchronously.');

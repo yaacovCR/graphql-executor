@@ -13,7 +13,6 @@ import { expectJSON } from '../../__testUtils__/expectJSON';
 import { handlePre15 } from '../../__testUtils__/handlePre15';
 import { handlePre16 } from '../../__testUtils__/handlePre16';
 
-import { graphqlSync } from '../../graphql';
 // executeSync is necessary because the __directive introspection field used in testing does not currently pass validation
 // TODO: add custom validation logic to fix this
 import { executeSync } from '../../execution/execute';
@@ -36,7 +35,7 @@ describe('Introspection', () => {
       directiveIsRepeatable: true,
     };
 
-    const source = getIntrospectionQuery(options);
+    const document = parse(getIntrospectionQuery(options));
 
     const types = [
       {
@@ -1049,7 +1048,7 @@ describe('Introspection', () => {
       },
     };
 
-    const result = graphqlSync({ schema, source });
+    const result = executeSync({ schema, document });
     const expectedResult = {
       data: handlePre16(v16Result, handlePre15(v15Result, v14Result)),
     };
@@ -1069,7 +1068,7 @@ describe('Introspection', () => {
       }
     `);
 
-    const source = `
+    const document = parse(`
       {
         __type(name: "SomeInputObject") {
           kind
@@ -1098,9 +1097,9 @@ describe('Introspection', () => {
           }
         }
       }
-    `;
+    `);
 
-    expect(graphqlSync({ schema, source })).to.deep.equal({
+    expect(executeSync({ schema, document })).to.deep.equal({
       data: {
         __type: {
           kind: 'INPUT_OBJECT',
@@ -1150,7 +1149,7 @@ describe('Introspection', () => {
       }
     `);
 
-    const source = `
+    const document = parse(`
       {
         Query: __type(name: "Query") {
           name
@@ -1159,9 +1158,9 @@ describe('Introspection', () => {
           name
         }
       }
-    `;
+    `);
 
-    expect(graphqlSync({ schema, source })).to.deep.equal({
+    expect(executeSync({ schema, document })).to.deep.equal({
       data: {
         Query: { name: 'Query' },
         Unknown: null,
@@ -1177,7 +1176,7 @@ describe('Introspection', () => {
       directive @someDirective on FIELD 
     `);
 
-    const source = `
+    const document = parse(`
       {
         someDirective: __directive(name: "someDirective") {
           name
@@ -1186,9 +1185,9 @@ describe('Introspection', () => {
           name
         }
       }
-    `;
+    `);
 
-    expect(executeSync({ schema, document: parse(source) })).to.deep.equal({
+    expect(executeSync({ schema, document })).to.deep.equal({
       data: {
         someDirective: { name: 'someDirective' },
         unknown: null,
@@ -1205,7 +1204,7 @@ describe('Introspection', () => {
       }
     `);
 
-    const source = `
+    const document = parse(`
       {
         __type(name: "Query") {
           fields(includeDeprecated: true) {
@@ -1215,9 +1214,9 @@ describe('Introspection', () => {
           }
         }
       }
-    `;
+    `);
 
-    expect(graphqlSync({ schema, source })).to.deep.equal({
+    expect(executeSync({ schema, document })).to.deep.equal({
       data: {
         __type: {
           fields: [
@@ -1250,7 +1249,7 @@ describe('Introspection', () => {
       }
     `);
 
-    const source = `
+    const document = parse(`
       {
         __type(name: "Query") {
           trueFields: fields(includeDeprecated: true) {
@@ -1264,9 +1263,9 @@ describe('Introspection', () => {
           }
         }
       }
-    `;
+    `);
 
-    expect(graphqlSync({ schema, source })).to.deep.equal({
+    expect(executeSync({ schema, document })).to.deep.equal({
       data: {
         __type: {
           trueFields: [{ name: 'nonDeprecated' }, { name: 'deprecated' }],
@@ -1295,7 +1294,7 @@ describe('Introspection', () => {
         ) on FIELD
       `);
 
-      const source = `
+      const document = parse(`
         {
           __type(name: "Query") {
             fields {
@@ -1314,9 +1313,9 @@ describe('Introspection', () => {
             }
           }
         }
-      `;
+      `);
 
-      expect(executeSync({ schema, document: parse(source) })).to.deep.equal({
+      expect(executeSync({ schema, document })).to.deep.equal({
         data: {
           __type: {
             fields: [
@@ -1379,7 +1378,7 @@ describe('Introspection', () => {
         ) on FIELD
       `);
 
-      const source = `
+      const document = parse(`
         {
           __type(name: "Query") {
             fields {
@@ -1406,9 +1405,9 @@ describe('Introspection', () => {
             }
           }
         }
-      `;
+      `);
 
-      expect(executeSync({ schema, document: parse(source) })).to.deep.equal({
+      expect(executeSync({ schema, document })).to.deep.equal({
         data: {
           __type: {
             fields: [
@@ -1442,7 +1441,7 @@ describe('Introspection', () => {
       }
     `);
 
-    const source = `
+    const document = parse(`
       {
         __type(name: "SomeEnum") {
           enumValues(includeDeprecated: true) {
@@ -1452,9 +1451,9 @@ describe('Introspection', () => {
           }
         }
       }
-    `;
+    `);
 
-    expect(graphqlSync({ schema, source })).to.deep.equal({
+    expect(executeSync({ schema, document })).to.deep.equal({
       data: {
         __type: {
           enumValues: [
@@ -1493,7 +1492,7 @@ describe('Introspection', () => {
       }
     `);
 
-    const source = `
+    const document = parse(`
       {
         __type(name: "SomeEnum") {
           trueValues: enumValues(includeDeprecated: true) {
@@ -1507,9 +1506,9 @@ describe('Introspection', () => {
           }
         }
       }
-    `;
+    `);
 
-    expect(graphqlSync({ schema, source })).to.deep.equal({
+    expect(executeSync({ schema, document })).to.deep.equal({
       data: {
         __type: {
           trueValues: [
@@ -1545,7 +1544,7 @@ describe('Introspection', () => {
       }
     `);
 
-      const source = `
+      const document = parse(`
       {
         __type(name: "SomeInputObject") {
           inputFields(includeDeprecated: true) {
@@ -1555,9 +1554,9 @@ describe('Introspection', () => {
           }
         }
       }
-    `;
+    `);
 
-      expect(graphqlSync({ schema, source })).to.deep.equal({
+      expect(executeSync({ schema, document })).to.deep.equal({
         data: {
           __type: {
             inputFields: [
@@ -1594,7 +1593,7 @@ describe('Introspection', () => {
       }
     `);
 
-      const source = `
+      const document = parse(`
       {
         __type(name: "SomeInputObject") {
           trueFields: inputFields(includeDeprecated: true) {
@@ -1608,9 +1607,9 @@ describe('Introspection', () => {
           }
         }
       }
-    `;
+    `);
 
-      expect(graphqlSync({ schema, source })).to.deep.equal({
+      expect(executeSync({ schema, document })).to.deep.equal({
         data: {
           __type: {
             trueFields: [{ name: 'nonDeprecated' }, { name: 'deprecated' }],
@@ -1629,20 +1628,24 @@ describe('Introspection', () => {
       }
     `);
 
-    const source = `
+    const document = parse(`
       {
         __type {
           name
         }
       }
-    `;
+    `);
 
-    expectJSON(graphqlSync({ schema, source })).toDeepEqual({
+    expectJSON(executeSync({ schema, document })).toDeepEqual({
+      data: {
+        __type: null,
+      },
       errors: [
         {
           message:
-            'Field "__type" argument "name" of type "String!" is required, but it was not provided.',
+            'Argument "name" of required type "String!" was not provided.',
           locations: [{ line: 3, column: 9 }],
+          path: ['__type'],
         },
       ],
     });
@@ -1661,13 +1664,13 @@ describe('Introspection', () => {
         }
       `);
 
-      const source = `
+      const document = parse(`
         {
           Schema: __schema { description }
         }
-      `;
+      `);
 
-      expect(graphqlSync({ schema, source })).to.deep.equal({
+      expect(executeSync({ schema, document })).to.deep.equal({
         data: {
           Schema: {
             description: 'Schema description',
@@ -1688,7 +1691,10 @@ describe('Introspection', () => {
       """Object description"""
       type SomeObject {
         """Field description"""
-        someField(arg: SomeEnum): String
+        someField(
+          """Arg description"""
+          arg: SomeEnum
+        ): String
       }
 
       """Directive description"""
@@ -1699,12 +1705,16 @@ describe('Introspection', () => {
       }
     `);
 
-    const source = `
+    const document = parse(`
       {
         SomeObject: __type(name: "SomeObject") {
           description,
           fields {
             name
+            args {
+              name
+              description
+            }
             description
           }
         }
@@ -1719,9 +1729,9 @@ describe('Introspection', () => {
           description
         }
       }
-    `;
+    `);
 
-    expect(executeSync({ schema, document: parse(source) })).to.deep.equal({
+    expect(executeSync({ schema, document })).to.deep.equal({
       data: {
         SomeEnum: {
           description: 'Enum description',
@@ -1737,6 +1747,12 @@ describe('Introspection', () => {
           fields: [
             {
               name: 'someField',
+              args: [
+                {
+                  name: 'arg',
+                  description: 'Arg description',
+                },
+              ],
               description: 'Field description',
             },
           ],
@@ -1761,7 +1777,7 @@ describe('Introspection', () => {
       directiveIsRepeatable: true,
     };
 
-    const source = getIntrospectionQuery(options);
+    const document = parse(getIntrospectionQuery(options));
 
     /* c8 ignore start */
     function fieldResolver(
@@ -1778,9 +1794,9 @@ describe('Introspection', () => {
     }
     /* c8 ignore stop */
 
-    const result = graphqlSync({
+    const result = executeSync({
       schema,
-      source,
+      document,
       fieldResolver,
       typeResolver,
     });
