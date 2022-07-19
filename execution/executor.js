@@ -56,20 +56,6 @@ var _mapAsyncIterable = require('./mapAsyncIterable.js');
 
 var _flattenAsyncIterable = require('./flattenAsyncIterable.js');
 
-function _defineProperty(obj, key, value) {
-  if (key in obj) {
-    Object.defineProperty(obj, key, {
-      value: value,
-      enumerable: true,
-      configurable: true,
-      writable: true,
-    });
-  } else {
-    obj[key] = value;
-  }
-  return obj;
-}
-
 /**
  * Executor class responsible for implementing the Execution section of the GraphQL spec.
  *
@@ -84,151 +70,45 @@ function _defineProperty(obj, key, value) {
  * @internal
  */
 class Executor {
+  splitDefinitions = (0, _memoize.memoize1)((document) =>
+    this._splitDefinitions(document),
+  );
+  selectOperation = (0, _memoize1and.memoize1and1)(
+    (operations, operationName) =>
+      this._selectOperation(operations, operationName),
+  );
   /**
    * A memoized method that looks up the field context given a parent type
    * and an array of field nodes.
    */
 
+  getFieldContext = (0, _memoize2.memoize2)((parentType, fieldNodes) =>
+    this._getFieldContext(parentType, fieldNodes),
+  );
   /**
    * A memoized method that retrieves a value completer given a return type.
    */
 
+  getValueCompleter = (0, _memoize.memoize1)((returnType) =>
+    this._getValueCompleter(returnType),
+  );
   /**
    * Creates a field list, memoizing so that functions operating on the
    * field list can be memoized.
    */
 
+  createFieldList = (0, _memoize.memoize1)((node) => [node]);
   /**
    * Appends to a field list, memoizing so that functions operating on the
    * field list can be memoized.
    */
+
+  updateFieldList = (0, _memoize2.memoize2)((fieldList, node) => [
+    ...fieldList,
+    node,
+  ]);
+
   constructor(executorArgs) {
-    _defineProperty(
-      this,
-      'splitDefinitions',
-      (0, _memoize.memoize1)((document) => this._splitDefinitions(document)),
-    );
-
-    _defineProperty(
-      this,
-      'selectOperation',
-      (0, _memoize1and.memoize1and1)((operations, operationName) =>
-        this._selectOperation(operations, operationName),
-      ),
-    );
-
-    _defineProperty(
-      this,
-      'getFieldContext',
-      (0, _memoize2.memoize2)((parentType, fieldNodes) =>
-        this._getFieldContext(parentType, fieldNodes),
-      ),
-    );
-
-    _defineProperty(
-      this,
-      'getValueCompleter',
-      (0, _memoize.memoize1)((returnType) =>
-        this._getValueCompleter(returnType),
-      ),
-    );
-
-    _defineProperty(
-      this,
-      'createFieldList',
-      (0, _memoize.memoize1)((node) => [node]),
-    );
-
-    _defineProperty(
-      this,
-      'updateFieldList',
-      (0, _memoize2.memoize2)((fieldList, node) => [...fieldList, node]),
-    );
-
-    _defineProperty(
-      this,
-      'buildFieldResolver',
-      (resolverKey, defaultResolver) =>
-        (exeContext, fieldContext, source, info) => {
-          var _fieldDef$resolverKey;
-
-          const { fieldDef, initialFieldNode } = fieldContext;
-          const resolveFn =
-            (_fieldDef$resolverKey = fieldDef[resolverKey]) !== null &&
-            _fieldDef$resolverKey !== void 0
-              ? _fieldDef$resolverKey
-              : defaultResolver;
-          const { contextValue, variableValues } = exeContext; // Build a JS object of arguments from the field.arguments AST, using the
-          // variables scope to fulfill any variable references.
-
-          const args = exeContext.getArgumentValues(
-            fieldDef,
-            initialFieldNode,
-            variableValues,
-          ); // The resolve function's optional third argument is a context value that
-          // is provided to every resolve function within an execution. It is commonly
-          // used to represent an authenticated user, or request-specific caches.
-
-          return resolveFn(source, args, contextValue, info);
-        },
-    );
-
-    _defineProperty(
-      this,
-      'buildRootFieldCollector',
-      (fragments, variableValues, getDeferValues) =>
-        (runtimeType, operation) => {
-          const fields = new Map();
-          const patches = [];
-          this.collectFieldsImpl(
-            fragments,
-            variableValues,
-            getDeferValues,
-            runtimeType,
-            operation.selectionSet,
-            fields,
-            patches,
-            new Set(),
-          );
-          return {
-            fields,
-            patches,
-          };
-        },
-    );
-
-    _defineProperty(
-      this,
-      'buildSubFieldCollector',
-      (fragments, variableValues, getDeferValues) =>
-        (0, _memoize2.memoize2)((returnType, fieldNodes) => {
-          const subFieldNodes = new Map();
-          const visitedFragmentNames = new Set();
-          const subPatches = [];
-          const subFieldsAndPatches = {
-            fields: subFieldNodes,
-            patches: subPatches,
-          };
-
-          for (const node of fieldNodes) {
-            if (node.selectionSet) {
-              this.collectFieldsImpl(
-                fragments,
-                variableValues,
-                getDeferValues,
-                returnType,
-                node.selectionSet,
-                subFieldNodes,
-                subPatches,
-                visitedFragmentNames,
-              );
-            }
-          }
-
-          return subFieldsAndPatches;
-        }),
-    );
-
     const { schema, executorSchema } = executorArgs; // Schema must be provided.
 
     schema || (0, _devAssert.devAssert)(false, 'Must provide schema.');
@@ -438,6 +318,31 @@ class Executor {
       );
   }
 
+  buildFieldResolver =
+    (resolverKey, defaultResolver) =>
+    (exeContext, fieldContext, source, info) => {
+      var _fieldDef$resolverKey;
+
+      const { fieldDef, initialFieldNode } = fieldContext;
+      const resolveFn =
+        (_fieldDef$resolverKey = fieldDef[resolverKey]) !== null &&
+        _fieldDef$resolverKey !== void 0
+          ? _fieldDef$resolverKey
+          : defaultResolver;
+      const { contextValue, variableValues } = exeContext; // Build a JS object of arguments from the field.arguments AST, using the
+      // variables scope to fulfill any variable references.
+
+      const args = exeContext.getArgumentValues(
+        fieldDef,
+        initialFieldNode,
+        variableValues,
+      ); // The resolve function's optional third argument is a context value that
+      // is provided to every resolve function within an execution. It is commonly
+      // used to represent an authenticated user, or request-specific caches.
+
+      return resolveFn(source, args, contextValue, info);
+    };
+
   _splitDefinitions(document) {
     const operations = [];
     const fragments = Object.create(null);
@@ -538,8 +443,8 @@ class Executor {
       },
       onReady: () => state.pendingPushes--,
       hasNext: () => this.hasNext(state),
-      onStop: () =>
-        Promise.all(
+      onStop: async () => {
+        await Promise.all(
           Array.from(state.iterators.values()).map((iterator) => {
             var _iterator$return;
 
@@ -548,7 +453,8 @@ class Executor {
               ? void 0
               : _iterator$return.call(iterator);
           }),
-        ),
+        );
+      },
     });
   }
   /**
@@ -2531,6 +2437,65 @@ class Executor {
    * returns an Interface or Union type, the "runtime type" will be the actual
    * object type returned by that field.
    */
+
+  buildRootFieldCollector =
+    (fragments, variableValues, getDeferValues) => (runtimeType, operation) => {
+      const fields = new Map();
+      const patches = [];
+      this.collectFieldsImpl(
+        fragments,
+        variableValues,
+        getDeferValues,
+        runtimeType,
+        operation.selectionSet,
+        fields,
+        patches,
+        new Set(),
+      );
+      return {
+        fields,
+        patches,
+      };
+    };
+  /**
+   * Given an array of field nodes, collects all of the subfields of the passed
+   * in fields, and returns them at the end.
+   *
+   * CollectSubFields requires the "return type" of an object. For a field that
+   * returns an Interface or Union type, the "return type" will be the actual
+   * object type returned by that field.
+   *
+   * Memoizing ensures the subfields are not repeatedly calculated, which
+   * saves overhead when resolving lists of values.
+   */
+
+  buildSubFieldCollector = (fragments, variableValues, getDeferValues) =>
+    (0, _memoize2.memoize2)((returnType, fieldNodes) => {
+      const subFieldNodes = new Map();
+      const visitedFragmentNames = new Set();
+      const subPatches = [];
+      const subFieldsAndPatches = {
+        fields: subFieldNodes,
+        patches: subPatches,
+      };
+
+      for (const node of fieldNodes) {
+        if (node.selectionSet) {
+          this.collectFieldsImpl(
+            fragments,
+            variableValues,
+            getDeferValues,
+            returnType,
+            node.selectionSet,
+            subFieldNodes,
+            subPatches,
+            visitedFragmentNames,
+          );
+        }
+      }
+
+      return subFieldsAndPatches;
+    });
 
   collectFieldsImpl(
     fragments,
