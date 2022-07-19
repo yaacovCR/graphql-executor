@@ -710,12 +710,13 @@ export class Executor {
       },
       onReady: () => state.pendingPushes--,
       hasNext: () => this.hasNext(state),
-      onStop: () =>
-        Promise.all(
+      onStop: async () => {
+        await Promise.all(
           Array.from(state.iterators.values()).map((iterator) =>
             iterator.return?.(),
           ),
-        ),
+        );
+      },
     });
   }
   /**
