@@ -85,6 +85,8 @@ const collectSubfields = memoize3(
     ),
 );
 
+const SKIPPED_FIELD_SYMBOL: unique symbol = Symbol('SkippedField');
+
 /**
  * Terminology
  *
@@ -566,6 +568,10 @@ function executeOperation(
   const path = undefined;
   let result;
 
+  const willBranch =
+    newDeferDepth !== undefined &&
+    shouldBranch(groupedFieldSet, exeContext, path);
+
   switch (operation.operation) {
     case OperationTypeNode.QUERY:
       result = executeFields(
@@ -574,6 +580,7 @@ function executeOperation(
         rootValue,
         path,
         groupedFieldSet,
+        willBranch,
       );
       break;
     case OperationTypeNode.MUTATION:
@@ -594,13 +601,11 @@ function executeOperation(
         rootValue,
         path,
         groupedFieldSet,
+        willBranch,
       );
   }
 
-  if (
-    newDeferDepth !== undefined &&
-    shouldBranch(groupedFieldSet, exeContext, path)
-  ) {
+  if (willBranch) {
     executeDeferredFragment(
       exeContext,
       rootType,
@@ -610,6 +615,11 @@ function executeOperation(
       path,
     );
   }
+
+  invariant(
+    result !== SKIPPED_FIELD_SYMBOL,
+    'fields in initial payload should not be skipped',
+  );
 
   return result;
 }
@@ -713,10 +723,12 @@ function executeFields(
   sourceValue: unknown,
   path: Path | undefined,
   groupedFieldSet: GroupedFieldSet,
+  willBranch: Boolean,
   asyncPayloadRecord?: AsyncPayloadRecord,
-): PromiseOrValue<ObjMap<unknown>> {
+): PromiseOrValue<ObjMap<unknown>> | typeof SKIPPED_FIELD_SYMBOL {
   const results = Object.create(null);
   let containsPromise = false;
+  let allFieldsSkipped = willBranch ? false : Boolean(groupedFieldSet.size);
 
   try {
     for (const [responseName, fieldGroup] of groupedFieldSet) {
@@ -731,6 +743,11 @@ function executeFields(
           fieldPath,
           asyncPayloadRecord,
         );
+
+        if (result === SKIPPED_FIELD_SYMBOL) {
+          continue;
+        }
+        allFieldsSkipped = false;
 
         if (result !== undefined) {
           results[responseName] = result;
@@ -748,6 +765,10 @@ function executeFields(
       });
     }
     throw error;
+  }
+
+  if (allFieldsSkipped) {
+    return SKIPPED_FIELD_SYMBOL;
   }
 
   // If there are no promises, we can just return the object
@@ -1395,7 +1416,7 @@ function completeAbstractValue(
   path: Path,
   result: unknown,
   asyncPayloadRecord?: AsyncPayloadRecord,
-): PromiseOrValue<ObjMap<unknown>> {
+): PromiseOrValue<ObjMap<unknown> | typeof SKIPPED_FIELD_SYMBOL> {
   const resolveTypeFn = returnType.resolveType ?? exeContext.typeResolver;
   const contextValue = exeContext.contextValue;
   const runtimeType = resolveTypeFn(result, contextValue, info, returnType);
@@ -1505,7 +1526,7 @@ function completeObjectValue(
   path: Path,
   result: unknown,
   asyncPayloadRecord?: AsyncPayloadRecord,
-): PromiseOrValue<ObjMap<unknown>> {
+): PromiseOrValue<ObjMap<unknown> | typeof SKIPPED_FIELD_SYMBOL> {
   // If there is an isTypeOf predicate function, call it with the
   // current result. If isTypeOf returns false, then raise an error rather
   // than continuing execution.
@@ -1561,7 +1582,7 @@ function collectAndExecuteSubfields(
   path: Path,
   result: unknown,
   asyncPayloadRecord?: AsyncPayloadRecord,
-): PromiseOrValue<ObjMap<unknown>> {
+): PromiseOrValue<ObjMap<unknown>> | typeof SKIPPED_FIELD_SYMBOL {
   // Collect sub-fields to execute to complete this value.
   const { groupedFieldSet, newDeferDepth } = collectSubfields(
     exeContext,
@@ -1569,19 +1590,21 @@ function collectAndExecuteSubfields(
     fieldGroup,
   );
 
+  const willBranch =
+    newDeferDepth !== undefined &&
+    shouldBranch(groupedFieldSet, exeContext, path);
+
   const subFields = executeFields(
     exeContext,
     returnType,
     result,
     path,
     groupedFieldSet,
+    willBranch,
     asyncPayloadRecord,
   );
 
-  if (
-    newDeferDepth !== undefined &&
-    shouldBranch(groupedFieldSet, exeContext, path)
-  ) {
+  if (willBranch) {
     executeDeferredFragment(
       exeContext,
       returnType,
@@ -1913,8 +1936,14 @@ function executeDeferredFragment(
       sourceValue,
       path,
       groupedFieldSet,
+      false,
       asyncPayloadRecord,
     );
+
+    if (promiseOrData === SKIPPED_FIELD_SYMBOL) {
+      exeContext.subsequentPayloads.delete(asyncPayloadRecord);
+      return;
+    }
 
     if (isPromise(promiseOrData)) {
       promiseOrData = promiseOrData.then(null, (e) => {
