@@ -395,26 +395,14 @@ describe('Execute: defer directive', () => {
       }
     `);
     const result = await complete(document);
-    expectJSON(result).toDeepEqual([
-      {
-        data: {
-          hero: {
-            id: '1',
-            name: 'Luke',
-          },
+    expectJSON(result).toDeepEqual({
+      data: {
+        hero: {
+          id: '1',
+          name: 'Luke',
         },
-        hasNext: true,
       },
-      {
-        incremental: [
-          {
-            data: {},
-            path: ['hero'],
-          },
-        ],
-        hasNext: false,
-      },
-    ]);
+    });
   });
   it('Can defer a fragment that is also not deferred, non-deferred fragment is first', async () => {
     const document = parse(`
@@ -430,26 +418,14 @@ describe('Execute: defer directive', () => {
       }
     `);
     const result = await complete(document);
-    expectJSON(result).toDeepEqual([
-      {
-        data: {
-          hero: {
-            id: '1',
-            name: 'Luke',
-          },
+    expectJSON(result).toDeepEqual({
+      data: {
+        hero: {
+          id: '1',
+          name: 'Luke',
         },
-        hasNext: true,
       },
-      {
-        incremental: [
-          {
-            data: {},
-            path: ['hero'],
-          },
-        ],
-        hasNext: false,
-      },
-    ]);
+    });
   });
 
   it('Can defer an inline fragment', async () => {
@@ -577,9 +553,6 @@ describe('Execute: defer directive', () => {
                 deeperObject: {
                   bar: 'bar',
                 },
-              },
-              anotherNestedObject: {
-                deeperObject: {},
               },
             },
             path: ['hero'],
@@ -771,14 +744,6 @@ describe('Execute: defer directive', () => {
               bar: 'bar',
             },
             path: ['hero', 'nestedObject', 'deeperObject'],
-          },
-          {
-            data: {
-              nestedObject: {
-                deeperObject: {},
-              },
-            },
-            path: ['hero'],
           },
         ],
         hasNext: false,
