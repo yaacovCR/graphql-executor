@@ -1,5 +1,7 @@
 import type { ObjMap } from './ObjMap.js';
 
+export const SKIPPED_FIELD_SYMBOL: unique symbol = Symbol('SkippedField');
+
 /**
  * This function transforms a JS object `ObjMap<Promise<T>>` into
  * a `Promise<ObjMap<T>>`
@@ -9,13 +11,16 @@ import type { ObjMap } from './ObjMap.js';
  */
 export async function promiseForObject<T>(
   object: ObjMap<Promise<T>>,
-): Promise<ObjMap<T>> {
+): Promise<ObjMap<T> | typeof SKIPPED_FIELD_SYMBOL> {
   const keys = Object.keys(object);
   const values = Object.values(object);
 
   const resolvedValues = await Promise.all(values);
   const resolvedObject = Object.create(null);
   for (let i = 0; i < keys.length; ++i) {
+    if (resolvedValues[i] === SKIPPED_FIELD_SYMBOL) {
+      return SKIPPED_FIELD_SYMBOL;
+    }
     resolvedObject[keys[i]] = resolvedValues[i];
   }
   return resolvedObject;

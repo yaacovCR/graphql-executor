@@ -53,6 +53,7 @@ const deeperObject = new GraphQLObjectType({
 const nestedObject = new GraphQLObjectType({
   fields: {
     deeperObject: { type: deeperObject, resolve: () => ({}) },
+    name: { type: GraphQLString, resolve: () => 'foo' },
   },
   name: 'NestedObject',
 });
@@ -129,13 +130,29 @@ const heroType = new GraphQLObjectType({
       type: new GraphQLList(friendType),
       resolve: () => friends,
     },
+    emptyFriends: {
+      type: new GraphQLList(friendType),
+      resolve: () => [],
+    },
     asyncFriends: {
       type: new GraphQLList(friendType),
       async *resolve() {
         yield await Promise.resolve(friends[0]);
       },
     },
+    asyncEmptyFriends: {
+      type: new GraphQLList(friendType),
+      // eslint-disable-next-line require-yield
+      async *resolve() {
+        await resolveOnNextTick();
+      },
+    },
     nestedObject: { type: nestedObject, resolve: () => ({}) },
+    promiseNestedObject: {
+      type: nestedObject,
+      resolve: () => Promise.resolve({}),
+    },
+    nullNestedObject: { type: nestedObject, resolve: () => null },
     anotherNestedObject: { type: anotherNestedObject, resolve: () => ({}) },
   },
   name: 'Hero',
@@ -820,6 +837,194 @@ describe('Execute: defer directive', () => {
             path: [],
           },
         ],
+        hasNext: false,
+      },
+    ]);
+  });
+
+  it('Can deduplicate list fields', async () => {
+    const document = parse(`
+      query {
+        hero {
+          friends {
+            name
+          }
+          ... @defer {
+            friends {
+              name
+            }
+          }
+        }
+      }
+    `);
+    const result = await complete(document);
+    expectJSON(result).toDeepEqual({
+      data: {
+        hero: {
+          friends: [{ name: 'Han' }, { name: 'Leia' }, { name: 'C-3PO' }],
+        },
+      },
+    });
+  });
+
+  it('Can deduplicate async iterable list fields', async () => {
+    const document = parse(`
+      query {
+        hero {
+          asyncFriends {
+            name
+          }
+          ... @defer {
+            asyncFriends {
+              name
+            }
+          }
+        }
+      }
+    `);
+    const result = await complete(document);
+    expectJSON(result).toDeepEqual([
+      {
+        data: { hero: { asyncFriends: [{ name: 'Han' }] } },
+        hasNext: true,
+      },
+      {
+        hasNext: false,
+      },
+    ]);
+  });
+
+  it('Can deduplicate empty async iterable list fields', async () => {
+    const document = parse(`
+      query {
+        hero {
+          asyncEmptyFriends {
+            name
+          }
+          ... @defer {
+            asyncEmptyFriends {
+              name
+            }
+          }
+        }
+      }
+    `);
+    const result = await complete(document);
+    expectJSON(result).toDeepEqual([
+      {
+        data: { hero: { asyncEmptyFriends: [] } },
+        hasNext: true,
+      },
+      {
+        hasNext: false,
+      },
+    ]);
+  });
+
+  it("Doesn't deduplicate list fields with non-overlapping fields", async () => {
+    const document = parse(`
+      query {
+        hero {
+          friends {
+            name
+          }
+          ... @defer {
+            friends {
+              name
+              id
+            }
+          }
+        }
+      }
+    `);
+    const result = await complete(document);
+    expectJSON(result).toDeepEqual([
+      {
+        data: {
+          hero: {
+            friends: [{ name: 'Han' }, { name: 'Leia' }, { name: 'C-3PO' }],
+          },
+        },
+        hasNext: true,
+      },
+      {
+        incremental: [
+          {
+            data: {
+              friends: [{ id: '2' }, { id: '3' }, { id: '4' }],
+            },
+            path: ['hero'],
+          },
+        ],
+        hasNext: false,
+      },
+    ]);
+  });
+
+  it('Can deduplicate list fields that return empty lists', async () => {
+    const document = parse(`
+      query {
+        hero {
+          emptyFriends {
+            name
+          }
+          ... @defer {
+            emptyFriends {
+              name
+            }
+          }
+        }
+      }
+    `);
+    const result = await complete(document);
+    expectJSON(result).toDeepEqual({
+      data: { hero: { emptyFriends: [] } },
+    });
+  });
+
+  it('Can deduplicate null object fields', async () => {
+    const document = parse(`
+      query {
+        hero {
+          nullNestedObject {
+            name
+          }
+          ... @defer {
+            nullNestedObject {
+              name
+            }
+          }
+        }
+      }
+    `);
+    const result = await complete(document);
+    expectJSON(result).toDeepEqual({
+      data: { hero: { nullNestedObject: null } },
+    });
+  });
+
+  it('Can deduplicate promise object fields', async () => {
+    const document = parse(`
+      query {
+        hero {
+          promiseNestedObject {
+            name
+          }
+          ... @defer {
+            promiseNestedObject {
+              name
+            }
+          }
+        }
+      }
+    `);
+    const result = await complete(document);
+    expectJSON(result).toDeepEqual([
+      {
+        data: { hero: { promiseNestedObject: { name: 'foo' } } },
+        hasNext: true,
+      },
+      {
         hasNext: false,
       },
     ]);

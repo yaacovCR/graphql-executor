@@ -9,7 +9,10 @@ import { memoize3 } from '../jsutils/memoize3.js';
 import type { ObjMap } from '../jsutils/ObjMap.js';
 import type { Path, PathFactory } from '../jsutils/Path.js';
 import { createPathFactory, pathToArray } from '../jsutils/Path.js';
-import { promiseForObject } from '../jsutils/promiseForObject.js';
+import {
+  promiseForObject,
+  SKIPPED_FIELD_SYMBOL,
+} from '../jsutils/promiseForObject.js';
 import type { PromiseOrValue } from '../jsutils/PromiseOrValue.js';
 import { promiseReduce } from '../jsutils/promiseReduce.js';
 
@@ -84,8 +87,6 @@ const collectSubfields = memoize3(
       fieldGroup,
     ),
 );
-
-const SKIPPED_FIELD_SYMBOL: unique symbol = Symbol('SkippedField');
 
 /**
  * Terminology
@@ -354,9 +355,17 @@ function executeImpl(
   // in this case is the entire response.
   try {
     const result = executeOperation(exeContext);
+    invariant(
+      result !== SKIPPED_FIELD_SYMBOL,
+      'fields in initial payload should not be skipped',
+    );
     if (isPromise(result)) {
       return result.then(
         (data) => {
+          invariant(
+            data !== SKIPPED_FIELD_SYMBOL,
+            'fields in initial payload should not be skipped',
+          );
           const initialResult = buildResponse(data, exeContext.errors);
           if (exeContext.subsequentPayloads.size > 0) {
             return {
@@ -547,7 +556,7 @@ function shouldBranch(
  */
 function executeOperation(
   exeContext: ExecutionContext,
-): PromiseOrValue<ObjMap<unknown>> {
+): PromiseOrValue<ObjMap<unknown> | typeof SKIPPED_FIELD_SYMBOL> {
   const { operation, schema, fragments, variableValues, rootValue } =
     exeContext;
   const rootType = schema.getRootType(operation.operation);
@@ -616,11 +625,6 @@ function executeOperation(
     );
   }
 
-  invariant(
-    result !== SKIPPED_FIELD_SYMBOL,
-    'fields in initial payload should not be skipped',
-  );
-
   return result;
 }
 
@@ -640,7 +644,7 @@ function executeFieldsSerially(
     (results, [responseName, fieldGroup]) => {
       const fieldPath = exeContext.addPath(path, responseName, parentType.name);
 
-      if (!shouldExecute(fieldGroup)) {
+      if (!shouldExecute(fieldGroup, fieldGroup.isLeaf)) {
         return results;
       }
       const result = executeField(
@@ -668,13 +672,14 @@ function executeFieldsSerially(
 
 function shouldExecute(
   fieldGroup: FieldGroup,
+  isLeaf: Boolean,
   asyncPayload?: AsyncPayloadRecord | undefined,
 ): boolean {
   let deferDepth: number | undefined;
   if (
     asyncPayload === undefined ||
     (deferDepth = asyncPayload.deferDepth) === undefined ||
-    !fieldGroup.isLeaf
+    !isLeaf
   ) {
     for (const fieldDeferDepth of fieldGroup.fields.keys()) {
       if (fieldDeferDepth === deferDepth) {
@@ -725,7 +730,9 @@ function executeFields(
   groupedFieldSet: GroupedFieldSet,
   willBranch: Boolean,
   asyncPayloadRecord?: AsyncPayloadRecord,
-): PromiseOrValue<ObjMap<unknown>> | typeof SKIPPED_FIELD_SYMBOL {
+):
+  | PromiseOrValue<ObjMap<unknown> | typeof SKIPPED_FIELD_SYMBOL>
+  | typeof SKIPPED_FIELD_SYMBOL {
   const results = Object.create(null);
   let containsPromise = false;
   let allFieldsSkipped = willBranch ? false : Boolean(groupedFieldSet.size);
@@ -734,7 +741,7 @@ function executeFields(
     for (const [responseName, fieldGroup] of groupedFieldSet) {
       const fieldPath = exeContext.addPath(path, responseName, parentType.name);
 
-      if (shouldExecute(fieldGroup, asyncPayloadRecord)) {
+      if (shouldExecute(fieldGroup, fieldGroup.isLeaf, asyncPayloadRecord)) {
         const result = executeField(
           exeContext,
           parentType,
@@ -991,7 +998,10 @@ function completeValue(
 
   // If result value is null or undefined then return null.
   if (result == null) {
-    return null;
+    if (shouldExecute(fieldGroup, true, asyncPayloadRecord)) {
+      return null;
+    }
+    return SKIPPED_FIELD_SYMBOL;
   }
 
   // If field type is List, complete each item in the list with the inner type
@@ -1154,7 +1164,7 @@ async function completeAsyncIteratorValue(
   path: Path,
   iterator: AsyncIterator<unknown>,
   asyncPayloadRecord?: AsyncPayloadRecord,
-): Promise<ReadonlyArray<unknown>> {
+): Promise<ReadonlyArray<unknown> | typeof SKIPPED_FIELD_SYMBOL> {
   const errors = asyncPayloadRecord?.errors ?? exeContext.errors;
   const stream = getStreamValues(exeContext, fieldGroup, path);
   let containsPromise = false;
@@ -1199,22 +1209,27 @@ async function completeAsyncIteratorValue(
       break;
     }
 
-    if (
-      completeListItemValue(
-        iteration.value,
-        completedResults,
-        errors,
-        exeContext,
-        itemType,
-        fieldGroup,
-        info,
-        itemPath,
-        asyncPayloadRecord,
-      )
-    ) {
+    const completedItem = completeListItemValue(
+      iteration.value,
+      errors,
+      exeContext,
+      itemType,
+      fieldGroup,
+      info,
+      itemPath,
+      asyncPayloadRecord,
+    );
+    if (completedItem === SKIPPED_FIELD_SYMBOL) {
+      return SKIPPED_FIELD_SYMBOL;
+    }
+    if (isPromise(completedItem)) {
       containsPromise = true;
     }
+    completedResults.push(completedItem);
     index += 1;
+  }
+  if (index === 0 && !shouldExecute(fieldGroup, true, asyncPayloadRecord)) {
+    return SKIPPED_FIELD_SYMBOL;
   }
   return containsPromise ? Promise.all(completedResults) : completedResults;
 }
@@ -1231,7 +1246,7 @@ function completeListValue(
   path: Path,
   result: unknown,
   asyncPayloadRecord?: AsyncPayloadRecord,
-): PromiseOrValue<ReadonlyArray<unknown>> {
+): PromiseOrValue<ReadonlyArray<unknown> | typeof SKIPPED_FIELD_SYMBOL> {
   const itemType = returnType.ofType;
   const errors = asyncPayloadRecord?.errors ?? exeContext.errors;
 
@@ -1287,36 +1302,38 @@ function completeListValue(
       continue;
     }
 
-    if (
-      completeListItemValue(
-        item,
-        completedResults,
-        errors,
-        exeContext,
-        itemType,
-        fieldGroup,
-        info,
-        itemPath,
-        asyncPayloadRecord,
-      )
-    ) {
+    const completedItem = completeListItemValue(
+      item,
+      errors,
+      exeContext,
+      itemType,
+      fieldGroup,
+      info,
+      itemPath,
+      asyncPayloadRecord,
+    );
+    if (completedItem === SKIPPED_FIELD_SYMBOL) {
+      return SKIPPED_FIELD_SYMBOL;
+    }
+    if (isPromise(completedItem)) {
       containsPromise = true;
     }
-
+    completedResults.push(completedItem);
     index++;
+  }
+
+  if (index === 0 && !shouldExecute(fieldGroup, true, asyncPayloadRecord)) {
+    return SKIPPED_FIELD_SYMBOL;
   }
 
   return containsPromise ? Promise.all(completedResults) : completedResults;
 }
 
 /**
- * Complete a list item value by adding it to the completed results.
- *
- * Returns true if the value is a Promise.
+ * Complete a list item value.
  */
 function completeListItemValue(
   item: unknown,
-  completedResults: Array<unknown>,
   errors: Array<GraphQLError>,
   exeContext: ExecutionContext,
   itemType: GraphQLOutputType,
@@ -1324,21 +1341,17 @@ function completeListItemValue(
   info: GraphQLResolveInfo,
   itemPath: Path,
   asyncPayloadRecord?: AsyncPayloadRecord,
-): boolean {
+): PromiseOrValue<unknown> {
   if (isPromise(item)) {
-    completedResults.push(
-      completePromisedValue(
-        exeContext,
-        itemType,
-        fieldGroup,
-        info,
-        itemPath,
-        item,
-        asyncPayloadRecord,
-      ),
+    return completePromisedValue(
+      exeContext,
+      itemType,
+      fieldGroup,
+      info,
+      itemPath,
+      item,
+      asyncPayloadRecord,
     );
-
-    return true;
   }
 
   try {
@@ -1355,23 +1368,19 @@ function completeListItemValue(
     if (isPromise(completedItem)) {
       // Note: we don't rely on a `catch` method, but we do expect "thenable"
       // to take a second callback for the error case.
-      completedResults.push(
-        completedItem.then(undefined, (rawError) => {
-          const error = locatedError(
-            rawError,
-            toNodes(fieldGroup),
-            pathToArray(itemPath),
-          );
-          const handledError = handleFieldError(error, itemType, errors);
-          filterSubsequentPayloads(exeContext, itemPath, asyncPayloadRecord);
-          return handledError;
-        }),
-      );
-
-      return true;
+      return completedItem.then(undefined, (rawError) => {
+        const error = locatedError(
+          rawError,
+          toNodes(fieldGroup),
+          pathToArray(itemPath),
+        );
+        const handledError = handleFieldError(error, itemType, errors);
+        filterSubsequentPayloads(exeContext, itemPath, asyncPayloadRecord);
+        return handledError;
+      });
     }
 
-    completedResults.push(completedItem);
+    return completedItem;
   } catch (rawError) {
     const error = locatedError(
       rawError,
@@ -1380,10 +1389,8 @@ function completeListItemValue(
     );
     const handledError = handleFieldError(error, itemType, errors);
     filterSubsequentPayloads(exeContext, itemPath, asyncPayloadRecord);
-    completedResults.push(handledError);
+    return handledError;
   }
-
-  return false;
 }
 
 /**
@@ -1582,7 +1589,7 @@ function collectAndExecuteSubfields(
   path: Path,
   result: unknown,
   asyncPayloadRecord?: AsyncPayloadRecord,
-): PromiseOrValue<ObjMap<unknown>> | typeof SKIPPED_FIELD_SYMBOL {
+): PromiseOrValue<ObjMap<unknown> | typeof SKIPPED_FIELD_SYMBOL> {
   // Collect sub-fields to execute to complete this value.
   const { groupedFieldSet, newDeferDepth } = collectSubfields(
     exeContext,
@@ -2250,6 +2257,9 @@ function getCompletedIncrementalResults(
       (incrementalResult as IncrementalStreamResult).items = items;
     } else {
       const data = asyncPayloadRecord.data;
+      if (data === SKIPPED_FIELD_SYMBOL) {
+        continue;
+      }
       (incrementalResult as IncrementalDeferResult).data = data ?? null;
     }
 
@@ -2341,11 +2351,14 @@ class DeferredFragmentRecord {
   path: Array<string | number>;
   deferDepth: number | undefined;
   promise: Promise<void>;
-  data: ObjMap<unknown> | null;
+  data: ObjMap<unknown> | null | typeof SKIPPED_FIELD_SYMBOL;
   parentContext: AsyncPayloadRecord | undefined;
   isCompleted: boolean;
   _exeContext: ExecutionContext;
-  _resolve?: (arg: PromiseOrValue<ObjMap<unknown> | null>) => void;
+  _resolve?: (
+    arg: PromiseOrValue<ObjMap<unknown> | null | typeof SKIPPED_FIELD_SYMBOL>,
+  ) => void;
+
   constructor(opts: {
     path: Path | undefined;
     deferDepth: number | undefined;
@@ -2361,7 +2374,9 @@ class DeferredFragmentRecord {
     this._exeContext.subsequentPayloads.add(this);
     this.isCompleted = false;
     this.data = null;
-    this.promise = new Promise<ObjMap<unknown> | null>((resolve) => {
+    this.promise = new Promise<
+      ObjMap<unknown> | null | typeof SKIPPED_FIELD_SYMBOL
+    >((resolve) => {
       this._resolve = (promiseOrValue) => {
         resolve(promiseOrValue);
       };
@@ -2371,7 +2386,9 @@ class DeferredFragmentRecord {
     });
   }
 
-  addData(data: PromiseOrValue<ObjMap<unknown> | null>) {
+  addData(
+    data: PromiseOrValue<ObjMap<unknown> | null | typeof SKIPPED_FIELD_SYMBOL>,
+  ) {
     const parentData = this.parentContext?.promise;
     if (parentData) {
       this._resolve?.(parentData.then(() => data));
