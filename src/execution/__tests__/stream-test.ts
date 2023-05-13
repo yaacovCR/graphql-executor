@@ -1287,6 +1287,10 @@ describe('Execute: stream directive', () => {
       {
         incremental: [
           {
+            items: [{ name: 'Luke' }],
+            path: ['nestedObject', 'nestedFriendList', 0],
+          },
+          {
             data: { scalarField: null },
             path: ['otherNestedObject'],
             errors: [
@@ -1297,11 +1301,10 @@ describe('Execute: stream directive', () => {
               },
             ],
           },
-          {
-            items: [{ name: 'Luke' }],
-            path: ['nestedObject', 'nestedFriendList', 0],
-          },
         ],
+        hasNext: true,
+      },
+      {
         hasNext: false,
       },
     ]);

@@ -1,9 +1,7 @@
-interface ContainsPromise {
-  promise: Promise<void>;
-}
-
 /** @internal */
-export class Publisher<I extends ContainsPromise, R> {
+export class Publisher<I, R> {
+  _unreleased: Set<I>;
+  _released: Set<I>;
   _pending: Set<I>;
   _update: (completed: Set<I>, publisher: Publisher<I, R>) => R | undefined;
   _onAbruptClose: (pending: ReadonlySet<I>) => Promise<void>;
@@ -19,6 +17,8 @@ export class Publisher<I extends ContainsPromise, R> {
     ) => R | undefined,
     onAbruptClose: (pending: ReadonlySet<I>) => Promise<void>,
   ) {
+    this._unreleased = new Set();
+    this._released = new Set();
     this._pending = new Set();
     this._update = update;
     this._onAbruptClose = onAbruptClose;
@@ -42,11 +42,22 @@ export class Publisher<I extends ContainsPromise, R> {
     return this._pending.size > 0;
   }
 
-  add(item: I) {
+  introduce(item: I) {
+    this._unreleased.add(item);
     this._pending.add(item);
   }
 
+  release(item: I): void {
+    if (this._pending.has(item)) {
+      this._unreleased.delete(item);
+      this._released.add(item);
+      this._trigger();
+    }
+  }
+
   delete(item: I) {
+    this._unreleased.delete(item);
+    this._released.delete(item);
     this._pending.delete(item);
     this._trigger();
   }
@@ -55,29 +66,31 @@ export class Publisher<I extends ContainsPromise, R> {
     let isDone = false;
 
     const _next = async (): Promise<IteratorResult<R, void>> => {
-      if (isDone) {
-        return { value: undefined, done: true };
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        if (isDone) {
+          return { value: undefined, done: true };
+        }
+
+        for (const item of this._released) {
+          this._pending.delete(item);
+        }
+        const released = this._released;
+        this._released = new Set();
+
+        const result = this._update(released, this);
+
+        if (!this.hasNext()) {
+          isDone = true;
+        }
+
+        if (result !== undefined) {
+          return { value: result, done: false };
+        }
+
+        // eslint-disable-next-line no-await-in-loop
+        await this._signalled;
       }
-
-      await Promise.race(Array.from(this._pending).map((item) => item.promise));
-
-      if (isDone) {
-        // a different call to next has exhausted all payloads
-        return { value: undefined, done: true };
-      }
-
-      const result = this._update(this._pending, this);
-      const hasNext = this._pending.size > 0;
-
-      if (result === undefined && hasNext) {
-        return _next();
-      }
-
-      if (!hasNext) {
-        isDone = true;
-      }
-
-      return { value: result as R, done: false };
     };
 
     const _return = async (): Promise<IteratorResult<R, void>> => {

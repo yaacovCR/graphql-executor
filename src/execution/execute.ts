@@ -2129,7 +2129,7 @@ function filterSubsequentPayloads(
 }
 
 function getIncrementalResult(
-  pending: ReadonlySet<IncrementalDataRecord>,
+  completedRecords: ReadonlySet<IncrementalDataRecord>,
   publisher: Publisher<
     IncrementalDataRecord,
     SubsequentIncrementalExecutionResult
@@ -2137,12 +2137,8 @@ function getIncrementalResult(
 ): SubsequentIncrementalExecutionResult | undefined {
   const incrementalResults: Array<IncrementalResult> = [];
   let encounteredCompletedAsyncIterator = false;
-  for (const incrementalDataRecord of pending) {
+  for (const incrementalDataRecord of completedRecords) {
     const incrementalResult: IncrementalResult = {};
-    if (!incrementalDataRecord.isCompleted) {
-      continue;
-    }
-    publisher.delete(incrementalDataRecord);
     if (isStreamItemsRecord(incrementalDataRecord)) {
       const items = incrementalDataRecord.items;
       if (incrementalDataRecord.isCompletedAsyncIterator) {
@@ -2165,7 +2161,6 @@ function getIncrementalResult(
     }
     incrementalResults.push(incrementalResult);
   }
-
   return incrementalResults.length
     ? { incremental: incrementalResults, hasNext: publisher.hasNext() }
     : encounteredCompletedAsyncIterator && !publisher.hasNext()
@@ -2211,7 +2206,7 @@ class DeferredFragmentRecord {
     this.parentContext = opts.parentContext;
     this.errors = [];
     this._exeContext = opts.exeContext;
-    this._exeContext.publisher.add(this);
+    this._exeContext.publisher.introduce(this);
     this.isCompleted = false;
     this.data = null;
     this.promise = new Promise<ObjMap<unknown> | null>((resolve) => {
@@ -2221,6 +2216,7 @@ class DeferredFragmentRecord {
     }).then((data) => {
       this.data = data;
       this.isCompleted = true;
+      this._exeContext.publisher.release(this);
     });
   }
 
@@ -2262,7 +2258,7 @@ class StreamItemsRecord {
     this.asyncIterator = opts.asyncIterator;
     this.errors = [];
     this._exeContext = opts.exeContext;
-    this._exeContext.publisher.add(this);
+    this._exeContext.publisher.introduce(this);
     this.isCompleted = false;
     this.items = null;
     this.promise = new Promise<Array<unknown> | null>((resolve) => {
@@ -2272,6 +2268,7 @@ class StreamItemsRecord {
     }).then((items) => {
       this.items = items;
       this.isCompleted = true;
+      this._exeContext.publisher.release(this);
     });
   }
 
