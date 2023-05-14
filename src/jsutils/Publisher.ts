@@ -1,6 +1,5 @@
 /** @internal */
 export class Publisher<I, R> {
-  _unreleased: Set<I>;
   _released: Set<I>;
   _pending: Set<I>;
   _update: (completed: Set<I>, publisher: Publisher<I, R>) => R | undefined;
@@ -17,7 +16,6 @@ export class Publisher<I, R> {
     ) => R | undefined,
     onAbruptClose: (pending: ReadonlySet<I>) => Promise<void>,
   ) {
-    this._unreleased = new Set();
     this._released = new Set();
     this._pending = new Set();
     this._update = update;
@@ -43,20 +41,23 @@ export class Publisher<I, R> {
   }
 
   introduce(item: I) {
-    this._unreleased.add(item);
     this._pending.add(item);
   }
 
   release(item: I): void {
     if (this._pending.has(item)) {
-      this._unreleased.delete(item);
       this._released.add(item);
       this._trigger();
     }
   }
 
+  push(item: I): void {
+    this._released.add(item);
+    this._pending.add(item);
+    this._trigger();
+  }
+
   delete(item: I) {
-    this._unreleased.delete(item);
     this._released.delete(item);
     this._pending.delete(item);
     this._trigger();

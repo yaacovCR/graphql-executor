@@ -1827,6 +1827,7 @@ function executeDeferredFragment(
     parentContext,
     exeContext,
   });
+
   let promiseOrData;
   try {
     promiseOrData = executeFields(
@@ -1839,16 +1840,20 @@ function executeDeferredFragment(
     );
 
     if (isPromise(promiseOrData)) {
-      promiseOrData = promiseOrData.then(null, (e) => {
-        incrementalDataRecord.errors.push(e);
-        return null;
-      });
+      promiseOrData = promiseOrData.then(
+        (resolved) => incrementalDataRecord.addData(resolved),
+        (e) => {
+          incrementalDataRecord.errors.push(e);
+          incrementalDataRecord.addData(null);
+        },
+      );
+    } else {
+      incrementalDataRecord.addData(promiseOrData);
     }
   } catch (e) {
     incrementalDataRecord.errors.push(e);
-    promiseOrData = null;
+    incrementalDataRecord.addData(null);
   }
-  incrementalDataRecord.addData(promiseOrData);
 }
 
 function executeStreamField(
@@ -1868,8 +1873,9 @@ function executeStreamField(
     parentContext,
     exeContext,
   });
+
   if (isPromise(item)) {
-    const completedItems = completePromisedValue(
+    completePromisedValue(
       exeContext,
       itemType,
       fieldGroup,
@@ -1878,15 +1884,15 @@ function executeStreamField(
       item,
       incrementalDataRecord,
     ).then(
-      (value) => [value],
+      (value) => incrementalDataRecord.addItems([value]),
       (error) => {
         incrementalDataRecord.errors.push(error);
         filterSubsequentPayloads(exeContext, path, incrementalDataRecord);
+        incrementalDataRecord.addItems(null);
         return null;
       },
     );
 
-    incrementalDataRecord.addItems(completedItems);
     return incrementalDataRecord;
   }
 
@@ -1922,7 +1928,7 @@ function executeStreamField(
   }
 
   if (isPromise(completedItem)) {
-    const completedItems = completedItem
+    completedItem
       .then(undefined, (rawError) => {
         handleFieldError(
           rawError,
@@ -1936,15 +1942,14 @@ function executeStreamField(
         return null;
       })
       .then(
-        (value) => [value],
+        (value) => incrementalDataRecord.addItems([value]),
         (error) => {
           incrementalDataRecord.errors.push(error);
           filterSubsequentPayloads(exeContext, path, incrementalDataRecord);
-          return null;
+          incrementalDataRecord.addItems(null);
         },
       );
 
-    incrementalDataRecord.addItems(completedItems);
     return incrementalDataRecord;
   }
 
@@ -1964,9 +1969,15 @@ async function executeStreamAsyncIteratorItem(
   let item;
   try {
     const { value, done } = await asyncIterator.next();
-    if (done) {
+    const children =
+      incrementalDataRecord.parentContext === undefined
+        ? exeContext.publisher.getPending()
+        : incrementalDataRecord.parentContext.children;
+    const filtered = !children.has(incrementalDataRecord);
+
+    if (done || filtered) {
       incrementalDataRecord.setIsCompletedAsyncIterator();
-      return { done, value: undefined };
+      return { done: true, value: undefined };
     }
     item = value;
   } catch (rawError) {
@@ -2073,21 +2084,18 @@ async function executeStreamAsyncIterator(
 
     const { done, value: completedItem } = iteration;
 
-    let completedItems: PromiseOrValue<Array<unknown> | null>;
     if (isPromise(completedItem)) {
-      completedItems = completedItem.then(
-        (value) => [value],
+      completedItem.then(
+        (value) => incrementalDataRecord.addItems([value]),
         (error) => {
           incrementalDataRecord.errors.push(error);
           filterSubsequentPayloads(exeContext, path, incrementalDataRecord);
-          return null;
+          incrementalDataRecord.addItems(null);
         },
       );
     } else {
-      completedItems = [completedItem];
+      incrementalDataRecord.addItems([completedItem]);
     }
-
-    incrementalDataRecord.addItems(completedItems);
 
     if (done) {
       break;
@@ -2099,33 +2107,64 @@ async function executeStreamAsyncIterator(
 
 function filterSubsequentPayloads(
   exeContext: ExecutionContext,
-  nullPath: Path,
-  currentIncrementalDataRecord: IncrementalDataRecord | undefined,
+  nullPath: Path | undefined,
+  erroringIncrementalDataRecord: IncrementalDataRecord | undefined,
 ): void {
   const nullPathArray = pathToArray(nullPath);
-  const publisher = exeContext.publisher;
-  publisher.getPending().forEach((incrementalDataRecord) => {
-    if (incrementalDataRecord === currentIncrementalDataRecord) {
-      // don't remove payload from where error originates
-      return;
+
+  const asyncIterators = new Set<AsyncIterator<unknown>>();
+
+  const children =
+    erroringIncrementalDataRecord === undefined
+      ? exeContext.publisher.getPending()
+      : erroringIncrementalDataRecord.children;
+
+  for (const child of getDescendants(children)) {
+    if (!matchesPath(child.path, nullPathArray)) {
+      continue;
     }
-    for (let i = 0; i < nullPathArray.length; i++) {
-      if (incrementalDataRecord.path[i] !== nullPathArray[i]) {
-        // incrementalDataRecord points to a path unaffected by this payload
-        return;
+
+    exeContext.publisher.delete(child);
+    if (child.parentContext !== undefined) {
+      child.parentContext.children.delete(child);
+    }
+
+    if (isStreamItemsRecord(child)) {
+      if (child.asyncIterator !== undefined) {
+        asyncIterators.add(child.asyncIterator);
       }
     }
-    // incrementalDataRecord path points to nulled error field
-    if (
-      isStreamItemsRecord(incrementalDataRecord) &&
-      incrementalDataRecord.asyncIterator?.return
-    ) {
-      incrementalDataRecord.asyncIterator.return().catch(() => {
-        // ignore error
-      });
-    }
-    publisher.delete(incrementalDataRecord);
+  }
+
+  asyncIterators.forEach((asyncIterator) => {
+    asyncIterator.return?.().catch(() => {
+      // ignore error
+    });
   });
+}
+
+function getDescendants(
+  children: ReadonlySet<IncrementalDataRecord>,
+  descendants = new Set<IncrementalDataRecord>(),
+): ReadonlySet<IncrementalDataRecord> {
+  for (const child of children) {
+    descendants.add(child);
+    getDescendants(child.children, descendants);
+  }
+  return descendants;
+}
+
+function matchesPath(
+  testPath: Array<string | number>,
+  basePath: Array<string | number>,
+): boolean {
+  for (let i = 0; i < basePath.length; i++) {
+    if (basePath[i] !== testPath[i]) {
+      // testPath points to a path unaffected at basePath
+      return false;
+    }
+  }
+  return true;
 }
 
 function getIncrementalResult(
@@ -2139,6 +2178,13 @@ function getIncrementalResult(
   let encounteredCompletedAsyncIterator = false;
   for (const incrementalDataRecord of completedRecords) {
     const incrementalResult: IncrementalResult = {};
+    for (const child of incrementalDataRecord.children) {
+      if (child.isCompleted) {
+        publisher.push(child);
+      } else {
+        publisher.introduce(child);
+      }
+    }
     if (isStreamItemsRecord(incrementalDataRecord)) {
       const items = incrementalDataRecord.items;
       if (incrementalDataRecord.isCompletedAsyncIterator) {
@@ -2161,6 +2207,7 @@ function getIncrementalResult(
     }
     incrementalResults.push(incrementalResult);
   }
+
   return incrementalResults.length
     ? { incremental: incrementalResults, hasNext: publisher.hasNext() }
     : encounteredCompletedAsyncIterator && !publisher.hasNext()
@@ -2172,14 +2219,14 @@ async function returnStreamIterators(
   pendingRecords: ReadonlySet<IncrementalDataRecord>,
 ): Promise<void> {
   const promises: Array<Promise<IteratorResult<unknown>>> = [];
-  pendingRecords.forEach((incrementalDataRecord) => {
+  for (const incrementalDataRecord of pendingRecords) {
     if (
       isStreamItemsRecord(incrementalDataRecord) &&
       incrementalDataRecord.asyncIterator?.return
     ) {
       promises.push(incrementalDataRecord.asyncIterator.return());
     }
-  });
+  }
   await Promise.all(promises);
 }
 
@@ -2188,12 +2235,11 @@ class DeferredFragmentRecord {
   errors: Array<GraphQLError>;
   label: string | undefined;
   path: Array<string | number>;
-  promise: Promise<void>;
   data: ObjMap<unknown> | null;
   parentContext: IncrementalDataRecord | undefined;
+  children: Set<IncrementalDataRecord>;
   isCompleted: boolean;
   _exeContext: ExecutionContext;
-  _resolve?: (arg: PromiseOrValue<ObjMap<unknown> | null>) => void;
   constructor(opts: {
     label: string | undefined;
     path: Path | undefined;
@@ -2206,27 +2252,20 @@ class DeferredFragmentRecord {
     this.parentContext = opts.parentContext;
     this.errors = [];
     this._exeContext = opts.exeContext;
-    this._exeContext.publisher.introduce(this);
+    if (this.parentContext) {
+      this.parentContext.children.add(this);
+    } else {
+      this._exeContext.publisher.introduce(this);
+    }
+    this.children = new Set();
     this.isCompleted = false;
     this.data = null;
-    this.promise = new Promise<ObjMap<unknown> | null>((resolve) => {
-      this._resolve = (promiseOrValue) => {
-        resolve(promiseOrValue);
-      };
-    }).then((data) => {
-      this.data = data;
-      this.isCompleted = true;
-      this._exeContext.publisher.release(this);
-    });
   }
 
-  addData(data: PromiseOrValue<ObjMap<unknown> | null>) {
-    const parentData = this.parentContext?.promise;
-    if (parentData) {
-      this._resolve?.(parentData.then(() => data));
-      return;
-    }
-    this._resolve?.(data);
+  addData(data: ObjMap<unknown> | null) {
+    this.data = data;
+    this.isCompleted = true;
+    this._exeContext.publisher.release(this);
   }
 }
 
@@ -2236,13 +2275,12 @@ class StreamItemsRecord {
   label: string | undefined;
   path: Array<string | number>;
   items: Array<unknown> | null;
-  promise: Promise<void>;
   parentContext: IncrementalDataRecord | undefined;
+  children: Set<IncrementalDataRecord>;
   asyncIterator: AsyncIterator<unknown> | undefined;
   isCompletedAsyncIterator?: boolean;
   isCompleted: boolean;
   _exeContext: ExecutionContext;
-  _resolve?: (arg: PromiseOrValue<Array<unknown> | null>) => void;
   constructor(opts: {
     label: string | undefined;
     path: Path | undefined;
@@ -2258,27 +2296,20 @@ class StreamItemsRecord {
     this.asyncIterator = opts.asyncIterator;
     this.errors = [];
     this._exeContext = opts.exeContext;
-    this._exeContext.publisher.introduce(this);
+    if (this.parentContext) {
+      this.parentContext.children.add(this);
+    } else {
+      this._exeContext.publisher.introduce(this);
+    }
+    this.children = new Set();
     this.isCompleted = false;
     this.items = null;
-    this.promise = new Promise<Array<unknown> | null>((resolve) => {
-      this._resolve = (promiseOrValue) => {
-        resolve(promiseOrValue);
-      };
-    }).then((items) => {
-      this.items = items;
-      this.isCompleted = true;
-      this._exeContext.publisher.release(this);
-    });
   }
 
-  addItems(items: PromiseOrValue<Array<unknown> | null>) {
-    const parentData = this.parentContext?.promise;
-    if (parentData) {
-      this._resolve?.(parentData.then(() => items));
-      return;
-    }
-    this._resolve?.(items);
+  addItems(items: Array<unknown> | null) {
+    this.items = items;
+    this.isCompleted = true;
+    this._exeContext.publisher.release(this);
   }
 
   setIsCompletedAsyncIterator() {

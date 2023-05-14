@@ -1174,9 +1174,6 @@ describe('Execute: stream directive', () => {
             ],
           },
         ],
-        hasNext: true,
-      },
-      {
         hasNext: false,
       },
     ]);
@@ -1200,25 +1197,19 @@ describe('Execute: stream directive', () => {
         } /* c8 ignore stop */,
       },
     });
-    expectJSON(result).toDeepEqual([
-      {
-        errors: [
-          {
-            message:
-              'Cannot return null for non-nullable field NestedObject.nonNullScalarField.',
-            locations: [{ line: 4, column: 11 }],
-            path: ['nestedObject', 'nonNullScalarField'],
-          },
-        ],
-        data: {
-          nestedObject: null,
+    expectJSON(result).toDeepEqual({
+      errors: [
+        {
+          message:
+            'Cannot return null for non-nullable field NestedObject.nonNullScalarField.',
+          locations: [{ line: 4, column: 11 }],
+          path: ['nestedObject', 'nonNullScalarField'],
         },
-        hasNext: true,
+      ],
+      data: {
+        nestedObject: null,
       },
-      {
-        hasNext: false,
-      },
-    ]);
+    });
   });
   it('Filters payloads that are nulled by a later synchronous error', async () => {
     const document = parse(`
@@ -1287,10 +1278,6 @@ describe('Execute: stream directive', () => {
       {
         incremental: [
           {
-            items: [{ name: 'Luke' }],
-            path: ['nestedObject', 'nestedFriendList', 0],
-          },
-          {
             data: { scalarField: null },
             path: ['otherNestedObject'],
             errors: [
@@ -1300,6 +1287,10 @@ describe('Execute: stream directive', () => {
                 path: ['otherNestedObject', 'scalarField'],
               },
             ],
+          },
+          {
+            items: [{ name: 'Luke' }],
+            path: ['nestedObject', 'nestedFriendList', 0],
           },
         ],
         hasNext: true,
@@ -1362,9 +1353,6 @@ describe('Execute: stream directive', () => {
             ],
           },
         ],
-        hasNext: true,
-      },
-      {
         hasNext: false,
       },
     ]);
