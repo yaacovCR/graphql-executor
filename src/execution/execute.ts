@@ -1825,7 +1825,7 @@ function executeDeferredFragment(
     label,
     path,
     parentContext,
-    exeContext,
+    publisher: exeContext.publisher,
   });
 
   let promiseOrData;
@@ -1871,7 +1871,7 @@ function executeStreamField(
     label,
     path: itemPath,
     parentContext,
-    exeContext,
+    publisher: exeContext.publisher,
   });
 
   if (isPromise(item)) {
@@ -2054,7 +2054,7 @@ async function executeStreamAsyncIterator(
       path: itemPath,
       parentContext: previousIncrementalDataRecord,
       asyncIterator,
-      exeContext,
+      publisher: exeContext.publisher,
     });
 
     let iteration;
@@ -2179,11 +2179,7 @@ function getIncrementalResult(
   for (const incrementalDataRecord of completedRecords) {
     const incrementalResult: IncrementalResult = {};
     for (const child of incrementalDataRecord.children) {
-      if (child.isCompleted) {
-        publisher.push(child);
-      } else {
-        publisher.introduce(child);
-      }
+      child.publish();
     }
     if (isStreamItemsRecord(incrementalDataRecord)) {
       const items = incrementalDataRecord.items;
@@ -2239,23 +2235,30 @@ class DeferredFragmentRecord {
   parentContext: IncrementalDataRecord | undefined;
   children: Set<IncrementalDataRecord>;
   isCompleted: boolean;
-  _exeContext: ExecutionContext;
+  _publisher: Publisher<
+    IncrementalDataRecord,
+    SubsequentIncrementalExecutionResult
+  >;
+
   constructor(opts: {
     label: string | undefined;
     path: Path | undefined;
     parentContext: IncrementalDataRecord | undefined;
-    exeContext: ExecutionContext;
+    publisher: Publisher<
+      IncrementalDataRecord,
+      SubsequentIncrementalExecutionResult
+    >;
   }) {
     this.type = 'defer';
     this.label = opts.label;
     this.path = pathToArray(opts.path);
     this.parentContext = opts.parentContext;
     this.errors = [];
-    this._exeContext = opts.exeContext;
+    this._publisher = opts.publisher;
     if (this.parentContext) {
       this.parentContext.children.add(this);
     } else {
-      this._exeContext.publisher.introduce(this);
+      this._publisher.introduce(this);
     }
     this.children = new Set();
     this.isCompleted = false;
@@ -2265,7 +2268,15 @@ class DeferredFragmentRecord {
   addData(data: ObjMap<unknown> | null) {
     this.data = data;
     this.isCompleted = true;
-    this._exeContext.publisher.release(this);
+    this._publisher.release(this);
+  }
+
+  publish() {
+    if (this.isCompleted) {
+      this._publisher.push(this);
+    } else {
+      this._publisher.introduce(this);
+    }
   }
 }
 
@@ -2280,13 +2291,20 @@ class StreamItemsRecord {
   asyncIterator: AsyncIterator<unknown> | undefined;
   isCompletedAsyncIterator?: boolean;
   isCompleted: boolean;
-  _exeContext: ExecutionContext;
+  _publisher: Publisher<
+    IncrementalDataRecord,
+    SubsequentIncrementalExecutionResult
+  >;
+
   constructor(opts: {
     label: string | undefined;
     path: Path | undefined;
     asyncIterator?: AsyncIterator<unknown>;
     parentContext: IncrementalDataRecord | undefined;
-    exeContext: ExecutionContext;
+    publisher: Publisher<
+      IncrementalDataRecord,
+      SubsequentIncrementalExecutionResult
+    >;
   }) {
     this.type = 'stream';
     this.items = null;
@@ -2295,11 +2313,11 @@ class StreamItemsRecord {
     this.parentContext = opts.parentContext;
     this.asyncIterator = opts.asyncIterator;
     this.errors = [];
-    this._exeContext = opts.exeContext;
+    this._publisher = opts.publisher;
     if (this.parentContext) {
       this.parentContext.children.add(this);
     } else {
-      this._exeContext.publisher.introduce(this);
+      this._publisher.introduce(this);
     }
     this.children = new Set();
     this.isCompleted = false;
@@ -2309,11 +2327,19 @@ class StreamItemsRecord {
   addItems(items: Array<unknown> | null) {
     this.items = items;
     this.isCompleted = true;
-    this._exeContext.publisher.release(this);
+    this._publisher.release(this);
   }
 
   setIsCompletedAsyncIterator() {
     this.isCompletedAsyncIterator = true;
+  }
+
+  publish() {
+    if (this.isCompleted) {
+      this._publisher.push(this);
+    } else {
+      this._publisher.introduce(this);
+    }
   }
 }
 
