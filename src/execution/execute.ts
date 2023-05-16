@@ -105,6 +105,11 @@ const collectSubfields = memoize3(
  * 3) inline fragment "spreads" e.g. `...on Type { a }`
  */
 
+type IncrementalPublisher = Publisher<
+  IncrementalDataRecord,
+  SubsequentIncrementalExecutionResult
+>;
+
 /**
  * Data that must be available at all points during query execution.
  *
@@ -122,10 +127,7 @@ export interface ExecutionContext {
   typeResolver: GraphQLTypeResolver<any, any>;
   subscribeFieldResolver: GraphQLFieldResolver<any, any>;
   errors: Array<GraphQLError>;
-  publisher: Publisher<
-    IncrementalDataRecord,
-    SubsequentIncrementalExecutionResult
-  >;
+  publisher: IncrementalPublisher;
 }
 
 /**
@@ -2169,10 +2171,7 @@ function matchesPath(
 
 function getIncrementalResult(
   completedRecords: ReadonlySet<IncrementalDataRecord>,
-  publisher: Publisher<
-    IncrementalDataRecord,
-    SubsequentIncrementalExecutionResult
-  >,
+  publisher: IncrementalPublisher,
 ): SubsequentIncrementalExecutionResult | undefined {
   const incrementalResults: Array<IncrementalResult> = [];
   let encounteredCompletedAsyncIterator = false;
@@ -2235,19 +2234,13 @@ class DeferredFragmentRecord {
   parentContext: IncrementalDataRecord | undefined;
   children: Set<IncrementalDataRecord>;
   isCompleted: boolean;
-  _publisher: Publisher<
-    IncrementalDataRecord,
-    SubsequentIncrementalExecutionResult
-  >;
+  _publisher: IncrementalPublisher;
 
   constructor(opts: {
     label: string | undefined;
     path: Path | undefined;
     parentContext: IncrementalDataRecord | undefined;
-    publisher: Publisher<
-      IncrementalDataRecord,
-      SubsequentIncrementalExecutionResult
-    >;
+    publisher: IncrementalPublisher;
   }) {
     this.type = 'defer';
     this.label = opts.label;
@@ -2291,20 +2284,14 @@ class StreamItemsRecord {
   asyncIterator: AsyncIterator<unknown> | undefined;
   isCompletedAsyncIterator?: boolean;
   isCompleted: boolean;
-  _publisher: Publisher<
-    IncrementalDataRecord,
-    SubsequentIncrementalExecutionResult
-  >;
+  _publisher: IncrementalPublisher;
 
   constructor(opts: {
     label: string | undefined;
     path: Path | undefined;
     asyncIterator?: AsyncIterator<unknown>;
     parentContext: IncrementalDataRecord | undefined;
-    publisher: Publisher<
-      IncrementalDataRecord,
-      SubsequentIncrementalExecutionResult
-    >;
+    publisher: IncrementalPublisher;
   }) {
     this.type = 'stream';
     this.items = null;
