@@ -47,6 +47,18 @@ function reasonMessage(reason: ConflictReasonMessage): string {
   return reason;
 }
 
+interface RuleContext {
+  // A cache for the "field map" and list of fragment names found in any given
+  // selection set. Selection sets may be asked for this information multiple
+  // times, so this improves the performance of this validator.
+  cachedFieldsAndFragmentNames: Map<SelectionSetNode, FieldsAndFragmentNames>;
+  // A memoization for when fields and a fragment or two fragments are compared
+  // "between" each other for conflicts. Comparisons made be made many times,
+  // so memoizing this can dramatically improve the performance of this validator.
+  comparedFieldsAndFragmentPairs: PairSet<NodeAndDefCollection | string>;
+  comparedFragmentPairs: PairSet<string>;
+}
+
 /**
  * Overlapping fields can be merged
  *
@@ -59,26 +71,16 @@ function reasonMessage(reason: ConflictReasonMessage): string {
 export function OverlappingFieldsCanBeMergedRule(
   context: ValidationContext,
 ): ASTVisitor {
-  // A memoization for when fields and a fragment or two fragments are compared
-  // "between" each other for conflicts. Comparisons made be made many times,
-  // so memoizing this can dramatically improve the performance of this validator.
-  const comparedFieldsAndFragmentPairs = new PairSet<
-    NodeAndDefCollection | string
-  >();
-  const comparedFragmentPairs = new PairSet<string>((a, b) => a < b);
-
-  // A cache for the "field map" and list of fragment names found in any given
-  // selection set. Selection sets may be asked for this information multiple
-  // times, so this improves the performance of this validator.
-  const cachedFieldsAndFragmentNames = new Map();
-
+  const ruleContext: RuleContext = {
+    cachedFieldsAndFragmentNames: new Map(),
+    comparedFieldsAndFragmentPairs: new PairSet(),
+    comparedFragmentPairs: new PairSet((a, b) => a < b),
+  };
   return {
     SelectionSet(selectionSet) {
       const conflicts = findConflictsWithinSelectionSet(
         context,
-        cachedFieldsAndFragmentNames,
-        comparedFieldsAndFragmentPairs,
-        comparedFragmentPairs,
+        ruleContext,
         context.getParentType(),
         selectionSet,
       );
@@ -171,9 +173,7 @@ type FieldsAndFragmentNames = readonly [NodeAndDefCollection, FragmentNames];
 // GraphQL Document.
 function findConflictsWithinSelectionSet(
   context: ValidationContext,
-  cachedFieldsAndFragmentNames: Map<SelectionSetNode, FieldsAndFragmentNames>,
-  comparedFieldsAndFragmentPairs: PairSet<NodeAndDefCollection | string>,
-  comparedFragmentPairs: PairSet<string>,
+  ruleContext: RuleContext,
   parentType: Maybe<GraphQLNamedType>,
   selectionSet: SelectionSetNode,
 ): Array<Conflict> {
@@ -181,21 +181,14 @@ function findConflictsWithinSelectionSet(
 
   const [fieldMap, fragmentNames] = getFieldsAndFragmentNames(
     context,
-    cachedFieldsAndFragmentNames,
+    ruleContext.cachedFieldsAndFragmentNames,
     parentType,
     selectionSet,
   );
 
   // (A) Find find all conflicts "within" the fields of this selection set.
   // Note: this is the *only place* `collectConflictsWithin` is called.
-  collectConflictsWithin(
-    context,
-    conflicts,
-    cachedFieldsAndFragmentNames,
-    comparedFieldsAndFragmentPairs,
-    comparedFragmentPairs,
-    fieldMap,
-  );
+  collectConflictsWithin(context, conflicts, ruleContext, fieldMap);
 
   if (fragmentNames.length !== 0) {
     // (B) Then collect conflicts between these fields and those represented by
@@ -204,9 +197,7 @@ function findConflictsWithinSelectionSet(
       collectConflictsBetweenFieldsAndFragment(
         context,
         conflicts,
-        cachedFieldsAndFragmentNames,
-        comparedFieldsAndFragmentPairs,
-        comparedFragmentPairs,
+        ruleContext,
         false,
         fieldMap,
         fragmentNames[i],
@@ -219,9 +210,7 @@ function findConflictsWithinSelectionSet(
         collectConflictsBetweenFragments(
           context,
           conflicts,
-          cachedFieldsAndFragmentNames,
-          comparedFieldsAndFragmentPairs,
-          comparedFragmentPairs,
+          ruleContext,
           false,
           fragmentNames[i],
           fragmentNames[j],
@@ -237,13 +226,17 @@ function findConflictsWithinSelectionSet(
 function collectConflictsBetweenFieldsAndFragment(
   context: ValidationContext,
   conflicts: Array<Conflict>,
-  cachedFieldsAndFragmentNames: Map<SelectionSetNode, FieldsAndFragmentNames>,
-  comparedFieldsAndFragmentPairs: PairSet<NodeAndDefCollection | string>,
-  comparedFragmentPairs: PairSet<string>,
+  ruleContext: RuleContext,
   areMutuallyExclusive: boolean,
   fieldMap: NodeAndDefCollection,
   fragmentName: string,
 ): void {
+  const {
+    cachedFieldsAndFragmentNames,
+    comparedFieldsAndFragmentPairs,
+    comparedFragmentPairs,
+  } = ruleContext;
+
   // Memoize so the fields and fragments are not compared for conflicts more
   // than once.
   if (
@@ -283,9 +276,7 @@ function collectConflictsBetweenFieldsAndFragment(
   collectConflictsBetween(
     context,
     conflicts,
-    cachedFieldsAndFragmentNames,
-    comparedFieldsAndFragmentPairs,
-    comparedFragmentPairs,
+    ruleContext,
     areMutuallyExclusive,
     fieldMap,
     fieldMap2,
@@ -297,9 +288,7 @@ function collectConflictsBetweenFieldsAndFragment(
     collectConflictsBetweenFieldsAndFragment(
       context,
       conflicts,
-      cachedFieldsAndFragmentNames,
-      comparedFieldsAndFragmentPairs,
-      comparedFragmentPairs,
+      ruleContext,
       areMutuallyExclusive,
       fieldMap,
       referencedFragmentName,
@@ -312,9 +301,7 @@ function collectConflictsBetweenFieldsAndFragment(
 function collectConflictsBetweenFragments(
   context: ValidationContext,
   conflicts: Array<Conflict>,
-  cachedFieldsAndFragmentNames: Map<SelectionSetNode, FieldsAndFragmentNames>,
-  comparedFieldsAndFragmentPairs: PairSet<NodeAndDefCollection | string>,
-  comparedFragmentPairs: PairSet<string>,
+  ruleContext: RuleContext,
   areMutuallyExclusive: boolean,
   fragmentName1: string,
   fragmentName2: string,
@@ -323,6 +310,12 @@ function collectConflictsBetweenFragments(
   if (fragmentName1 === fragmentName2) {
     return;
   }
+
+  const {
+    cachedFieldsAndFragmentNames,
+    comparedFieldsAndFragmentPairs,
+    comparedFragmentPairs,
+  } = ruleContext;
 
   // Memoize so two fragments are not compared for conflicts more than once.
   if (
@@ -360,9 +353,7 @@ function collectConflictsBetweenFragments(
   collectConflictsBetween(
     context,
     conflicts,
-    cachedFieldsAndFragmentNames,
-    comparedFieldsAndFragmentPairs,
-    comparedFragmentPairs,
+    ruleContext,
     areMutuallyExclusive,
     fieldMap1,
     fieldMap2,
@@ -374,9 +365,7 @@ function collectConflictsBetweenFragments(
     collectConflictsBetweenFragments(
       context,
       conflicts,
-      cachedFieldsAndFragmentNames,
-      comparedFieldsAndFragmentPairs,
-      comparedFragmentPairs,
+      ruleContext,
       areMutuallyExclusive,
       fragmentName1,
       referencedFragmentName2,
@@ -389,9 +378,7 @@ function collectConflictsBetweenFragments(
     collectConflictsBetweenFragments(
       context,
       conflicts,
-      cachedFieldsAndFragmentNames,
-      comparedFieldsAndFragmentPairs,
-      comparedFragmentPairs,
+      ruleContext,
       areMutuallyExclusive,
       referencedFragmentName1,
       fragmentName2,
@@ -404,9 +391,7 @@ function collectConflictsBetweenFragments(
 // between the sub-fields of two overlapping fields.
 function findConflictsBetweenSubSelectionSets(
   context: ValidationContext,
-  cachedFieldsAndFragmentNames: Map<SelectionSetNode, FieldsAndFragmentNames>,
-  comparedFieldsAndFragmentPairs: PairSet<NodeAndDefCollection | string>,
-  comparedFragmentPairs: PairSet<string>,
+  ruleContext: RuleContext,
   areMutuallyExclusive: boolean,
   parentType1: Maybe<GraphQLNamedType>,
   selectionSet1: SelectionSetNode,
@@ -414,6 +399,8 @@ function findConflictsBetweenSubSelectionSets(
   selectionSet2: SelectionSetNode,
 ): Array<Conflict> {
   const conflicts: Array<Conflict> = [];
+
+  const cachedFieldsAndFragmentNames = ruleContext.cachedFieldsAndFragmentNames;
 
   const [fieldMap1, fragmentNames1] = getFieldsAndFragmentNames(
     context,
@@ -432,9 +419,7 @@ function findConflictsBetweenSubSelectionSets(
   collectConflictsBetween(
     context,
     conflicts,
-    cachedFieldsAndFragmentNames,
-    comparedFieldsAndFragmentPairs,
-    comparedFragmentPairs,
+    ruleContext,
     areMutuallyExclusive,
     fieldMap1,
     fieldMap2,
@@ -446,9 +431,7 @@ function findConflictsBetweenSubSelectionSets(
     collectConflictsBetweenFieldsAndFragment(
       context,
       conflicts,
-      cachedFieldsAndFragmentNames,
-      comparedFieldsAndFragmentPairs,
-      comparedFragmentPairs,
+      ruleContext,
       areMutuallyExclusive,
       fieldMap1,
       fragmentName2,
@@ -461,9 +444,7 @@ function findConflictsBetweenSubSelectionSets(
     collectConflictsBetweenFieldsAndFragment(
       context,
       conflicts,
-      cachedFieldsAndFragmentNames,
-      comparedFieldsAndFragmentPairs,
-      comparedFragmentPairs,
+      ruleContext,
       areMutuallyExclusive,
       fieldMap2,
       fragmentName1,
@@ -478,9 +459,7 @@ function findConflictsBetweenSubSelectionSets(
       collectConflictsBetweenFragments(
         context,
         conflicts,
-        cachedFieldsAndFragmentNames,
-        comparedFieldsAndFragmentPairs,
-        comparedFragmentPairs,
+        ruleContext,
         areMutuallyExclusive,
         fragmentName1,
         fragmentName2,
@@ -494,9 +473,7 @@ function findConflictsBetweenSubSelectionSets(
 function collectConflictsWithin(
   context: ValidationContext,
   conflicts: Array<Conflict>,
-  cachedFieldsAndFragmentNames: Map<SelectionSetNode, FieldsAndFragmentNames>,
-  comparedFieldsAndFragmentPairs: PairSet<NodeAndDefCollection | string>,
-  comparedFragmentPairs: PairSet<string>,
+  ruleContext: RuleContext,
   fieldMap: NodeAndDefCollection,
 ): void {
   // A field map is a keyed collection, where each key represents a response
@@ -512,9 +489,7 @@ function collectConflictsWithin(
         for (let j = i + 1; j < fields.length; j++) {
           const conflict = findConflict(
             context,
-            cachedFieldsAndFragmentNames,
-            comparedFieldsAndFragmentPairs,
-            comparedFragmentPairs,
+            ruleContext,
             false, // within one collection is never mutually exclusive
             responseName,
             fields[i],
@@ -537,9 +512,7 @@ function collectConflictsWithin(
 function collectConflictsBetween(
   context: ValidationContext,
   conflicts: Array<Conflict>,
-  cachedFieldsAndFragmentNames: Map<SelectionSetNode, FieldsAndFragmentNames>,
-  comparedFieldsAndFragmentPairs: PairSet<NodeAndDefCollection | string>,
-  comparedFragmentPairs: PairSet<string>,
+  ruleContext: RuleContext,
   parentFieldsAreMutuallyExclusive: boolean,
   fieldMap1: NodeAndDefCollection,
   fieldMap2: NodeAndDefCollection,
@@ -556,9 +529,7 @@ function collectConflictsBetween(
         for (const field2 of fields2) {
           const conflict = findConflict(
             context,
-            cachedFieldsAndFragmentNames,
-            comparedFieldsAndFragmentPairs,
-            comparedFragmentPairs,
+            ruleContext,
             parentFieldsAreMutuallyExclusive,
             responseName,
             field1,
@@ -577,9 +548,7 @@ function collectConflictsBetween(
 // comparing their sub-fields.
 function findConflict(
   context: ValidationContext,
-  cachedFieldsAndFragmentNames: Map<SelectionSetNode, FieldsAndFragmentNames>,
-  comparedFieldsAndFragmentPairs: PairSet<NodeAndDefCollection | string>,
-  comparedFragmentPairs: PairSet<string>,
+  ruleContext: RuleContext,
   parentFieldsAreMutuallyExclusive: boolean,
   responseName: string,
   field1: NodeAndDef,
@@ -649,9 +618,7 @@ function findConflict(
   if (selectionSet1 && selectionSet2) {
     const conflicts = findConflictsBetweenSubSelectionSets(
       context,
-      cachedFieldsAndFragmentNames,
-      comparedFieldsAndFragmentPairs,
-      comparedFragmentPairs,
+      ruleContext,
       areMutuallyExclusive,
       getNamedType(type1),
       selectionSet1,
